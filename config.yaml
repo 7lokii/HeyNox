@@ -1,0 +1,69 @@
+nox:
+  name: "Nox"
+  language: "pt-PT"
+  persona: "calm, direct, helpful, futuristic"
+  wake_word: "hey nox"
+  wake_word_sensitivity: 0.7
+  voice_enabled: true
+  text_enabled: true
+
+audio:
+  input_device: "default"
+  sample_rate: 16000
+  channels: 1
+  vad:
+    provider: "silero"
+    sensitivity: 0.5
+
+stt:
+  provider: "faster-whisper"
+  model: "small"
+  device: "auto"
+  language: "pt"
+  fallback_provider: "openai"
+
+llm:
+  default_provider: "openai_compatible"
+  router:
+    simple_tasks: "groq"
+    coding_tasks: "anthropic"
+    private_tasks: "ollama"
+    fallback: "openai_compatible"
+
+tts:
+  provider: "kokoro"
+  voice: "pt-PT-male"
+  speed: 1.0
+
+memory:
+  sqlite_path: "data/nox.db"
+  vector_store: "chroma"
+  embedding_provider: "local"
+
+github:
+  default_repo: "7lokii/HeyNox"
+  default_branch: "main"
+  allow_push_to_main: false
+  require_pr: true
+  require_tests: true
+
+security:
+  allowed_paths:
+    - "./projects"
+    - "./data"
+  blocked_paths:
+    - ".env"
+    - ".git"
+    - "credentials"
+  allowed_commands:
+    - "git status"
+    - "git diff"
+    - "pytest"
+    - "python -m pytest"
+  require_confirmation:
+    - "delete"
+    - "force_push"
+    - "install"
+    - "system_change"
+    - "send_email"
+    - "purchase"

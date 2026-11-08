@@ -1,0 +1,31 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Ferramentas
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.pyright/
+
+# Dados locais e projetos autorizados
+data/*
+!data/.gitkeep
+projects/*
+!projects/.gitkeep
+
+# Sistema
+.DS_Store
+Thumbs.db
