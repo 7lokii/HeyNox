@@ -302,6 +302,11 @@ def build_wake(
         from nox.models import ensure_vosk_model
 
         model = ensure_vosk_model(settings.model, progress=progress)
+        profile = None
+        if config.wake.voiceprint:
+            from nox.audio.voiceprint import load_profile
+
+            profile = load_profile()
         return VoskWakeWord(
             config.wake.phrases or [config.nox.wake_word],
             model_path=model,
@@ -309,6 +314,8 @@ def build_wake(
             noise_gate=config.audio.noise_gate,
             noise_gate_factor=config.audio.noise_gate_factor,
             denoise=config.audio.denoise_wake,
+            profile=profile,
+            voiceprint_threshold=config.wake.voiceprint_threshold,
         )
     raise ModelError(f"wake.provider '{settings.provider}' desconhecido")
 

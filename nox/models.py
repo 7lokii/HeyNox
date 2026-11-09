@@ -18,6 +18,10 @@ from nox.config import NoxError
 from nox.paths import user_data_dir
 
 PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+SPEAKER_URL = (
+    "https://huggingface.co/onnx-community/wespeaker-voxceleb-resnet34-LM"
+    "/resolve/main/onnx/model.onnx"
+)
 VOSK_BASE = "https://alphacephei.com/vosk/models"
 
 _VOICE_PATTERN = re.compile(
@@ -35,6 +39,10 @@ def piper_dir() -> Path:
 
 def vosk_dir() -> Path:
     return user_data_dir() / "models" / "vosk"
+
+
+def speaker_dir() -> Path:
+    return user_data_dir() / "models" / "wespeaker"
 
 
 def voice_urls(voice: str) -> tuple[str, str]:
@@ -79,6 +87,18 @@ def ensure_piper_voice(
             progress(f"a descarregar {destination.name}")
         _download(url, destination)
     return model_path
+
+
+def ensure_speaker_model(*, progress: Callable[[str], None] | None = None) -> Path:
+    """Modelo de locutor (WeSpeaker, ONNX, ~25 MB). Só desce uma vez."""
+    target = speaker_dir() / "model.onnx"
+    if target.is_file():
+        return target
+    if progress:
+        progress("a descarregar o modelo de voz (25 MB)")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _download(SPEAKER_URL, target)
+    return target
 
 
 def ensure_vosk_model(

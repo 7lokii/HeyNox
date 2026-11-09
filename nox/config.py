@@ -172,6 +172,9 @@ class WakeConfig(BaseModel):
     model: str = "vosk-model-small-pt-0.3"
     # Qualquer uma destas formas ativa o Nox. Basta a palavra distintiva.
     phrases: list[str] = Field(default_factory=lambda: ["nox", "ei nox", "hey nox"])
+    # Só o dono do perfil de voz ativa o Nox. Requer `nox --enroll` primeiro.
+    voiceprint: bool = True
+    voiceprint_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
     # Segundos à espera do pedido depois de ouvir a wake word.
     timeout_s: float = Field(default=8.0, gt=0)
     # Depois de responder, o Nox continua a ouvir sem exigir a palavra outra

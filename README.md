@@ -44,6 +44,12 @@ nox --say "que horas são?"   # uma resposta e sai
 nox --speak "Bom dia."       # sintetiza para WAV
 nox --transcribe audio.wav   # transcreve um WAV
 
+nox --enroll                 # inscreve a tua voz (3 amostras)
+nox --voiceprint            # vê ou apaga o perfil de voz
+
+nox --enroll                 # inscreve a tua voz (3 amostras)
+nox --voiceprint            # vê ou apaga o perfil de voz
+
 nox --memory                 # o que o Nox sabe sobre ti
 nox --forget Rui             # esquece o que contiver "Rui"
 nox --memory-reset           # apaga factos e histórico

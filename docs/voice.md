@@ -163,16 +163,35 @@ Uma palavra curta ("Nox") só aparece no resultado final do Vosk, nunca no
 parcial — daí o `_flush` quando o troço acaba. Custa até 1,5 s a reagir; com
 "Hey Nox" a reação é quase imediata, porque o parcial já traz "a inox".
 
-### Amostras da tua voz ajudam?
+### Impressão vocal: só tu acordas o Nox
 
-Para o detetor atual, **não**. O Vosk é um reconhecedor genérico: mais gravações
-da tua voz não mudam o modelo, e uma dúzia de clipes não chega para treinar
-nada. Seriam úteis em dois cenários futuros: treinar um modelo openWakeWord
-dedicado (precisa de milhares de amostras sintéticas, não de dezenas reais) ou
-treinar um *verificador* de locutor que confirme que a palavra foi dita por ti.
+O Vosk não aprende com a tua voz — é um reconhecedor genérico. O que se pode
+fazer, e está feito, é **confirmar quem falou** depois de a palavra ser detetada:
 
-O que **ajudaria hoje**: umas horas de gravação do ruído real da tua sala para
-afinar `audio.noise_gate_factor`.
+```bash
+nox --enroll              # grava 3 amostras pelo microfone
+nox --voiceprint          # vê o perfil
+nox --forget-voice        # apaga
+```
+
+Cada amostra vira um embedding de 256 dimensões (WeSpeaker ResNet34, ONNX,
+25 MB) e o perfil é a média. Na ativação, a frase é comparada por cosseno:
+abaixo de `wake.voiceprint_threshold` (0,35) o Nox ignora.
+
+Medido com duas vozes sintéticas distintas:
+
+| | Semelhança com o perfil |
+|---|---|
+| mesma voz, frase diferente | 0,46 ✅ |
+| outra voz | 0,19 ❌ |
+
+**Porque não MFCC:** a primeira tentativa usou média e desvio de MFCC. Uma voz
+masculina e uma feminina deram **0,989** de semelhança — mede o canal e o texto,
+não a pessoa. Foi descartada.
+
+Limites: com 3 amostras de 2 s o perfil é frágil; quanto mais amostras, melhor.
+O limiar 0,35 é conservador de propósito — é preferível não acordar do que
+acordar com a voz de outra pessoa.
 
 ## Wake word (detalhe técnico)
 
@@ -214,6 +233,48 @@ Duas defesas, medidas com ruído branco adicionado:
 Acima de ~600 de ruído branco contínuo o reconhecedor deixa de ouvir a palavra.
 É o limite do modelo pequeno, não do portão.
 
+## Krisp e outros supressores
+
+O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
+público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
+contrato.
+
+A via prática é a app de secretária da Krisp, que instala um **microfone
+virtual**. Para o Nox, isso é só escolher o dispositivo:
+
+```yaml
+audio:
+  input_device: "Krisp"
+```
+
+O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
+O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
+exponha um dispositivo de entrada.
+
+Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
+caminho do áudio.
+
+## Krisp e outros supressores
+
+O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
+público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
+contrato.
+
+A via prática é a app de secretária da Krisp, que instala um **microfone
+virtual**. Para o Nox, isso é só escolher o dispositivo:
+
+```yaml
+audio:
+  input_device: "Krisp"
+```
+
+O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
+O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
+exponha um dispositivo de entrada.
+
+Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
+caminho do áudio.
+
 ## Ruído na transcrição
 
 Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
@@ -244,6 +305,48 @@ Duas defesas, medidas com ruído branco adicionado:
 
 Acima de ~600 de ruído branco contínuo o reconhecedor deixa de ouvir a palavra.
 É o limite do modelo pequeno, não do portão.
+
+## Krisp e outros supressores
+
+O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
+público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
+contrato.
+
+A via prática é a app de secretária da Krisp, que instala um **microfone
+virtual**. Para o Nox, isso é só escolher o dispositivo:
+
+```yaml
+audio:
+  input_device: "Krisp"
+```
+
+O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
+O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
+exponha um dispositivo de entrada.
+
+Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
+caminho do áudio.
+
+## Krisp e outros supressores
+
+O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
+público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
+contrato.
+
+A via prática é a app de secretária da Krisp, que instala um **microfone
+virtual**. Para o Nox, isso é só escolher o dispositivo:
+
+```yaml
+audio:
+  input_device: "Krisp"
+```
+
+O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
+O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
+exponha um dispositivo de entrada.
+
+Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
+caminho do áudio.
 
 ## Ruído na transcrição
 

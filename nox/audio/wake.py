@@ -19,6 +19,7 @@ from typing import Protocol
 from nox.audio.denoise import NoiseGate, StreamingDenoiser
 from nox.audio.types import Pcm
 from nox.audio.vad import WebRtcVad
+from nox.audio.voiceprint import VoiceProfile, is_me
 from nox.config import NoxError
 from nox.models import ensure_vosk_model
 from nox.optional import require
@@ -73,14 +74,68 @@ def wake_tokens(phrases: Sequence[str] | str) -> tuple[str, ...]:
     return tuple(sorted(tokens))
 
 
-def matches(text: str, tokens: tuple[str, ...]) -> bool:
-    """True se alguma palavra contiver um dos tokens.
+# Palavras comuns que ficam a uma letra de "nox" e não podem acordar o Nox.
+_NEAR_MISSES = {
+    "nos",
+    "no",
+    "na",
+    "nas",
+    "num",
+    "nem",
+    "nao",
+    "voz",
+    "vez",
+    "dez",
+    "fez",
+    "luz",
+    "pus",
+}
 
-    Comparação por substring de propósito: o reconhecedor pt escreve "Nox" como
-    "inox", e uma distância de edição deixaria passar "no", que é comum demais.
+
+def matches(text: str, tokens: tuple[str, ...]) -> bool:
+    """True se alguma palavra for a palavra de ativação.
+
+    Duas comparações: substring (o reconhecedor pt escreve "Nox" como "inox",
+    e às vezes "menox") e quase-igual, para apanhar "noks", "nok", "nóx" —
+    pronúncias que o modelo devolve com uma letra trocada. A lista de exclusão
+    evita que "nós", "voz" ou "dez" acordem o Nox por engano.
     """
     words = normalize(text).split()
-    return any(token in word for word in words for token in tokens)
+    return any(_is_token(word, token) for word in words for token in tokens)
+
+
+def _is_token(word: str, token: str) -> bool:
+    if token in word:
+        return True
+    # O reconhecedor às vezes acrescenta plural: "noks", "nocs".
+    candidates = [word]
+    if len(word) >= 4 and word.endswith("s"):
+        candidates.append(word[:-1])
+    for candidate in candidates:
+        if candidate in _NEAR_MISSES or len(candidate) < 3:
+            continue
+        if candidate[0] != token[0]:
+            continue
+        if abs(len(candidate) - len(token)) <= 1 and _distance(candidate, token) <= 1:
+            return True
+    return False
+
+
+def _distance(left: str, right: str) -> int:
+    """Distância de Levenshtein, para palavras curtas."""
+    previous = list(range(len(right) + 1))
+    for i, char_left in enumerate(left, start=1):
+        current = [i]
+        for j, char_right in enumerate(right, start=1):
+            current.append(
+                min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + (char_left != char_right),
+                )
+            )
+        previous = current
+    return previous[-1]
 
 
 class VoskWakeWord:
@@ -105,6 +160,8 @@ class VoskWakeWord:
         noise_gate_factor: float = 2.5,
         denoise: bool = True,
         denoise_floor: float = 250.0,
+        profile: VoiceProfile | None = None,
+        voiceprint_threshold: float = 0.35,
     ) -> None:
         if sample_rate != 16000:
             raise WakeWordError("a wake word por Vosk só funciona a 16 kHz")
@@ -124,6 +181,9 @@ class VoskWakeWord:
         self._noise = NoiseGate(factor=noise_gate_factor) if noise_gate else None
         self._denoiser = StreamingDenoiser(sample_rate) if denoise else None
         self._denoise_floor = denoise_floor
+        self._profile = profile
+        self._voiceprint_threshold = voiceprint_threshold
+        self._utterance: list[Pcm] = []
         self._sample_rate = sample_rate
         self._hold_s = hold_s
         # Contado em segundos de áudio, não em relógio: assim o detetor é
@@ -167,14 +227,34 @@ class VoskWakeWord:
             self._idle = True
             return self._flush()
 
+        # Guardar o troço para, se a palavra aparecer, se confirmar a voz.
+        if self._profile is not None:
+            self._utterance.append(chunk)
+            if len(self._utterance) > 100:  # ~3 s a 30 ms
+                self._utterance.pop(0)
+
         if self._recognizer.AcceptWaveform(chunk):
             text = json.loads(self._recognizer.Result()).get("text", "")
         else:
             text = json.loads(self._recognizer.PartialResult()).get("partial", "")
 
         if self._matches(text):
+            return self._confirm()
+
+        return False
+
+    def _confirm(self) -> bool:
+        """Confirma que a palavra foi dita pelo dono do perfil."""
+        if self._profile is None:
             self._reset()
             return True
+
+        audio = Pcm(b"".join(self._utterance))
+        if is_me(audio, self._sample_rate, self._profile, threshold=self._voiceprint_threshold):
+            self._reset()
+            return True
+        # Voz diferente: ignora e continua a ouvir, sem limpar o contexto.
+        self._utterance.clear()
         return False
 
     def _flush(self) -> bool:
@@ -190,6 +270,7 @@ class VoskWakeWord:
         self._hold_left = 0.0
         self._idle = True
         self._pre_roll.clear()
+        self._utterance.clear()
 
     def _matches(self, text: str) -> bool:
         return matches(text, self._tokens)

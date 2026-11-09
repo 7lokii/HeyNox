@@ -62,6 +62,14 @@ def _check(config: Config) -> list[str]:
             f"Sem chave de modelo ({config.llm.api_key_env}): só respostas locais "
             "até configurares o .env"
         )
+    if config.wake.voiceprint:
+        from nox.audio.voiceprint import load_profile
+
+        if load_profile() is None:
+            warnings.append(
+                "wake.voiceprint ativo mas sem perfil de voz: qualquer voz ativa o Nox "
+                "(corre 'nox --enroll')"
+            )
     data_dir = config.memory.sqlite_path.parent
     if not data_dir.exists():
         warnings.append(f"Diretório de dados ainda não existe: {data_dir}")
@@ -99,6 +107,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--memory-reset", action="store_true", help="Apaga factos e histórico de conversa"
     )
+    parser.add_argument(
+        "--enroll", action="store_true", help="Grava 3 amostras da tua voz pelo microfone"
+    )
+    parser.add_argument(
+        "--enroll-files",
+        nargs="+",
+        metavar="WAV",
+        type=Path,
+        default=None,
+        help="Cria o perfil de voz a partir de ficheiros WAV",
+    )
+    parser.add_argument("--voiceprint", action="store_true", help="Mostra o perfil de voz")
+    parser.add_argument("--forget-voice", action="store_true", help="Apaga o perfil de voz")
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     parser.add_argument(
         "--speak", metavar="TEXTO", default=None, help="Sintetiza a frase para WAV e sai"
@@ -160,6 +181,8 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         from nox.ui.server import serve
 
         return serve(config, out=out)
+    if args.enroll or args.enroll_files or args.voiceprint or args.forget_voice:
+        return _voiceprint_command(config, args, out)
     if args.memory or args.forget or args.memory_export or args.memory_import or args.memory_reset:
         return _memory_command(config, args, out)
     if args.text:
@@ -227,6 +250,72 @@ def _memory_command(config: Config, args: argparse.Namespace, out: Callable[[str
                 out(f"  [{fact.kind}] {fact.text}")
     finally:
         store.close()
+    return 0
+
+
+def _voiceprint_command(
+    config: Config, args: argparse.Namespace, out: Callable[[str], None]
+) -> int:
+    from nox.audio.voiceprint import (
+        VoiceprintError,
+        build_profile,
+        forget_profile,
+        load_profile,
+        profile_path,
+        save_profile,
+    )
+
+    try:
+        if args.forget_voice:
+            removed = forget_profile()
+            out("perfil de voz apagado" if removed else "não havia perfil guardado")
+
+        if args.voiceprint:
+            perfil = load_profile()
+            if perfil is None:
+                out(f"sem perfil de voz em {profile_path()} — usa --enroll")
+            else:
+                out(f"perfil: {profile_path()}")
+                out(f"{perfil.samples} amostras, {len(perfil.embedding)} dimensões")
+
+        if args.enroll_files:
+            from nox.audio.types import resample
+            from nox.audio.wav import read_wav
+
+            clips = []
+            for path in args.enroll_files:
+                audio, rate = read_wav(path)
+                clips.append(resample(audio, rate, 16000))
+            perfil = build_profile(clips, 16000)
+            save_profile(perfil)
+            out(f"perfil criado com {perfil.samples} amostras -> {profile_path()}")
+
+        if args.enroll:
+            if not has_console():
+                out("Erro: a inscrição precisa de uma consola")
+                return 2
+            from nox.audio.mic import SoundDeviceSource
+            from nox.audio.types import Pcm
+
+            source = SoundDeviceSource(
+                sample_rate=config.audio.sample_rate, block_ms=config.audio.block_ms
+            )
+            frames = round(config.audio.sample_rate * config.audio.block_ms / 1000)
+            blocos = round(2000 / config.audio.block_ms)
+            clips = []
+            try:
+                for index in range(3):
+                    input(f"amostra {index + 1}/3 — Enter e diz «Nox» ")
+                    source.flush()
+                    clips.append(Pcm(b"".join(source.read(frames) for _ in range(blocos))))
+            finally:
+                source.close()
+            perfil = build_profile(clips, config.audio.sample_rate)
+            save_profile(perfil)
+            out(f"perfil criado com {perfil.samples} amostras -> {profile_path()}")
+    except (NoxError, VoiceprintError) as exc:
+        out(f"Erro: {exc}")
+        return 2
     return 0
 
 
