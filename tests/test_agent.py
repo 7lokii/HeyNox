@@ -98,6 +98,19 @@ def test_stop_and_resume() -> None:
     assert agent.stopped is False
 
 
+def test_stop_phrase_triggers_the_emergency_brake() -> None:
+    from nox.desktop.guard import EMERGENCY
+
+    EMERGENCY.clear()
+    agent = Agent(EchoLlm(), clock=fixed_clock)
+
+    assert agent.local_answer("para tudo") == "Controlo do PC parado."
+    assert EMERGENCY.active is True
+
+    assert agent.local_answer("retoma o controlo") == "Controlo do PC retomado."
+    assert EMERGENCY.active is False
+
+
 def test_extra_system_is_added_to_the_prompt() -> None:
     agent = Agent(EchoLlm(), extra_system="\nSKILL-X\n")
     assert "SKILL-X" in agent.conversation.system

@@ -19,6 +19,7 @@ from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
 from nox.config import Config
+from nox.desktop.guard import EMERGENCY
 from nox.integrations.github import GitHub
 from nox.memory.extract import extract_facts
 from nox.memory.store import Fact, MemoryStore, resolve_memory_path
@@ -28,6 +29,7 @@ from nox.safety.sandbox import Sandbox
 from nox.skills import load_skills, skill_index
 from nox.tools.base import ToolRegistry
 from nox.tools.browser import build_browser_tools
+from nox.tools.desktop import build_desktop_tools
 from nox.tools.files import build_file_tools
 from nox.tools.github import build_github_tools
 from nox.tools.mcp import build_mcp_tools
@@ -75,6 +77,9 @@ _DATE_HINTS = (
     "que dia e",
 )
 _THANKS_HINTS = ("obrigado", "obrigada")
+# Travão do controlo do PC. Frases curtas para não colidirem com perguntas.
+_STOP_HINTS = ("para tudo", "emergencia", "aborta o controlo", "stop nox")
+_RESUME_HINTS = ("retoma o controlo", "reactiva o controlo", "volta ao controlo")
 _RECALL_HINTS = (
     "o que sabes sobre mim",
     "o que sabes de mim",
@@ -199,6 +204,13 @@ class Agent:
         if len(normalized.split()) > LOCAL_ANSWER_MAX_WORDS:
             return None
 
+        if any(hint in normalized for hint in _STOP_HINTS):
+            EMERGENCY.trigger()
+            return "Controlo do PC parado."
+        if any(hint in normalized for hint in _RESUME_HINTS):
+            EMERGENCY.clear()
+            return "Controlo do PC retomado."
+
         now = self.clock()
         if any(hint in normalized for hint in _HOURS_HINTS):
             verb = "É" if now.hour in (0, 1) else "São"
@@ -315,6 +327,7 @@ def build_agent(
             *build_browser_tools(sandbox, approvals=approvals),
             *build_notes_tools(sandbox),
             *build_github_tools(GitHub(config, sandbox)),
+            *build_desktop_tools(config.desktop, sandbox, approvals=approvals),
             *build_routine_tools(RoutineStore()),
             *build_skill_tools(skills),
             *build_mcp_tools(config),

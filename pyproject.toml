@@ -26,6 +26,17 @@ stt = ["faster-whisper>=1.0"]
 tts = ["piper-tts>=1.8"]
 edge = ["edge-tts>=7.0"]
 browser = ["playwright>=1.49"]
+desktop = [
+    "pyautogui>=0.9.54",
+    "pygetwindow>=0.0.9",
+    "mss>=9.0",
+    "pillow>=10.0",
+    "winrt-runtime; sys_platform == 'win32'",
+    "winrt-Windows.Media.Ocr; sys_platform == 'win32'",
+    "winrt-Windows.Graphics.Imaging; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams; sys_platform == 'win32'",
+    "winrt-Windows.Foundation; sys_platform == 'win32'",
+]
 voice = [
     "heynox[audio,wake,vad,stt,tts,edge]",
 ]

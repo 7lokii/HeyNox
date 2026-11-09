@@ -17,6 +17,7 @@ from typing import Any
 from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
+from nox.desktop.guard import EMERGENCY
 from nox.paths import bundle_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.ui.state import NoxState
@@ -161,6 +162,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/state":
             snapshot = self.app.state.snapshot()
             snapshot["approvals"] = self.app.approvals.pending()
+            snapshot["emergency"] = EMERGENCY.active
             self._send_json(snapshot)
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
@@ -199,6 +201,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             decided = self.app.approvals.decide(approval_id, bool(body.get("approved")))
             self._send_json({"decided": decided})
+        elif self.path == "/api/emergency":
+            on = bool(self._body().get("on", True))
+            if on:
+                EMERGENCY.trigger()
+            else:
+                EMERGENCY.clear()
+            self._send_json({"emergency": EMERGENCY.active})
         else:
             self.send_error(404)
 

@@ -57,7 +57,7 @@
     letter-spacing: 0.14em;
   }
   .status {
-    margin-left: auto;
+    margin-left: 12px;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -78,6 +78,26 @@
     animation: pulse 2.2s ease-in-out infinite;
   }
   @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  .emergency {
+    margin-left: auto;
+    padding: 6px 14px;
+    border: 1px solid rgba(248, 113, 113, .55);
+    border-radius: 999px;
+    background: transparent;
+    color: #f87171;
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .emergency:hover { background: rgba(248, 113, 113, .12); }
+  .emergency[aria-pressed="true"] {
+    background: rgba(248, 113, 113, .2);
+    border-color: #f87171;
+    color: #fecaca;
+  }
 
   /* ---------- palco ---------- */
   .stage {
@@ -342,6 +362,7 @@
   <header class="topbar">
     <div class="brand"><span class="mark">◈</span>NOX</div>
     <div class="clock" id="clock">--:--:--</div>
+    <button class="emergency" id="emergency" aria-pressed="false" title="Parar o controlo do PC">Parar</button>
     <div class="status" id="status"><i></i><span id="statustext">parado</span></div>
   </header>
 
@@ -386,6 +407,7 @@ const ctx = canvas.getContext("2d");
 const logEl = document.getElementById("log");
 const statusText = document.getElementById("statustext");
 const voiceBtn = document.getElementById("voice");
+const emergencyBtn = document.getElementById("emergency");
 const clockEl = document.getElementById("clock");
 const memList = document.getElementById("memlist");
 const memCount = document.getElementById("memcount");
@@ -401,6 +423,7 @@ let status = "parado";
 let rendered = -1;
 let phase = 0;
 let approvalKey = "";
+let emergencyOn = false;
 
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -443,6 +466,28 @@ function setStatus(value) {
   document.body.dataset.status = value;
   statusText.textContent = value;
 }
+
+function setEmergency(on) {
+  if (on === emergencyOn) return;
+  emergencyOn = on;
+  emergencyBtn.setAttribute("aria-pressed", String(on));
+  emergencyBtn.textContent = on ? "Retomar" : "Parar";
+  document.body.dataset.emergency = on ? "on" : "off";
+}
+
+async function toggleEmergency() {
+  try {
+    const data = await api("/api/emergency", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on: !emergencyOn }),
+    });
+    setEmergency(Boolean(data.emergency));
+  } catch (error) {
+    /* sem ligação: o próximo refresh repõe o estado */
+  }
+}
+emergencyBtn.addEventListener("click", toggleEmergency);
 
 async function decideApproval(id, approved, button) {
   button.disabled = true;
@@ -499,6 +544,7 @@ async function refresh() {
     voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
     render(state.turns);
     renderApprovals(state.approvals || []);
+    setEmergency(Boolean(state.emergency));
   } catch (error) {
     setStatus("sem ligação");
   }

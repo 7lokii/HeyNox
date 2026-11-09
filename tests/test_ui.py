@@ -175,3 +175,18 @@ def test_unknown_approval_id_is_reported(server) -> None:
     assert post_json(base + "/api/approvals", {"id": "nao-existe", "approved": True}) == {
         "decided": False
     }
+
+
+def test_emergency_endpoint_toggles_the_brake(server) -> None:
+    from nox.desktop.guard import EMERGENCY
+
+    base, _ = server
+    EMERGENCY.clear()
+    try:
+        assert post_json(base + "/api/emergency", {"on": True}) == {"emergency": True}
+        assert get_json(base + "/api/state")["emergency"] is True
+
+        assert post_json(base + "/api/emergency", {"on": False}) == {"emergency": False}
+        assert get_json(base + "/api/state")["emergency"] is False
+    finally:
+        EMERGENCY.clear()

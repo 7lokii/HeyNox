@@ -183,6 +183,16 @@ class AutomationConfig(BaseModel):
     tick_s: float = Field(default=30.0, gt=0)
 
 
+class DesktopConfig(BaseModel):
+    """Controlo do PC. Desligado por omissão; cada ação pede aprovação."""
+
+    enabled: bool = False
+    confirm_actions: bool = True
+    # Aplicações que o Nox pode abrir. Vazio = nenhuma.
+    allowed_apps: list[str] = Field(default_factory=list)
+    screenshot_dir: str = "data/screenshots"
+
+
 ConfirmationAction = Literal[
     "delete",
     "force_push",
@@ -258,6 +268,7 @@ class Config(BaseModel):
     stt: SttConfig = Field(default_factory=SttConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     automation: AutomationConfig = Field(default_factory=AutomationConfig)
+    desktop: DesktopConfig = Field(default_factory=DesktopConfig)
     mcp: McpConfig = Field(default_factory=McpConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)

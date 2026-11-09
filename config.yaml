@@ -114,6 +114,16 @@ automation:
   enabled: true
   tick_s: 30
 
+desktop:
+  # Controlo do PC. Cada ação pede aprovação na interface.
+  enabled: true
+  confirm_actions: true
+  allowed_apps:
+    - "notepad.exe"
+    - "calc.exe"
+    - "explorer.exe"
+  screenshot_dir: "data/screenshots"
+
 mcp:
   # Servidores MCP por stdio. Desligado: arrancar processos externos é uma
   # decisão explícita. Exemplo:

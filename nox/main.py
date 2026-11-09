@@ -70,6 +70,17 @@ def _check(config: Config) -> list[str]:
                 "wake.voiceprint ativo mas sem perfil de voz: qualquer voz ativa o Nox "
                 "(corre 'nox --enroll')"
             )
+    if config.desktop.enabled:
+        missing_desktop = [
+            name for name in ("pyautogui", "pygetwindow", "mss") if not available(name)
+        ]
+        if missing_desktop:
+            warnings.append(
+                f"Controlo do PC ativo mas faltam dependências: {', '.join(missing_desktop)} "
+                "(pip install -e .[desktop])"
+            )
+        elif sys.platform == "win32" and not available("winrt.windows.media.ocr"):
+            warnings.append("OCR indisponível: falta o winrt (pip install -e .[desktop])")
     data_dir = config.memory.sqlite_path.parent
     if not data_dir.exists():
         warnings.append(f"Diretório de dados ainda não existe: {data_dir}")
