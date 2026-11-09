@@ -186,10 +186,24 @@ licenciamento é comercial, negociado com vendas. Além disso, exige uma
 AccessKey validada periodicamente com os servidores da Picovoice, o que quebra
 o modo offline.
 
+## Interrupção da fala
+
+`audio.barge_in: true` faz o Nox calar-se quando começas a falar. Está
+**desligado por omissão**, e por uma razão concreta: sem cancelamento de eco, o
+microfone ouve o próprio Nox pelos altifalantes e ele interrompe-se sozinho.
+
+O que dispara a interrupção é fala sustentada durante `barge_in_ms` (300 ms) e
+acima de `barge_in_threshold` (800 de energia) — o VAD sozinho deixa passar o
+eco. Com auscultadores funciona bem; com altifalantes, aumenta o limiar ou
+deixa desligado.
+
+O início da frase que interrompeu já foi lido do microfone, por isso esses
+blocos entram no segmentador: não se perde a primeira palavra.
+
 ## Decisões pendentes
 
 - **Modelo dedicado de wake word.** O Vosk resolve, mas gasta CPU e depende da
   transcrição. Um modelo openWakeWord treinado para "hey nox" seria mais leve
   (1 MB, ~3% de CPU) e mais preciso. Fica para quando houver tempo de treino.
-- **Interrupção da fala.** O `agent.stop()` existe e ninguém o chama: o Nox
-  ainda não se cala quando o interrompes.
+- **Cancelamento de eco (AEC).** É o que tornaria o barge-in fiável com
+  altifalantes.

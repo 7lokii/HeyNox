@@ -18,7 +18,7 @@ from pathlib import Path
 from nox.audio.mic import AudioError, SoundDeviceSource
 from nox.audio.source import AudioSource, WavSource
 from nox.audio.speaker import SoundDeviceSpeaker, Speaker
-from nox.audio.types import Pcm
+from nox.audio.types import Pcm, rms
 from nox.audio.vad import EnergyVad, Segmenter, VoiceActivityDetector, WebRtcVad
 from nox.audio.wake import VoskWakeWord, WakeWordDetector
 from nox.brain.agent import Agent, build_agent
@@ -55,6 +55,9 @@ class VoiceLoop:
     fillers: tuple[str, ...] = ()
     wake: WakeWordDetector | None = None
     wake_timeout_s: float = 8.0
+    barge_in: bool = False
+    barge_in_ms: int = 300
+    barge_in_threshold: float = 800.0
     _armed: bool = field(default=False, repr=False)
     _armed_at: float = field(default=0.0, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
@@ -123,21 +126,27 @@ class VoiceLoop:
             return False
         self.out(f"{self.name}> {answer}")
 
-        self.speak(answer)
+        interrupted = self.speak(answer)
+        if interrupted:
+            # O utilizador está a falar: não deitar fora o que ele já disse nem
+            # voltar a exigir a palavra de ativação.
+            self._armed_at = time.monotonic()
+            return True
         # O microfone encheu enquanto o Nox falava; deitar fora antes de voltar
         # a ouvir evita transcrever a própria resposta.
         self.source.flush()
         self._armed = False
         return True
 
-    def speak(self, text: str) -> None:
+    def speak(self, text: str) -> bool:
         """Fala por frases, sintetizando a seguinte enquanto a atual é reproduzida.
 
         A primeira frase chega ao altifalante sem esperar pela síntese do resto.
+        Devolve True se o utilizador interrompeu.
         """
         sentences = split_sentences(text)
         if not sentences:
-            return
+            return False
         rate = self.synthesizer.sample_rate
         with ThreadPoolExecutor(max_workers=1) as pool:
             pending = pool.submit(self.synthesizer.synthesize, sentences[0])
@@ -145,8 +154,49 @@ class VoiceLoop:
                 audio = pending.result()
                 if index + 1 < len(sentences):
                     pending = pool.submit(self.synthesizer.synthesize, sentences[index + 1])
-                if audio:
+                if not audio:
+                    continue
+                if self.barge_in and self._play_listening(audio, rate):
+                    return True
+                if not self.barge_in:
                     self.speaker.play(audio, rate)
+        return False
+
+    def _play_listening(self, audio: Pcm, rate: int) -> bool:
+        """Reproduz enquanto escuta; devolve True se foi interrompido.
+
+        O que dispara é fala sustentada acima de um limiar de energia — o VAD
+        sozinho deixa passar o eco do próprio Nox. Com altifalantes o limiar
+        não chega para distinguir as duas vozes: daí a flag estar desligada.
+        """
+        self.speaker.start(audio, rate)
+        block_ms = round(self.block_frames * 1000 / self.segmenter.sample_rate)
+        needed = max(1, self.barge_in_ms // max(block_ms, 1))
+        consecutive = 0
+        heard: list[Pcm] = []
+
+        while self.speaker.is_playing():
+            chunk = self.source.read(self.block_frames)
+            if not chunk:
+                break
+            if self._is_barge_in(chunk):
+                consecutive += 1
+                heard.append(chunk)
+                if consecutive >= needed:
+                    self.speaker.stop()
+                    self.out(f"{self.name}> (interrompido)")
+                    # O início da frase do utilizador já foi lido: entra no
+                    # segmentador para não se perder a primeira palavra.
+                    for buffered in heard:
+                        self.segmenter.feed(buffered)
+                    return True
+            else:
+                consecutive = 0
+                heard.clear()
+        return False
+
+    def _is_barge_in(self, chunk: Pcm) -> bool:
+        return self.segmenter.vad.is_speech(chunk) and rms(chunk) >= self.barge_in_threshold
 
     def _prepare_fillers(self) -> None:
         """Sintetiza as frases de espera uma única vez, no arranque.
@@ -253,6 +303,9 @@ def run_voice(
             fillers=FILLERS if config.nox.voice_fillers else (),
             wake=wake,
             wake_timeout_s=config.wake.timeout_s,
+            barge_in=config.audio.barge_in,
+            barge_in_ms=config.audio.barge_in_ms,
+            barge_in_threshold=config.audio.barge_in_threshold,
             block_frames=round(config.audio.sample_rate * config.audio.block_ms / 1000),
         )
         return loop.run()

@@ -18,6 +18,9 @@ audio:
   sample_rate: 16000
   channels: 1
   block_ms: 30
+  barge_in: false
+  barge_in_ms: 300
+  barge_in_threshold: 800
   vad:
     provider: "webrtc"
     sensitivity: 0.5

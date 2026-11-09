@@ -59,6 +59,10 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   somavam 0,7 s ao turno; em paralelo escondem esse tempo.
 - **TTS por frases.** `split_sentences` parte a resposta e a síntese da frase
   seguinte sobrepõe-se à reprodução da atual.
+- **Barge-in com dois sinais.** O VAD e o limiar de energia têm de concordar
+  durante 300 ms; um só dispara com o eco do próprio Nox. A flag está desligada
+  por omissão e o áudio já lido entra no segmentador, para não perder a
+  primeira palavra.
 - **Wake word por Vosk, não por openWakeWord.** Não existe modelo "hey nox"
   treinado e treinar um exige GPU e horas. O Vosk transcreve localmente e o
   detector procura a palavra ("Nox" sai como "inox"). Só corre quando o VAD

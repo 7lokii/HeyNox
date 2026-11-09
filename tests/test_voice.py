@@ -19,12 +19,38 @@ def block(ms: int, amplitude: int) -> Pcm:
 class RecordingSpeaker:
     def __init__(self) -> None:
         self.played: list[tuple[int, int]] = []
+        self.stops = 0
 
     def play(self, audio: Pcm, sample_rate: int) -> None:
         self.played.append((len(audio), sample_rate))
 
+    def start(self, audio: Pcm, sample_rate: int) -> None:
+        self.played.append((len(audio), sample_rate))
+
+    def is_playing(self) -> bool:
+        return False
+
     def stop(self) -> None:
-        return None
+        self.stops += 1
+
+
+class LongSpeaker(RecordingSpeaker):
+    """Continua 'a tocar' durante n consultas, para testar a interrupção."""
+
+    def __init__(self, polls: int = 10) -> None:
+        super().__init__()
+        self.polls = polls
+        self.interrupted = False
+
+    def is_playing(self) -> bool:
+        if self.interrupted:
+            return False
+        self.polls -= 1
+        return self.polls > 0
+
+    def stop(self) -> None:
+        self.interrupted = True
+        super().stop()
 
 
 class RecordingSynthesizer:
@@ -67,9 +93,10 @@ def build_loop(
     source: FakeSource | None = None,
     wake=None,
     wake_timeout_s: float = 8.0,
+    speaker: RecordingSpeaker | None = None,
 ) -> tuple[VoiceLoop, list[str], RecordingSpeaker, RecordingSynthesizer]:
     lines: list[str] = []
-    speaker = RecordingSpeaker()
+    speaker = speaker or RecordingSpeaker()
     synthesizer = RecordingSynthesizer()
     loop = VoiceLoop(
         source=source or FakeSource(chunks, sample_rate=RATE),
@@ -205,3 +232,35 @@ def test_listener_gives_up_after_the_timeout() -> None:
 
     assert loop.run() == 0
     assert "Nox> (não ouvi nada)" in lines
+
+
+def test_barge_in_stops_the_playback() -> None:
+    source = FakeSource([block(30, 3000) for _ in range(20)], sample_rate=RATE)
+    speaker = LongSpeaker(polls=50)
+    loop, lines, _, _ = build_loop([], source=source, speaker=speaker)
+    loop.barge_in = True
+
+    assert loop.speak("Uma frase comprida para dar tempo.") is True
+    assert speaker.stops == 1
+    assert "Nox> (interrompido)" in lines
+
+
+def test_barge_in_ignores_quiet_noise() -> None:
+    # 500 passa o VAD de energia mas fica abaixo do limiar de interrupção.
+    source = FakeSource([block(30, 500) for _ in range(20)], sample_rate=RATE)
+    speaker = LongSpeaker(polls=50)
+    loop, _, _, _ = build_loop([], source=source, speaker=speaker)
+    loop.barge_in = True
+
+    assert loop.speak("Uma frase comprida para dar tempo.") is False
+    assert speaker.stops == 0
+
+
+def test_without_barge_in_the_answer_is_played_whole() -> None:
+    source = FakeSource([block(30, 3000) for _ in range(20)], sample_rate=RATE)
+    speaker = LongSpeaker(polls=50)
+    loop, _, _, _ = build_loop([], source=source, speaker=speaker)
+
+    assert loop.speak("Uma frase comprida para dar tempo.") is False
+    assert speaker.stops == 0
+    assert len(speaker.played) == 1

@@ -52,6 +52,11 @@ class AudioConfig(BaseModel):
     channels: int = Field(default=1, gt=0, le=2)
     # Bloco de leitura. O WebRTC VAD só aceita 10, 20 ou 30 ms.
     block_ms: int = Field(default=30, gt=0)
+    # Interromper o Nox a falar. Só é fiável com auscultadores: com
+    # altifalantes o microfone ouve o próprio Nox e ele cala-se sozinho.
+    barge_in: bool = False
+    barge_in_ms: int = Field(default=300, ge=100, le=1500)
+    barge_in_threshold: float = Field(default=800.0, gt=0)
     vad: VadConfig = Field(default_factory=VadConfig)
 
     @model_validator(mode="after")
