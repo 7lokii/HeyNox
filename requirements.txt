@@ -1,4 +1,6 @@
 # Núcleo. Extras de voz: pip install -e ".[voice]"
+# Browser: pip install -e ".[browser]" && python -m playwright install chromium
 pydantic>=2.7
 PyYAML>=6.0
 python-dotenv>=1.0
+certifi>=2023.0

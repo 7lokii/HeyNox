@@ -24,8 +24,11 @@ from nox.paths import install_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.safety.sandbox import Sandbox
 from nox.tools.base import ToolRegistry
+from nox.tools.browser import build_browser_tools
 from nox.tools.files import build_file_tools
+from nox.tools.notes import build_notes_tools
 from nox.tools.shell import build_shell_tools
+from nox.tools.web import build_web_tools
 
 WEEKDAYS = (
     "segunda-feira",
@@ -299,6 +302,9 @@ def build_agent(
                     timeout=config.tools.command_timeout,
                     approvals=approvals,
                 ),
+                *build_web_tools(),
+                *build_browser_tools(sandbox),
+                *build_notes_tools(sandbox),
             ]
         )
 

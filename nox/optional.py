@@ -21,6 +21,7 @@ _EXTRAS = {
     "av": "edge",
     "sounddevice": "audio",
     "numpy": "audio",
+    "playwright": "browser",
 }
 
 

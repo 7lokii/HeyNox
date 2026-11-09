@@ -76,6 +76,7 @@ VOICE_PACKAGES = """[
     'csvw',
     'language_tags',
     'langcodes',
+    'playwright',
 ]"""
 
 NO_PACKAGES = "[]"

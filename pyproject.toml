@@ -14,6 +14,7 @@ dependencies = [
     "pydantic>=2.7",
     "PyYAML>=6.0",
     "python-dotenv>=1.0",
+    "certifi>=2023.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,7 @@ silero = ["silero-vad>=5.0", "torch>=2.2"]
 stt = ["faster-whisper>=1.0"]
 tts = ["piper-tts>=1.8"]
 edge = ["edge-tts>=7.0"]
+browser = ["playwright>=1.49"]
 voice = [
     "heynox[audio,wake,vad,stt,tts,edge]",
 ]
