@@ -16,9 +16,8 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Portão de ruído adaptativo e corte espectral antes do STT.
   - [x] Impressão vocal com vários perfis (opcional).
   - [x] Vocabulário restrito: "Nox" sozinho passa a ser reconhecido.
-  - [x] Impressão vocal com vários perfis (opcional).
-  - [x] Vocabulário restrito: "Nox" sozinho passa a ser reconhecido.
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
+  - [x] STT na cloud (Groq) com fallback local automático.
   - [x] Interrupção da fala (barge-in), opcional.
   - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).
   - [x] HUD com espectro do áudio real e réplica sem repetir a palavra.
@@ -29,7 +28,16 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Comandos: "o que sabes sobre mim", "esquece X", "esquece tudo".
   - [x] Exportar/importar JSON e `--memory-reset`.
   - [ ] Memória semântica (Chroma) — adiada, ver `docs/memory.md`.
-- [ ] **Fase 3 — Ferramentas seguras.**
+- [ ] **Fase 3 — Ferramentas seguras.** Em curso.
+  - [x] Ler ficheiros e listar pastas dentro da sandbox.
+  - [x] Shell seguro por allowlist, sem `shell=True`.
+  - [x] Audit log em JSONL.
+  - [x] Loop de tool_use (até 4 passos).
+  - [ ] Escrever e editar ficheiros com diff.
+  - [ ] Sistema de aprovações na interface.
+  - [ ] Pesquisa web e leitura de páginas.
+  - [ ] Browser com Playwright.
+  - [ ] Notas (além dos factos da memória).
 - [ ] **Fase 4 — GitHub.**
 - [ ] **Fase 5 — Automação avançada.**
 - [ ] **Fase 6 — Controlo do PC.**

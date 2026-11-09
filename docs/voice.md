@@ -7,7 +7,8 @@ Pipeline: `áudio -> VAD -> STT -> LLM -> TTS -> áudio`.
 | Captura | `audio` | sounddevice | **funcional** |
 | Wake word | `wake` | vosk | **funcional** |
 | VAD | `vad` | webrtcvad | **funcional** |
-| STT | `stt` | faster-whisper | **funcional** |
+| STT | `stt` | faster-whisper (local) | **funcional** |
+| STT cloud | — | Groq `whisper-large-v3-turbo` | **por omissão** |
 | TTS | `tts` | piper | **funcional** |
 | TTS online | `edge` | edge-tts | **funcional** |
 
@@ -24,9 +25,9 @@ nox --voice --input a.wav     # o mesmo pipeline, a partir de um ficheiro
 nox --devices                 # lista as entradas de áudio
 ```
 
-O loop é: microfone -> `Segmenter` (WebRTC VAD) -> faster-whisper -> agente ->
-Piper -> altifalante. Sem wake word, o Nox ouve sempre: `--voice` é conversa
-contínua até Ctrl+C.
+O loop é: microfone -> `Segmenter` (WebRTC VAD) -> Whisper (Groq ou local) ->
+agente -> Edge TTS -> altifalante. Sem wake word, o Nox ouve sempre: `--voice` é
+conversa contínua até Ctrl+C.
 
 `--input` existe para testar sem falar ao computador. Um WAV com 0,5 s de
 silêncio antes e 1 s depois atravessa o pipeline todo e produz a resposta falada.
@@ -86,6 +87,28 @@ Três coisas a reter:
 
 Latência: ~2,5 s para transcrever 2 s de áudio neste CPU. O modelo `medium`
 melhora os números, mas triplica o tempo. Uma GPU muda a equação.
+
+### Cloud (Groq) — por omissão
+
+`whisper-large-v3-turbo` na Groq, com o mesmo `initial_prompt`. Medido com
+`scripts/bench_stt.py` nas amostras de `data/`:
+
+| Amostra | faster-whisper `small` | Groq |
+|---|---|---|
+| `pergunta.wav` | 2,20 s — "Que horas são?" | **0,38 s** — "Que horas são?" |
+| `pergunta2.wav` | 2,07 s — "Quem és tu?" | **0,38 s** — "Quem és tu?" |
+| `duas-vezes.wav` | 2,15 s — "Kia ora, Sam." | **0,41 s** — "Que horas são?" |
+| `wake.wav` | 2,45 s — "… Hey Nox. Que horas são?" | **0,44 s** — "… Nox. Que horas são?" |
+
+Duas notas:
+
+- **O `prompt` também vai no multipart.** Sem ele a cloud ouvia "Knox" e "Ainox";
+  com o mesmo enviesamento do modelo local, acerta "Nox".
+- **Sem rede não fica mudo.** `FallbackTranscriber` tenta a cloud e, em erro,
+  usa o faster-whisper local (carregado só nesse momento). O aviso sai no
+  terminal: `[stt] cloud indisponível (…); a usar o modelo local`.
+
+O áudio sai do PC. Para manter tudo local: `stt.provider: "faster-whisper"`.
 
 ## Vozes disponíveis
 
@@ -283,60 +306,6 @@ exponha um dispositivo de entrada.
 Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
 caminho do áudio.
 
-## Krisp e outros supressores
-
-O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
-público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
-contrato.
-
-A via prática é a app de secretária da Krisp, que instala um **microfone
-virtual**. Para o Nox, isso é só escolher o dispositivo:
-
-```yaml
-audio:
-  input_device: "Krisp"
-```
-
-O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
-O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
-exponha um dispositivo de entrada.
-
-Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
-caminho do áudio.
-
-## Microfone preferido (Bluetooth)
-
-```yaml
-audio:
-  input_device: "Mi TW"      # parte do nome chega
-  input_fallback: "default"
-```
-
-O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
-se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
-desligado), reabre no preferido ou na omissão.
-
-Duas armadilhas resolvidas por medição:
-
-- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
-  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
-  yet". A captura passou a usar callback + fila.
-- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
-  16 kHz. A fonte negocia a taxa e reamostra à saída.
-
-`nox --devices` mostra qual seria escolhido, com `<-`.
-
-## O anel da interface
-
-Dois anéis, dois donos:
-
-- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
-- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
-  Cresce para dentro para não se confundir com o outro.
-
-O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
-30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
-
 ## Microfone preferido (Bluetooth)
 
 ```yaml
@@ -384,12 +353,17 @@ nox --test-stt 6      # seis segundos
 
 Se o texto sair errado, o problema é o STT. Se sair certo, o problema é o prompt.
 
-**2. Modelo maior, local.** `stt.model: "medium"` (~1,5 GB, 3× mais lento). É a
-opção que mantém tudo no PC.
+**2. Comparar com a cloud.** Já é o que corre por omissão. Para veres a diferença
+nas tuas próprias amostras:
 
-**3. STT na cloud.** `stt.provider: "openai"` com `GROQ_API_KEY`. É o que o
-FreeFlow faz: `whisper-large-v3` em ~0,4 s, muito mais preciso em português. O
-áudio sai do PC — só tu podes decidir se aceitas.
+```bash
+python scripts/bench_stt.py            # local vs cloud, com tempos
+python scripts/bench_stt.py --cloud    # só a cloud
+```
+
+**3. Voltar ao local.** `stt.provider: "faster-whisper"` (modelo `small`), ou
+`medium` (~1,5 GB, 3× mais lento) se quiseres mais precisão sem tirar o áudio do
+PC.
 
 ## Ruído na transcrição
 
@@ -421,163 +395,6 @@ Duas defesas, medidas com ruído branco adicionado:
 
 Acima de ~600 de ruído branco contínuo o reconhecedor deixa de ouvir a palavra.
 É o limite do modelo pequeno, não do portão.
-
-## Krisp e outros supressores
-
-O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
-público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
-contrato.
-
-A via prática é a app de secretária da Krisp, que instala um **microfone
-virtual**. Para o Nox, isso é só escolher o dispositivo:
-
-```yaml
-audio:
-  input_device: "Krisp"
-```
-
-O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
-O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
-exponha um dispositivo de entrada.
-
-Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
-caminho do áudio.
-
-## Krisp e outros supressores
-
-O SDK da Krisp existe, mas é comercial: entrada por candidatura, sem preço
-público, e o binário é fechado. Não é algo que se meta num projeto MIT sem
-contrato.
-
-A via prática é a app de secretária da Krisp, que instala um **microfone
-virtual**. Para o Nox, isso é só escolher o dispositivo:
-
-```yaml
-audio:
-  input_device: "Krisp"
-```
-
-O `sounddevice` aceita o nome (ou parte dele) e o resto do pipeline não muda.
-O mesmo serve para o NVIDIA Broadcast, o Voicemeeter ou qualquer supressor que
-exponha um dispositivo de entrada.
-
-Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
-caminho do áudio.
-
-## Microfone preferido (Bluetooth)
-
-```yaml
-audio:
-  input_device: "Mi TW"      # parte do nome chega
-  input_fallback: "default"
-```
-
-O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
-se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
-desligado), reabre no preferido ou na omissão.
-
-Duas armadilhas resolvidas por medição:
-
-- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
-  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
-  yet". A captura passou a usar callback + fila.
-- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
-  16 kHz. A fonte negocia a taxa e reamostra à saída.
-
-`nox --devices` mostra qual seria escolhido, com `<-`.
-
-## O anel da interface
-
-Dois anéis, dois donos:
-
-- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
-- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
-  Cresce para dentro para não se confundir com o outro.
-
-O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
-30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
-
-## Microfone preferido (Bluetooth)
-
-```yaml
-audio:
-  input_device: "Mi TW"      # parte do nome chega
-  input_fallback: "default"
-```
-
-O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
-se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
-desligado), reabre no preferido ou na omissão.
-
-Duas armadilhas resolvidas por medição:
-
-- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
-  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
-  yet". A captura passou a usar callback + fila.
-- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
-  16 kHz. A fonte negocia a taxa e reamostra à saída.
-
-`nox --devices` mostra qual seria escolhido, com `<-`.
-
-## O anel da interface
-
-Dois anéis, dois donos:
-
-- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
-- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
-  Cresce para dentro para não se confundir com o outro.
-
-O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
-30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
-
-## Quando ele percebe outra coisa
-
-O gargalo é o reconhecedor, não o modelo de linguagem. Três formas de atacar,
-por ordem de custo:
-
-**1. Ver o que ele ouviu.** Antes de mexer em nada:
-
-```bash
-nox --test-stt        # grava 4 s e mostra o texto tal como saiu do STT
-nox --test-stt 6      # seis segundos
-```
-
-Se o texto sair errado, o problema é o STT. Se sair certo, o problema é o prompt.
-
-**2. Modelo maior, local.** `stt.model: "medium"` (~1,5 GB, 3× mais lento). É a
-opção que mantém tudo no PC.
-
-**3. STT na cloud.** `stt.provider: "openai"` com `GROQ_API_KEY`. É o que o
-FreeFlow faz: `whisper-large-v3` em ~0,4 s, muito mais preciso em português. O
-áudio sai do PC — só tu podes decidir se aceitas.
-
-## Ruído na transcrição
-
-Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
-
-| Ruído | Sem limpeza | Com limpeza |
-|---|---|---|
-| 600 | "Que horas são?" | "Que horas são?" |
-| 1200 | "E oração." | "E horas são." |
-
-Em ruído moderado não muda nada; em ruído forte evita a transcrição inventada.
-
-```yaml
-wake:
-  provider: "vosk"     # ou "off" para ouvir sempre
-  model: "vosk-model-small-pt-0.3"
-  timeout_s: 8         # segundos à espera do pedido depois da palavra
-```
-
-`nox --voice --no-wake` desliga a exigência da palavra; `--input` desliga-a
-sempre, porque um ficheiro já é o pedido.
-
-### Porque não o Porcupine
-
-Não é gratuito: o console oferece um teste de 7 dias e a partir daí o
-licenciamento é comercial, negociado com vendas. Além disso, exige uma
-AccessKey validada periodicamente com os servidores da Picovoice, o que quebra
-o modo offline.
 
 ## Interrupção da fala
 

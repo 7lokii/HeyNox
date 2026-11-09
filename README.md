@@ -10,7 +10,7 @@ GitHub através de branches, testes e pull requests.
 
 - Wake word “Hey Nox”
 - Voz bidirecional
-- Transcrição local
+- Transcrição na cloud (Groq) com fallback local
 - Memória de longo prazo
 - Ferramentas de ficheiros, shell e browser
 - Integração GitHub
@@ -25,14 +25,19 @@ Projeto em desenvolvimento. Fase 0 (fundações) concluída: estrutura,
 configuração validada, CLI de verificação de ambiente, testes e CI.
 O instalador Windows também já está pronto.
 
-A Fase 1 está fechada: os contratos do pipeline, o modo texto, o STT/TTS
-locais e o loop de voz completo já funcionam. Falta a wake word "Hey Nox" e a
-interrupção da fala.
+A Fase 1 está fechada: pipeline de voz completo, wake word "Nox"/"Ei Nox"/
+"Hey Nox", VAD, barge-in e HUD. A Fase 2 também: memória em SQLite com FTS5.
+
+A Fase 3 está a meio: o Nox já lê ficheiros, lista pastas e corre comandos
+permitidos, tudo com sandbox e audit log. Faltam escrita de ficheiros,
+aprovações na interface, pesquisa web e browser.
+
+A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
+sozinha para o faster-whisper local.
 
 ## Uso
 
 ```bash
-nox --ui                     # interface web local (o .exe abre isto)
 nox --ui                     # interface web local (o .exe abre isto)
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
