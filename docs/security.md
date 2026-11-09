@@ -17,6 +17,8 @@ diz o que está implementado e como se comporta na prática.
 | Registo JSONL de todas as chamadas | `safety/audit.py` |
 | Push para `main` desligado por omissão | `GithubConfig` |
 | Neste projeto: push direto para `main` autorizado, force-push sempre bloqueado | `config.yaml` |
+| Testes correm antes do push (`github.require_tests`) | `integrations/github.py` |
+| GitHub via `gh` autenticado, sem tokens em ficheiros ou argumentos | `integrations/github.py` |
 
 ## Como uma ação é aprovada
 
@@ -60,6 +62,20 @@ aceites tipos de texto, até 1,5 MB.
 O conteúdo de uma página é tratado como dados, nunca como instruções. Como as
 ferramentas de escrita exigem aprovação, uma página maliciosa não ganha mãos.
 
+## GitHub
+
+As operações passam pelo `gh` já autenticado na máquina — não há token no
+`config.yaml`, no `.env` nem nos argumentos do processo. Se o `gh` não estiver
+autenticado, a ferramenta recusa e diz para correr `gh auth login`.
+
+- O repositório tem de estar dentro da sandbox.
+- **Force-push não existe**: a ferramenta não expõe `--force`.
+- Push para a branch principal só com `github.allow_push_to_main: true`
+  (neste projeto está ligado, por decisão do utilizador).
+- Com `github.require_tests: true`, o `push` corre `pytest` e recusa enviar se
+  falhar.
+- O Nox abre PRs e comenta, mas não faz merge sem pedido explícito.
+
 ## Auditoria
 
 Cada chamada — aprovada ou não — fica em
@@ -69,7 +85,7 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 ## Testes
 
 `tests/test_tools.py`, `tests/test_approvals.py`, `tests/test_web.py`,
-`tests/test_notes.py` e `tests/test_browser.py` cobrem:
+`tests/test_notes.py`, `tests/test_browser.py` e `tests/test_github.py` cobrem:
 
 - ler e escrever fora da sandbox falha;
 - `.env` é recusado para leitura e escrita;
@@ -79,7 +95,11 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 - `rm -rf /` é bloqueado mesmo com aprovação;
 - sem interface, a ação é recusada com explicação;
 - o pedido de aprovação expira em silêncio como "não";
-- `localhost`, `192.168.x` e `file://` são recusados na pesquisa e no browser.
+- `localhost`, `192.168.x` e `file://` são recusados na pesquisa e no browser;
+- push para `main` é recusado quando a flag está desligada;
+- os testes falham o push quando não passam;
+- branches com nomes inválidos (`--force`, `a..b`) são recusadas;
+- um PR com a mesma branch de origem e destino é recusado.
 
 ## Pendente
 

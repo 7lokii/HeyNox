@@ -14,6 +14,11 @@ pode fazer e o que cada ferramenta custa em permissões.
 | `fetch_url` | Abre uma página e devolve o texto | não |
 | `browser` | Chromium headless: texto, links, captura | não |
 | `notes` | Apontamentos em `data/notes.md` | não |
+| `github_repo` | Clonar, atualizar e ver estado | não |
+| `github_branch` | Listar, criar e mudar de branch | não |
+| `github_commit` | Commit e push (com testes antes) | não |
+| `github_pr` | Criar, listar, ver e comentar PRs | não |
+| `github_issue` | Listar, criar e comentar issues | não |
 
 ## Limites que nenhuma aprovação contorna
 
@@ -74,3 +79,29 @@ memória: a memória guarda factos sobre o utilizador e entra no prompt; as nota
 são um caderno que ele escreve quando lhe pedem ("aponta que amanhã há reunião
 às 10"). Escrever uma nota não pede aprovação — é o caderno dele, não um
 ficheiro do projeto — mas fica na auditoria.
+
+## GitHub
+
+Usa o `gh` e o `git` já autenticados na máquina — não há tokens no `config.yaml`
+nem nos argumentos. Requer `gh auth login` feito uma vez.
+
+```
+github_repo(action="clone", repo="7lokii/HeyNox", dest="projects/heynox")
+github_branch(action="create", path="projects/heynox", name="fix/leitura")
+github_commit(action="commit", path="projects/heynox", message="fix: ...")
+github_commit(action="push", path="projects/heynox")
+github_pr(action="create", path="projects/heynox", title="...", body="...")
+```
+
+Regras fixas:
+
+- O repositório tem de estar dentro da sandbox (`projects/` por omissão).
+- **Force-push não existe** como opção: não há `--force` em lado nenhum.
+- Push para a branch principal só se `github.allow_push_to_main: true`; neste
+  projeto está ligado por decisão do utilizador.
+- Com `github.require_tests: true`, o `push` corre `pytest` primeiro e recusa
+  enviar se os testes falharem. Repositórios sem `pyproject.toml`, `pytest.ini`
+  ou `tests/` saltam este passo.
+- O PR é a revisão humana: o Nox abre e comenta, mas não faz merge sem o
+  utilizador pedir.
+

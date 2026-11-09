@@ -32,6 +32,9 @@ A Fase 3 está fechada: lê, escreve e edita ficheiros, corre comandos permitido
 pesquisa na web, abre páginas num browser real e guarda notas. Tudo o que é
 sensível pede aprovação na interface, com diff. Ver `docs/tools.md`.
 
+A Fase 4 também: clona repositórios, cria branches, faz commits e push (com
+testes antes), abre e comenta PRs e issues, através do `gh` já autenticado.
+
 A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
 sozinha para o faster-whisper local.
 

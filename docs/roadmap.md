@@ -38,7 +38,16 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Pesquisa web e leitura de páginas.
   - [x] Browser com Playwright (texto, links, captura).
   - [x] Notas (além dos factos da memória).
-- [ ] **Fase 4 — GitHub.**
+- [x] **Fase 4 — GitHub.** Via `gh` autenticado, ver `docs/tools.md`.
+  - [x] Autenticação GitHub (reutiliza `gh auth`).
+  - [x] Clonar e atualizar repositórios.
+  - [x] Criar branches e mudar de branch.
+  - [x] Criar commits.
+  - [x] Correr testes antes do push.
+  - [x] Abrir pull requests.
+  - [x] Ler issues.
+  - [x] Criar issues.
+  - [x] Responder a comentários em PRs e issues.
 - [ ] **Fase 5 — Automação avançada.**
 - [ ] **Fase 6 — Controlo do PC.**
 
