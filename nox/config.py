@@ -106,7 +106,7 @@ class SttConfig(BaseModel):
     # silêncio não muda nada.
     denoise: bool = True
     denoise_strength: float = Field(default=1.5, ge=0.0, le=4.0)
-    fallback_provider: Literal["openai"] | None = "openai"
+    fallback_provider: Literal["faster-whisper"] | None = "faster-whisper"
 
 
 class LlmRouterConfig(BaseModel):

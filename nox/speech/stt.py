@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 import uuid
 import wave
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Protocol
 
 from nox.audio.denoise import spectral_gate
@@ -141,24 +141,32 @@ class OpenAiTranscriber:
         *,
         language: str = "pt",
         timeout: float = 30.0,
+        prompt: str = "",
     ) -> None:
         self._url = base_url.rstrip("/") + "/audio/transcriptions"
         self._key = api_key
         self._model = model
         self._language = language
         self._timeout = timeout
+        # O mesmo enviesamento do modelo local: sem ele a cloud ouve "Knox".
+        self._prompt = prompt
 
     def transcribe(self, audio: Pcm, sample_rate: int) -> str:
         if not audio:
             return ""
         boundary = f"----nox{uuid.uuid4().hex}"
-        payload = _multipart(boundary, self._model, self._language, audio, sample_rate)
+        payload = _multipart(
+            boundary, self._model, self._language, audio, sample_rate, prompt=self._prompt
+        )
         request = urllib.request.Request(  # noqa: S310
             self._url,
             data=payload,
             headers={
                 "Authorization": f"Bearer {self._key}",
                 "Content-Type": f"multipart/form-data; boundary={boundary}",
+                # O Cloudflare do Groq bloqueia o User-Agent do urllib (erro 1010).
+                "User-Agent": "HeyNox/0.1",
+                "Accept": "application/json",
             },
         )
         try:
@@ -170,7 +178,46 @@ class OpenAiTranscriber:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ModelError(f"sem ligação ao serviço de transcrição: {exc}") from exc
         text = str(data.get("text", "")).strip()
-        return "" if looks_hallucinated(text, "") else text
+        return "" if looks_hallucinated(text, self._prompt) else text
+
+
+class LazyTranscriber:
+    """Só constrói (e descarrega) o modelo na primeira utilização."""
+
+    def __init__(self, factory: Callable[[], Transcriber]) -> None:
+        self._factory = factory
+        self._inner: Transcriber | None = None
+
+    def transcribe(self, audio: Pcm, sample_rate: int) -> str:
+        if self._inner is None:
+            self._inner = self._factory()
+        return self._inner.transcribe(audio, sample_rate)
+
+
+class FallbackTranscriber:
+    """Tenta a cloud e cai para o modelo local quando a rede falha.
+
+    Sem isto, uma perda de Wi-Fi calava o Nox a meio da conversa.
+    """
+
+    def __init__(
+        self,
+        primary: Transcriber,
+        fallback: Transcriber,
+        *,
+        on_fallback: Callable[[ModelError], None] | None = None,
+    ) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        self._on_fallback = on_fallback
+
+    def transcribe(self, audio: Pcm, sample_rate: int) -> str:
+        try:
+            return self._primary.transcribe(audio, sample_rate)
+        except ModelError as exc:
+            if self._on_fallback is not None:
+                self._on_fallback(exc)
+            return self._fallback.transcribe(audio, sample_rate)
 
 
 def _wav_bytes(audio: Pcm, sample_rate: int) -> bytes:
@@ -183,7 +230,15 @@ def _wav_bytes(audio: Pcm, sample_rate: int) -> bytes:
     return buffer.getvalue()
 
 
-def _multipart(boundary: str, model: str, language: str, audio: Pcm, sample_rate: int) -> bytes:
+def _multipart(
+    boundary: str,
+    model: str,
+    language: str,
+    audio: Pcm,
+    sample_rate: int,
+    *,
+    prompt: str = "",
+) -> bytes:
     parts: list[bytes] = []
 
     def field(name: str, value: str) -> None:
@@ -194,6 +249,8 @@ def _multipart(boundary: str, model: str, language: str, audio: Pcm, sample_rate
     field("model", model)
     if language:
         field("language", language)
+    if prompt:
+        field("prompt", prompt)
     field("response_format", "json")
 
     parts.append(f"--{boundary}\r\n".encode())
@@ -205,9 +262,27 @@ def _multipart(boundary: str, model: str, language: str, audio: Pcm, sample_rate
     return b"".join(parts)
 
 
+def _local_transcriber(config: Config, prompt: str) -> FasterWhisperTranscriber:
+    settings = config.stt
+    return FasterWhisperTranscriber(
+        settings.model,
+        device=settings.device,
+        compute_type=settings.compute_type,
+        language=settings.language,
+        initial_prompt=prompt,
+        beam_size=settings.beam_size,
+        trim_silence=settings.trim_silence,
+        denoise=settings.denoise,
+        denoise_strength=settings.denoise_strength,
+    )
+
+
 def build_transcriber(config: Config) -> Transcriber:
     """Constrói o transcritor configurado. O modelo é descarregado na 1.ª vez."""
     settings = config.stt
+    prompt = settings.initial_prompt.strip() or (
+        f"O assistente chama-se {config.nox.name}. {config.nox.wake_word.title()}."
+    )
     if settings.provider == "openai":
         import os
 
@@ -216,26 +291,24 @@ def build_transcriber(config: Config) -> Transcriber:
             raise ModelError(
                 f"stt.provider é 'openai' mas falta {settings.cloud_api_key_env} no .env"
             )
-        return OpenAiTranscriber(
+        cloud = OpenAiTranscriber(
             settings.cloud_base_url,
             api_key,
             settings.cloud_model,
             language=settings.language,
             timeout=settings.timeout,
+            prompt=prompt,
         )
+        if settings.fallback_provider == "faster-whisper":
+            return FallbackTranscriber(
+                cloud,
+                LazyTranscriber(lambda: _local_transcriber(config, prompt)),
+                on_fallback=lambda exc: print(
+                    f"[stt] cloud indisponível ({' '.join(str(exc).split())});"
+                    " a usar o modelo local"
+                ),
+            )
+        return cloud
     if settings.provider == "faster-whisper":
-        prompt = settings.initial_prompt.strip() or (
-            f"O assistente chama-se {config.nox.name}. {config.nox.wake_word.title()}."
-        )
-        return FasterWhisperTranscriber(
-            settings.model,
-            device=settings.device,
-            compute_type=settings.compute_type,
-            language=settings.language,
-            initial_prompt=prompt,
-            beam_size=settings.beam_size,
-            trim_silence=settings.trim_silence,
-            denoise=settings.denoise,
-            denoise_strength=settings.denoise_strength,
-        )
+        return _local_transcriber(config, prompt)
     raise ModelError(f"stt.provider '{settings.provider}' ainda não está implementado")

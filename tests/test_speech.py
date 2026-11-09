@@ -18,7 +18,8 @@ def test_unknown_tts_provider_is_reported() -> None:
         build_synthesizer(config)
 
 
-def test_stt_provider_openai_requires_a_key() -> None:
+def test_stt_provider_openai_requires_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     config = Config.model_validate({"stt": {"provider": "openai"}})
     with pytest.raises(ModelError, match="GROQ_API_KEY"):
         build_transcriber(config)
@@ -100,7 +101,8 @@ def test_real_speech_is_not_flagged() -> None:
     assert looks_hallucinated("Abre o meu projeto.", prompt) is False
 
 
-def test_cloud_transcriber_needs_a_key() -> None:
+def test_cloud_transcriber_needs_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     config = Config.model_validate({"stt": {"provider": "openai"}})
     with pytest.raises(ModelError, match="GROQ_API_KEY"):
         build_transcriber(config)
@@ -117,3 +119,65 @@ def test_multipart_payload_has_the_expected_parts() -> None:
     assert b'filename="audio.wav"' in payload
     assert payload.startswith(b"--XB\r\n")
     assert payload.endswith(b"--XB--\r\n")
+
+
+def test_multipart_carries_the_prompt() -> None:
+    from nox.audio.types import silence
+    from nox.speech.stt import _multipart
+
+    prompt = "O assistente chama-se Nox. Hey Nox."
+    payload = _multipart(
+        "XB", "whisper-large-v3-turbo", "pt", silence(200, 16000), 16000, prompt=prompt
+    )
+
+    assert b'name="prompt"' in payload
+    assert prompt.encode() in payload
+
+
+def test_fallback_transcriber_uses_the_local_model() -> None:
+    from nox.speech.stt import FallbackTranscriber
+
+    class Broken:
+        def transcribe(self, audio: bytes, sample_rate: int) -> str:
+            raise ModelError("sem rede")
+
+    class Fixed:
+        def transcribe(self, audio: bytes, sample_rate: int) -> str:
+            return "olá"
+
+    errors: list[ModelError] = []
+    transcriber = FallbackTranscriber(Broken(), Fixed(), on_fallback=errors.append)
+
+    assert transcriber.transcribe(b"\x00\x00" * 160, 16000) == "olá"
+    assert len(errors) == 1
+
+
+def test_lazy_transcriber_builds_only_once() -> None:
+    from nox.speech.stt import LazyTranscriber
+
+    builds: list[int] = []
+
+    class Fixed:
+        def transcribe(self, audio: bytes, sample_rate: int) -> str:
+            return "olá"
+
+    def factory() -> Fixed:
+        builds.append(1)
+        return Fixed()
+
+    transcriber = LazyTranscriber(factory)
+    transcriber.transcribe(b"\x00\x00" * 160, 16000)
+    transcriber.transcribe(b"\x00\x00" * 160, 16000)
+
+    assert builds == [1]
+
+
+def test_cloud_transcriber_falls_back_to_the_local_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nox.speech.stt import FallbackTranscriber
+
+    monkeypatch.setenv("GROQ_API_KEY", "chave-de-teste")
+    config = Config.model_validate(
+        {"stt": {"provider": "openai", "fallback_provider": "faster-whisper"}}
+    )
+
+    assert isinstance(build_transcriber(config), FallbackTranscriber)

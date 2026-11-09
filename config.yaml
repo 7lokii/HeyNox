@@ -46,7 +46,9 @@ audio:
     silence_ms: 500
 
 stt:
-  provider: "faster-whisper"
+  # A cloud (Groq) é ~5x mais rápida e mais precisa. Se a rede falhar, cai
+  # automaticamente para o faster-whisper local.
+  provider: "openai"
   model: "small"
   device: "auto"
   compute_type: "int8"
@@ -60,7 +62,7 @@ stt:
   cloud_base_url: "https://api.groq.com/openai/v1"
   cloud_model: "whisper-large-v3-turbo"
   cloud_api_key_env: "GROQ_API_KEY"
-  fallback_provider: "openai"
+  fallback_provider: "faster-whisper"
 
 llm:
   default_provider: "selora"
