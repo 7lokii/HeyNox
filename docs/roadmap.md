@@ -55,7 +55,15 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Integração MCP por stdio (servidores e ferramentas `mcp_*`).
   - [x] Plugins através de servidores MCP.
   - [x] Browser com click/fill, com aprovação.
-- [ ] **Fase 6 — Controlo do PC.**
+- [x] **Fase 6 — Controlo do PC.** Ver `docs/desktop.md`.
+  - [x] Deteção de janelas (listar e focar).
+  - [x] Controlo de apps (allowlist de executáveis).
+  - [x] Controlo de teclado e rato, com aprovação por ação.
+  - [x] Visão do ecrã (capturas em `data/screenshots/`).
+  - [x] OCR com o motor do Windows (Português).
+  - [x] Confirmação por ação.
+  - [x] Sandbox (allowlist, validação de teclas, limites).
+  - [x] Modo de emergência (botão, voz e ferramenta).
 
 ## Notas
 

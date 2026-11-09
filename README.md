@@ -38,6 +38,10 @@ testes antes), abre e comenta PRs e issues, através do `gh` já autenticado.
 A Fase 5 está fechada: rotinas agendadas, sub-agentes, skills em Markdown e
 servidores MCP. Ver `docs/automation.md`.
 
+A Fase 6 também: o Nox lista janelas, captura o ecrã, lê texto com OCR e pode
+clicar, escrever e abrir apps — sempre com aprovação e um botão de emergência.
+Ver `docs/desktop.md`.
+
 A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
 sozinha para o faster-whisper local.
 

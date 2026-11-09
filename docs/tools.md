@@ -18,6 +18,7 @@ pode fazer e o que cada ferramenta custa em permissões.
 | `skill` | Carregar um playbook pelo nome | não |
 | `spawn_agent` | Delegar a um sub-agente | não |
 | `mcp_*` | Ferramentas de servidores MCP | depende do servidor |
+| `desktop` | Janelas, captura, OCR, rato, teclado, abrir apps | ações: **sim** |
 | `github_repo` | Clonar, atualizar e ver estado | não |
 | `github_branch` | Listar, criar e mudar de branch | não |
 | `github_commit` | Commit e push (com testes antes) | não |
@@ -57,6 +58,12 @@ prompt e é a razão para não haver ferramentas de escrita automáticas.
 Rotinas, sub-agentes, skills e servidores MCP estão em `docs/automation.md`.
 Resumo: as rotinas só correm com a interface aberta, o sub-agente não abre
 sub-agentes, e as ferramentas MCP **não** passam pela sandbox do Nox.
+
+## Controlo do PC
+
+`desktop` vê janelas, captura o ecrã e lê texto com OCR; clicar, escrever,
+teclas, mover o rato e abrir apps pedem aprovação. O botão **Parar** (ou "para
+tudo") corta tudo. Detalhes e limites em `docs/desktop.md`.
 
 ## Browser
 

@@ -23,6 +23,10 @@ diz o que está implementado e como se comporta na prática.
 | Sub-agente sem `spawn_agent` (sem cadeias) | `tools/subagent.py` |
 | Click/fill no browser pedem aprovação | `tools/browser.py` |
 | MCP desligado por omissão e só com servidores escolhidos | `mcp/client.py` |
+| Controlo do PC desligado por omissão; cada ação pede aprovação | `tools/desktop.py` |
+| Modo de emergência corta todas as ações de desktop | `desktop/guard.py` |
+| Apps só de `desktop.allowed_apps`, sem shell | `tools/desktop.py` |
+| OCR e capturas ficam no disco local | `desktop/screen.py` |
 
 ## Como uma ação é aprovada
 
@@ -91,6 +95,20 @@ autenticado, a ferramenta recusa e diz para correr `gh auth login`.
   auditoria como as restantes.
 - `click` e `fill` no browser pedem aprovação antes de tocar na página.
 
+## Controlo do PC
+
+O `desktop` está desligado no código (`DesktopConfig.enabled = False`). Neste
+projeto está ligado por decisão do utilizador, com `confirm_actions: true`.
+
+- Ler o ecrã (janelas, captura, OCR) não pede aprovação; mexer no rato, no
+  teclado ou abrir apps pede, sempre, com coordenadas/texto no pedido.
+- O modo de emergência (botão **Parar**, "para tudo", `action: "stop"`) recusa
+  todas as ações de desktop até ser retomado. Não afeta as outras ferramentas.
+- Abrir apps só a partir de `desktop.allowed_apps`, com `shell=False`.
+- Teclas validadas, texto limitado a 2000 caracteres, coordenadas não negativas.
+- `pyautogui.FAILSAFE` ativo: rato no canto superior esquerdo aborta.
+- Capturas e OCR ficam no disco; nada é enviado para fora.
+
 ## Auditoria
 
 Cada chamada — aprovada ou não — fica em
@@ -101,8 +119,8 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 
 `tests/test_tools.py`, `tests/test_approvals.py`, `tests/test_web.py`,
 `tests/test_notes.py`, `tests/test_browser.py`, `tests/test_github.py`,
-`tests/test_routines.py`, `tests/test_skills.py`, `tests/test_subagent.py` e
-`tests/test_mcp.py` cobrem:
+`tests/test_routines.py`, `tests/test_skills.py`, `tests/test_subagent.py`,
+`tests/test_mcp.py` e `tests/test_desktop.py` cobrem:
 
 - ler e escrever fora da sandbox falha;
 - `.env` é recusado para leitura e escrita;
@@ -119,7 +137,11 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 - um PR com a mesma branch de origem e destino é recusado;
 - uma rotina criada depois da hora não dispara nesse dia;
 - o sub-agente não recebe `spawn_agent`;
-- um servidor MCP que não arranca é ignorado sem derrubar o Nox.
+- um servidor MCP que não arranca é ignorado sem derrubar o Nox;
+- com o controlo do PC desligado, nenhuma ação corre;
+- clique, escrita e foco sem aprovação não acontecem;
+- apps fora da allowlist não abrem;
+- o modo de emergência recusa tudo até ser retomado.
 
 ## Pendente
 
