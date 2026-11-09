@@ -48,6 +48,17 @@ confia no modelo e na sandbox.
 comparados com o comando normalizado, e o comando é dividido com `shlex` e
 executado como processo direto.
 
+## Rede
+
+`web_search`, `fetch_url` e `browser` só aceitam `http`/`https` e recusam
+destinos de rede local (`localhost`, `127.0.0.1`, `10/8`, `172.16/12`,
+`192.168/16`, link-local, `*.local`). Cada redirecionamento é validado antes de
+ser seguido — um endereço público não pode saltar para a rede interna. Só são
+aceites tipos de texto, até 1,5 MB.
+
+O conteúdo de uma página é tratado como dados, nunca como instruções. Como as
+ferramentas de escrita exigem aprovação, uma página maliciosa não ganha mãos.
+
 ## Auditoria
 
 Cada chamada — aprovada ou não — fica em
@@ -56,7 +67,8 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 
 ## Testes
 
-`tests/test_tools.py` e `tests/test_approvals.py` cobrem:
+`tests/test_tools.py`, `tests/test_approvals.py`, `tests/test_web.py`,
+`tests/test_notes.py` e `tests/test_browser.py` cobrem:
 
 - ler e escrever fora da sandbox falha;
 - `.env` é recusado para leitura e escrita;
@@ -65,7 +77,8 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 - comando não aprovado não corre;
 - `rm -rf /` é bloqueado mesmo com aprovação;
 - sem interface, a ação é recusada com explicação;
-- o pedido de aprovação expira em silêncio como "não".
+- o pedido de aprovação expira em silêncio como "não";
+- `localhost`, `192.168.x` e `file://` são recusados na pesquisa e no browser.
 
 ## Pendente
 

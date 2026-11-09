@@ -28,9 +28,9 @@ O instalador Windows também já está pronto.
 A Fase 1 está fechada: pipeline de voz completo, wake word "Nox"/"Ei Nox"/
 "Hey Nox", VAD, barge-in e HUD. A Fase 2 também: memória em SQLite com FTS5.
 
-A Fase 3 está a meio: o Nox já lê, escreve e edita ficheiros, corre comandos
-permitidos e pede aprovação na interface (com diff) para tudo o que é sensível.
-Faltam a pesquisa web e o browser.
+A Fase 3 está fechada: lê, escreve e edita ficheiros, corre comandos permitidos,
+pesquisa na web, abre páginas num browser real e guarda notas. Tudo o que é
+sensível pede aprovação na interface, com diff. Ver `docs/tools.md`.
 
 A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
 sozinha para o faster-whisper local.

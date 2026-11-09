@@ -28,16 +28,16 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Comandos: "o que sabes sobre mim", "esquece X", "esquece tudo".
   - [x] Exportar/importar JSON e `--memory-reset`.
   - [ ] Memória semântica (Chroma) — adiada, ver `docs/memory.md`.
-- [ ] **Fase 3 — Ferramentas seguras.** Em curso.
+- [x] **Fase 3 — Ferramentas seguras.** Ver `docs/tools.md`.
   - [x] Ler ficheiros e listar pastas dentro da sandbox.
   - [x] Shell seguro por allowlist, sem `shell=True`.
   - [x] Audit log em JSONL.
   - [x] Loop de tool_use (até 6 passos).
   - [x] Escrever e editar ficheiros com diff.
   - [x] Sistema de aprovações na interface (com expiração).
-  - [ ] Pesquisa web e leitura de páginas.
-  - [ ] Browser com Playwright.
-  - [ ] Notas (além dos factos da memória).
+  - [x] Pesquisa web e leitura de páginas.
+  - [x] Browser com Playwright (texto, links, captura).
+  - [x] Notas (além dos factos da memória).
 - [ ] **Fase 4 — GitHub.**
 - [ ] **Fase 5 — Automação avançada.**
 - [ ] **Fase 6 — Controlo do PC.**
