@@ -48,7 +48,13 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Ler issues.
   - [x] Criar issues.
   - [x] Responder a comentários em PRs e issues.
-- [ ] **Fase 5 — Automação avançada.**
+- [x] **Fase 5 — Automação avançada.** Ver `docs/automation.md`.
+  - [x] Tarefas agendadas e rotinas diárias (`daily`, `every`, `once`).
+  - [x] Sub-agentes com contexto limpo e sem recursão.
+  - [x] Skills personalizadas em Markdown (projeto e utilizador).
+  - [x] Integração MCP por stdio (servidores e ferramentas `mcp_*`).
+  - [x] Plugins através de servidores MCP.
+  - [x] Browser com click/fill, com aprovação.
 - [ ] **Fase 6 — Controlo do PC.**
 
 ## Notas

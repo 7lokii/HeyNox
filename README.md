@@ -35,6 +35,9 @@ sensível pede aprovação na interface, com diff. Ver `docs/tools.md`.
 A Fase 4 também: clona repositórios, cria branches, faz commits e push (com
 testes antes), abre e comenta PRs e issues, através do `gh` já autenticado.
 
+A Fase 5 está fechada: rotinas agendadas, sub-agentes, skills em Markdown e
+servidores MCP. Ver `docs/automation.md`.
+
 A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
 sozinha para o faster-whisper local.
 

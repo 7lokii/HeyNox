@@ -19,6 +19,10 @@ diz o que está implementado e como se comporta na prática.
 | Neste projeto: push direto para `main` autorizado, force-push sempre bloqueado | `config.yaml` |
 | Testes correm antes do push (`github.require_tests`) | `integrations/github.py` |
 | GitHub via `gh` autenticado, sem tokens em ficheiros ou argumentos | `integrations/github.py` |
+| Rotinas sem permissões extra; ações continuam sujeitas a aprovação | `automation/routines.py` |
+| Sub-agente sem `spawn_agent` (sem cadeias) | `tools/subagent.py` |
+| Click/fill no browser pedem aprovação | `tools/browser.py` |
+| MCP desligado por omissão e só com servidores escolhidos | `mcp/client.py` |
 
 ## Como uma ação é aprovada
 
@@ -76,6 +80,17 @@ autenticado, a ferramenta recusa e diz para correr `gh auth login`.
   falhar.
 - O Nox abre PRs e comenta, mas não faz merge sem pedido explícito.
 
+## Automação e MCP
+
+- As rotinas disparam sozinhas, mas não ganham permissões: tudo o que fazem
+  passa pelas mesmas ferramentas, sandbox e aprovações.
+- Um sub-agente vê as ferramentas todas menos `spawn_agent`; não há cadeias.
+- **Servidores MCP correm fora da sandbox**, com os privilégios do utilizador.
+  `mcp.enabled` é falso por omissão e só deves ligar servidores em que confias.
+  As ferramentas aparecem como `mcp_<servidor>_<ferramenta>` e ficam na
+  auditoria como as restantes.
+- `click` e `fill` no browser pedem aprovação antes de tocar na página.
+
 ## Auditoria
 
 Cada chamada — aprovada ou não — fica em
@@ -85,7 +100,9 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 ## Testes
 
 `tests/test_tools.py`, `tests/test_approvals.py`, `tests/test_web.py`,
-`tests/test_notes.py`, `tests/test_browser.py` e `tests/test_github.py` cobrem:
+`tests/test_notes.py`, `tests/test_browser.py`, `tests/test_github.py`,
+`tests/test_routines.py`, `tests/test_skills.py`, `tests/test_subagent.py` e
+`tests/test_mcp.py` cobrem:
 
 - ler e escrever fora da sandbox falha;
 - `.env` é recusado para leitura e escrita;
@@ -99,7 +116,10 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 - push para `main` é recusado quando a flag está desligada;
 - os testes falham o push quando não passam;
 - branches com nomes inválidos (`--force`, `a..b`) são recusadas;
-- um PR com a mesma branch de origem e destino é recusado.
+- um PR com a mesma branch de origem e destino é recusado;
+- uma rotina criada depois da hora não dispara nesse dia;
+- o sub-agente não recebe `spawn_agent`;
+- um servidor MCP que não arranca é ignorado sem derrubar o Nox.
 
 ## Pendente
 
