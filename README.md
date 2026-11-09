@@ -23,7 +23,22 @@ GitHub através de branches, testes e pull requests.
 
 Projeto em desenvolvimento. Fase 0 (fundações) concluída: estrutura,
 configuração validada, CLI de verificação de ambiente, testes e CI.
-O pipeline de voz chega na Fase 1.
+O instalador Windows também já está pronto.
+
+A Fase 1 arrancou: os contratos do pipeline de voz estão definidos e o modo
+texto já conversa. Falta ligar microfone, wake word, STT e TTS reais.
+
+## Uso
+
+```bash
+nox --check                  # configuração e ambiente
+nox --text                   # conversa por texto
+nox --say "que horas são?"   # uma resposta e sai
+```
+
+Perguntas simples — horas, data, agradecimentos — são respondidas localmente,
+sem rede e sem custo. Tudo o resto vai ao modelo configurado no `config.yaml`;
+a chave fica em `NOX_LLM_API_KEY`, no `.env`.
 
 ## Instalação
 

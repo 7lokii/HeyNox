@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import traceback
 from collections.abc import Callable
@@ -12,7 +13,9 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
 
-from nox.config import Config, ConfigError, load_config, resolve_config_path
+from nox.brain.agent import Agent
+from nox.brain.llm import LlmError, UnconfiguredLlm, build_llm
+from nox.config import Config, ConfigError, load_config, load_environment, resolve_config_path
 from nox.optional import available
 from nox.paths import has_console, user_data_dir
 
@@ -28,6 +31,11 @@ def _check(config: Config) -> list[str]:
             f"Modo voz ativo mas faltam dependências: {', '.join(missing)} "
             "(pip install -e .[voice])"
         )
+    if not os.environ.get(config.llm.api_key_env, "").strip():
+        warnings.append(
+            f"Sem chave de modelo ({config.llm.api_key_env}): só respostas locais "
+            "até configurares o .env"
+        )
     data_dir = config.memory.sqlite_path.parent
     if not data_dir.exists():
         warnings.append(f"Diretório de dados ainda não existe: {data_dir}")
@@ -40,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--check", action="store_true", help="Valida a configuração e o ambiente e sai"
     )
+    parser.add_argument("--text", action="store_true", help="Conversa por texto, sem microfone")
+    parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     return parser
 
 
@@ -69,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
+    load_environment()
     config = load_config(args.config)
     warnings = _check(config)
     for warning in warnings:
@@ -78,8 +89,54 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         out(f"{config.nox.name} configurado ({config.nox.language}), wake word '{wake_word}'")
         out(f"config: {resolve_config_path(args.config)}")
         return 0
-    out(f"{config.nox.name} 0.x — fundações instaladas. O pipeline de voz chega na Fase 1.")
+    if args.say:
+        return _reply_once(config, args.say, out)
+    if args.text:
+        return _text_session(config, out)
+    out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")
     return 0
+
+
+def _agent(config: Config) -> Agent:
+    """Constrói o agente; sem chave, degrada para respostas locais em vez de falhar."""
+    try:
+        llm = build_llm(config)
+    except LlmError as exc:
+        llm = UnconfiguredLlm(str(exc))
+    return Agent(llm)
+
+
+def _reply_once(config: Config, text: str, out: Callable[[str], None]) -> int:
+    try:
+        out(_agent(config).reply(text))
+    except LlmError as exc:
+        out(f"Erro: {exc}")
+        return 2
+    return 0
+
+
+def _text_session(config: Config, out: Callable[[str], None]) -> int:
+    if not has_console():
+        out("Erro: o modo texto precisa de uma consola")
+        return 2
+
+    agent = _agent(config)
+    out(f"{config.nox.name} em modo texto. Escreve 'sair' para terminar.")
+    while True:
+        try:
+            line = input("tu> ")
+        except (EOFError, KeyboardInterrupt):
+            out("")
+            return 0
+        command = line.strip()
+        if command.lower() in {"sair", "exit", "quit"}:
+            return 0
+        if not command:
+            continue
+        try:
+            out(f"{config.nox.name}: {agent.reply(command)}")
+        except LlmError as exc:
+            out(f"Erro: {exc}")
 
 
 def _emit(message: str) -> None:

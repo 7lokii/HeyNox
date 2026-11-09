@@ -63,7 +63,20 @@ class LlmRouterConfig(BaseModel):
 
 
 class LlmConfig(BaseModel):
+    """Onde e como o Nox fala com o modelo.
+
+    `api_format` distingue os dois dialetos suportados: `anthropic` para
+    `POST /messages` e `openai` para `POST /chat/completions`.
+    """
+
     default_provider: str = "openai_compatible"
+    model: str = ""
+    api_format: Literal["anthropic", "openai"] = "openai"
+    base_url: str = ""
+    api_key_env: str = "NOX_LLM_API_KEY"
+    max_tokens: int = Field(default=400, gt=0)
+    temperature: float = Field(default=0.4, ge=0.0, le=2.0)
+    timeout: float = Field(default=30.0, gt=0)
     router: LlmRouterConfig = Field(default_factory=LlmRouterConfig)
 
 

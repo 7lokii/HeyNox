@@ -4,7 +4,15 @@ Segue o `spec.md` (§12). Estado atual:
 
 - [x] **Fase 0 — Fundações.** Estrutura de pastas, config validado, import lazy dos
   extras, `.env.example`, `.gitignore`, `README.md`, testes, GitHub Actions.
-- [ ] **Fase 1 — Voz básica.** Captura, wake word, VAD, STT, LLM, TTS, interrupção.
+- [ ] **Fase 1 — Voz básica.** Em curso.
+  - [x] Contratos do pipeline + duplos de teste sem hardware.
+  - [x] Modo texto (`nox --text`, `nox --say`) com LLM configurável.
+  - [x] Respostas locais para horas, data e agradecimentos.
+  - [ ] Captura de microfone real (sounddevice).
+  - [ ] Wake word "Hey Nox" — modelo treinado, ver `docs/voice.md`.
+  - [ ] STT local (faster-whisper).
+  - [ ] TTS — decidir pt-PT (Piper) vs pt-BR (Kokoro), ver `docs/voice.md`.
+  - [ ] Interrupção da fala.
 - [ ] **Fase 2 — Memória.**
 - [ ] **Fase 3 — Ferramentas seguras.**
 - [ ] **Fase 4 — GitHub.**

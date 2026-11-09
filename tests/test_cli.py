@@ -1,7 +1,9 @@
+import re
 from pathlib import Path
 
 import pytest
 
+from nox.brain.llm import EchoLlm
 from nox.main import main
 
 
@@ -55,3 +57,29 @@ def test_windowed_mode_logs_unexpected_errors(
     assert main(["--check"]) == 1
     log = (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
     assert "RuntimeError: falha simulada" in log
+
+
+def test_say_answers_local_question(capsys) -> None:
+    assert main(["--say", "que horas são?"]) == 0
+    assert re.match(r"(São|É) \d+h\d{2}\.", capsys.readouterr().out.strip())
+
+
+def test_say_uses_the_model(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    monkeypatch.setattr("nox.main.build_llm", lambda config: EchoLlm())
+    assert main(["--say", "olá"]) == 0
+    assert "(eco) olá" in capsys.readouterr().out
+
+
+def test_say_without_key_explains_what_is_missing(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    monkeypatch.setattr("nox.main.load_environment", lambda *args, **kwargs: None)
+    monkeypatch.delenv("NOX_LLM_API_KEY", raising=False)
+    assert main(["--say", "quem és tu?"]) == 2
+    assert "Erro:" in capsys.readouterr().err
+
+
+def test_text_session_exits_on_sair(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    monkeypatch.setattr("nox.main.build_llm", lambda config: EchoLlm())
+    answers = iter(["olá", "sair"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    assert main(["--text"]) == 0
+    assert "Nox: (eco) olá" in capsys.readouterr().out

@@ -23,7 +23,14 @@ stt:
   fallback_provider: "openai"
 
 llm:
-  default_provider: "openai_compatible"
+  default_provider: "selora"
+  model: "claude-haiku-5-5"
+  api_format: "anthropic"
+  base_url: "https://api.selora.lol/v1"
+  api_key_env: "NOX_LLM_API_KEY"
+  max_tokens: 400
+  temperature: 0.4
+  timeout: 30
   router:
     simple_tasks: "groq"
     coding_tasks: "anthropic"
