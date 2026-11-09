@@ -44,6 +44,16 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   (TTS -> WAV -> STT) valida o pipeline antes de existir hardware.
 - **Reamostragem em Python.** `nox.audio.types.resample` faz interpolação
   linear: o Piper produz 22,05 kHz e o Whisper quer 16 kHz.
+- **VAD do WebRTC, não do Silero.** `webrtcvad` é 10 KB e não puxa PyTorch. O
+  Silero fica no extra `silero` para quem quiser comparar.
+- **`VoiceLoop` com peças injectáveis.** Fonte, segmentador, transcritor,
+  sintetizador e altifalante entram no construtor, por isso o loop testa-se com
+  duplos e sem hardware (`tests/test_voice.py`).
+- **`WavSource` fecha o ciclo.** `nox --voice --input a.wav` corre o pipeline
+  todo a partir de um ficheiro — foi assim que o loop foi validado antes de
+  alguém falar ao microfone.
+- **`Step` em vez de booleano.** Ler um bloco devolve `IDLE`, `TURN` ou `END`:
+  uma fonte de ficheiro tem fim, um microfone não.
 
 ## Próxima fase
 

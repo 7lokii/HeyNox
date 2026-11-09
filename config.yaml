@@ -11,9 +11,11 @@ audio:
   input_device: "default"
   sample_rate: 16000
   channels: 1
+  block_ms: 30
   vad:
-    provider: "silero"
+    provider: "webrtc"
     sensitivity: 0.5
+    aggressiveness: 2
 
 stt:
   provider: "faster-whisper"
@@ -41,8 +43,8 @@ llm:
     fallback: "openai_compatible"
 
 tts:
-  provider: "piper"
-  voice: "pt_PT-tugão-medium"
+  provider: "edge"
+  voice: "pt-PT-DuarteNeural"
   speed: 1.0
 
 memory:

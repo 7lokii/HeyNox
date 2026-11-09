@@ -11,7 +11,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from nox.audio.types import Pcm, duration_ms, rms
+from nox.audio.types import SAMPLE_WIDTH, Pcm, duration_ms, rms
+from nox.optional import require
 
 
 class VoiceActivityDetector(Protocol):
@@ -26,6 +27,38 @@ class EnergyVad:
 
     def is_speech(self, chunk: Pcm) -> bool:
         return rms(chunk) >= self.threshold
+
+
+class WebRtcVad:
+    """VAD do WebRTC: leve, sem PyTorch, bom a separar fala de ruído.
+
+    Só aceita blocos de 10, 20 ou 30 ms a 8, 16, 32 ou 48 kHz — exactamente o
+    que o microfone entrega por omissão.
+    """
+
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        *,
+        aggressiveness: int = 2,
+        frame_ms: int = 30,
+    ) -> None:
+        require("webrtcvad")
+        import webrtcvad
+
+        if sample_rate not in (8000, 16000, 32000, 48000):
+            raise ValueError(f"o WebRTC VAD não aceita {sample_rate} Hz")
+        if frame_ms not in (10, 20, 30):
+            raise ValueError(f"o WebRTC VAD não aceita blocos de {frame_ms} ms")
+
+        self._vad = webrtcvad.Vad(aggressiveness)
+        self._sample_rate = sample_rate
+        self._frame_bytes = round(sample_rate * frame_ms / 1000) * SAMPLE_WIDTH
+
+    def is_speech(self, chunk: Pcm) -> bool:
+        if len(chunk) < self._frame_bytes:
+            return False
+        return bool(self._vad.is_speech(chunk[: self._frame_bytes], self._sample_rate))
 
 
 @dataclass

@@ -4,16 +4,32 @@ Pipeline: `áudio -> VAD -> STT -> LLM -> TTS -> áudio`.
 
 | Etapa | Extra | Biblioteca | Estado |
 |---|---|---|---|
-| Captura | `audio` | sounddevice | contrato + `FakeSource` |
+| Captura | `audio` | sounddevice | **funcional** |
 | Wake word | `wake` | openwakeword | contrato + duplos |
-| VAD | `vad` | silero-vad | contrato + `EnergyVad` |
+| VAD | `vad` | webrtcvad | **funcional** |
 | STT | `stt` | faster-whisper | **funcional** |
 | TTS | `tts` | piper | **funcional** |
+| TTS online | `edge` | edge-tts | **funcional** |
 
 Instalar tudo: `pip install -e ".[voice]"`.
 
 Sem os extras, o Nox arranca em modo texto e `nox --check` indica o que falta.
 Nenhum áudio sai do PC sem confirmação explícita.
+
+## Conversa por voz
+
+```bash
+nox --voice                   # microfone
+nox --voice --input a.wav     # o mesmo pipeline, a partir de um ficheiro
+nox --devices                 # lista as entradas de áudio
+```
+
+O loop é: microfone -> `Segmenter` (WebRTC VAD) -> faster-whisper -> agente ->
+Piper -> altifalante. Sem wake word, o Nox ouve sempre: `--voice` é conversa
+contínua até Ctrl+C.
+
+`--input` existe para testar sem falar ao computador. Um WAV com 0,5 s de
+silêncio antes e 1 s depois atravessa o pipeline todo e produz a resposta falada.
 
 ## Testar sem microfone
 
@@ -71,6 +87,25 @@ Três coisas a reter:
 Latência: ~2,5 s para transcrever 2 s de áudio neste CPU. O modelo `medium`
 melhora os números, mas triplica o tempo. Uma GPU muda a equação.
 
+## Vozes disponíveis
+
+| Provider | Vozes | Onde corre | Como soa |
+|---|---|---|---|
+| `piper` | `pt_PT-tugão-medium` | local (ONNX) | seca, robótica, mas honesta |
+| `edge` | `pt-PT-DuarteNeural`, `pt-PT-RaquelNeural` | rede (Microsoft) | natural, com respiração e entoação |
+
+Para trocar, duas linhas no `config.yaml`:
+
+```yaml
+tts:
+  provider: "edge"
+  voice: "pt-PT-RaquelNeural"
+```
+
+O `edge` manda o texto do Nox para a Microsoft — não é local-first. É a opção
+para quem quer a melhor voz e aceita a rede; o Piper é a opção offline. O
+`pt-PT-DuarteNeural` é masculino, o `pt-PT-RaquelNeural` feminino.
+
 ## Porque Piper e não Kokoro
 
 O Kokoro só tem vozes de português do Brasil, e o `config.yaml` antigo apontava
@@ -78,7 +113,16 @@ O Kokoro só tem vozes de português do Brasil, e o `config.yaml` antigo apontav
 `pt_PT-tugão-medium`, é ONNX, corre em CPU e não arrasta PyTorch.
 
 O STT também não usa PyTorch: o faster-whisper assenta em CTranslate2. Com
-Piper + faster-whisper, o `torch` só é preciso para o Silero VAD.
+Piper + faster-whisper, o `torch` só é preciso para o Silero VAD — e o VAD por
+omissão é o do WebRTC, que também não precisa.
+
+## Latência do loop completo
+
+Medido neste CPU (i5/Ryzen, `small` int8), por turno: ~0,7 s de silêncio para o
+`Segmenter` fechar a frase, ~2,5 s de transcrição, ~1 s de modelo (quando não é
+resposta local) e ~1,5 s de síntese. Dá cerca de **5 segundos** entre acabar de
+falar e ouvir a resposta. É o próximo alvo a atacar: streaming do STT e frases
+curtas do TTS.
 
 ## Decisões pendentes
 

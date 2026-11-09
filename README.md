@@ -25,17 +25,21 @@ Projeto em desenvolvimento. Fase 0 (fundações) concluída: estrutura,
 configuração validada, CLI de verificação de ambiente, testes e CI.
 O instalador Windows também já está pronto.
 
-A Fase 1 arrancou: os contratos do pipeline de voz estão definidos, o modo
-texto conversa e o STT/TTS locais já funcionam. Falta ligar microfone e wake word.
+A Fase 1 está quase fechada: os contratos do pipeline, o modo texto, o STT/TTS
+locais e o loop de voz completo já funcionam. Falta a wake word "Hey Nox" e a
+interrupção da fala.
 
 ## Uso
 
 ```bash
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
+nox --voice                  # conversa por voz (microfone)
+nox --voice --input a.wav    # o mesmo pipeline, a partir de um ficheiro
+nox --devices                # lista os microfones disponíveis
 nox --say "que horas são?"   # uma resposta e sai
-nox --speak "Bom dia."       # sintetiza para WAV (Piper)
-nox --transcribe audio.wav   # transcreve um WAV (faster-whisper)
+nox --speak "Bom dia."       # sintetiza para WAV
+nox --transcribe audio.wav   # transcreve um WAV
 ```
 
 Perguntas simples — horas, data, agradecimentos — são respondidas localmente,

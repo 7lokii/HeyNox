@@ -65,7 +65,7 @@ def test_say_answers_local_question(capsys) -> None:
 
 
 def test_say_uses_the_model(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
-    monkeypatch.setattr("nox.main.build_llm", lambda config: EchoLlm())
+    monkeypatch.setattr("nox.brain.agent.build_llm", lambda config: EchoLlm())
     assert main(["--say", "olá"]) == 0
     assert "(eco) olá" in capsys.readouterr().out
 
@@ -78,7 +78,7 @@ def test_say_without_key_explains_what_is_missing(monkeypatch: pytest.MonkeyPatc
 
 
 def test_text_session_exits_on_sair(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
-    monkeypatch.setattr("nox.main.build_llm", lambda config: EchoLlm())
+    monkeypatch.setattr("nox.brain.agent.build_llm", lambda config: EchoLlm())
     answers = iter(["olá", "sair"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     assert main(["--text"]) == 0

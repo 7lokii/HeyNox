@@ -14,9 +14,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Event
 
-from nox.brain.llm import LlmClient, LlmError
+from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
+from nox.config import Config
 
 WEEKDAYS = (
     "segunda-feira",
@@ -134,3 +135,12 @@ class Agent:
     @property
     def stopped(self) -> bool:
         return self._stop.is_set()
+
+
+def build_agent(config: Config, *, voice: bool = False) -> Agent:
+    """Agente a partir da config. Sem chave, degrada para respostas locais."""
+    try:
+        llm = build_llm(config)
+    except LlmError as exc:
+        llm = UnconfiguredLlm(str(exc))
+    return Agent(llm, voice=voice)

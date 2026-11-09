@@ -9,10 +9,11 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Modo texto (`nox --text`, `nox --say`) com LLM configurável.
   - [x] Respostas locais para horas, data e agradecimentos.
   - [x] STT local (faster-whisper) — `nox --transcribe`.
-  - [x] TTS local (Piper `pt_PT-tugão-medium`) — `nox --speak`.
-  - [ ] Captura de microfone real (sounddevice).
+  - [x] TTS local (Piper `pt_PT-tugão-medium`) e opção neural (`edge-tts`).
+  - [x] Captura de microfone real (sounddevice) — `nox --voice`.
+  - [x] VAD WebRTC + loop de conversação completo.
   - [ ] Wake word "Hey Nox" — modelo treinado, ver `docs/voice.md`.
-  - [ ] Interrupção da fala.
+  - [ ] Interrupção da fala e latência (streaming).
 - [ ] **Fase 2 — Memória.**
 - [ ] **Fase 3 — Ferramentas seguras.**
 - [ ] **Fase 4 — GitHub.**

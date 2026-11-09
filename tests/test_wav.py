@@ -3,6 +3,7 @@ from array import array
 
 import pytest
 
+from nox.audio.source import WavSource
 from nox.audio.types import Pcm
 from nox.audio.wav import WavError, read_wav, write_wav
 
@@ -57,3 +58,25 @@ def test_non_wav_file_is_reported(tmp_path) -> None:
     path.write_text("isto não é áudio", encoding="utf-8")
     with pytest.raises(WavError, match="WAV válido"):
         read_wav(path)
+
+
+def test_wav_source_replays_the_file(tmp_path) -> None:
+    audio = Pcm(array("h", range(100)).tobytes())
+    path = write_wav(tmp_path / "a.wav", audio, 16000)
+
+    source = WavSource(path, sample_rate=16000)
+    assert source.read(40) == audio[:80]
+    assert source.read(60) == audio[80:]
+    assert source.read(10) == b""
+
+
+def test_wav_source_resamples_to_the_target_rate(tmp_path) -> None:
+    audio = Pcm(array("h", [1000] * 8000).tobytes())  # 1 s a 8 kHz
+    path = write_wav(tmp_path / "a.wav", audio, 8000)
+
+    source = WavSource(path, sample_rate=16000)
+    collected = b""
+    while chunk := source.read(480):
+        collected += chunk
+
+    assert abs(len(collected) - 32000) < 64  # ~1 s a 16 kHz

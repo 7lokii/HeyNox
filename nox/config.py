@@ -9,7 +9,7 @@ from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from nox.paths import bundle_dir, install_dir, user_data_dir
 
@@ -36,15 +36,29 @@ class NoxIdentity(BaseModel):
 
 
 class VadConfig(BaseModel):
-    provider: Literal["silero", "webrtc"] = "silero"
+    provider: Literal["silero", "webrtc"] = "webrtc"
     sensitivity: float = Field(default=0.5, ge=0.0, le=1.0)
+    # 0 = permissivo, 3 = só aceita fala clara. 2 é o equilíbrio habitual.
+    aggressiveness: int = Field(default=2, ge=0, le=3)
 
 
 class AudioConfig(BaseModel):
     input_device: str = "default"
     sample_rate: int = Field(default=16000, gt=0)
     channels: int = Field(default=1, gt=0, le=2)
+    # Bloco de leitura. O WebRTC VAD só aceita 10, 20 ou 30 ms.
+    block_ms: int = Field(default=30, gt=0)
     vad: VadConfig = Field(default_factory=VadConfig)
+
+    @model_validator(mode="after")
+    def _webrtc_limits(self) -> AudioConfig:
+        if self.vad.provider != "webrtc":
+            return self
+        if self.block_ms not in (10, 20, 30):
+            raise ValueError("audio.block_ms tem de ser 10, 20 ou 30 com o VAD webrtc")
+        if self.sample_rate not in (8000, 16000, 32000, 48000):
+            raise ValueError("audio.sample_rate tem de ser 8000, 16000, 32000 ou 48000")
+        return self
 
 
 class SttConfig(BaseModel):
@@ -88,7 +102,7 @@ class LlmConfig(BaseModel):
 
 
 class TtsConfig(BaseModel):
-    provider: Literal["piper", "kokoro", "elevenlabs", "openai"] = "piper"
+    provider: Literal["piper", "edge", "kokoro", "elevenlabs", "openai"] = "piper"
     voice: str = "pt_PT-tugão-medium"
     speed: float = Field(default=1.0, gt=0.0, le=3.0)
 

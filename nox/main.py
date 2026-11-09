@@ -15,8 +15,8 @@ from typing import cast
 
 from nox.audio.types import duration_ms
 from nox.audio.wav import read_wav, write_wav
-from nox.brain.agent import Agent
-from nox.brain.llm import LlmError, UnconfiguredLlm, build_llm
+from nox.brain.agent import build_agent
+from nox.brain.llm import LlmError
 from nox.config import (
     Config,
     ConfigError,
@@ -29,14 +29,27 @@ from nox.optional import available
 from nox.paths import has_console, user_data_dir
 from nox.speech.stt import build_transcriber
 from nox.speech.tts import build_synthesizer
+from nox.voice import run_voice
 
-VOICE_MODULES = ("sounddevice", "numpy", "openwakeword", "faster_whisper", "piper")
+
+def voice_modules(config: Config) -> list[str]:
+    """Só as dependências que a configuração atual vai mesmo usar."""
+    modules = ["sounddevice", "numpy", "openwakeword"]
+    if config.stt.provider == "faster-whisper":
+        modules.append("faster_whisper")
+    if config.tts.provider == "piper":
+        modules.append("piper")
+    elif config.tts.provider == "edge":
+        modules.append("edge_tts")
+    if config.audio.vad.provider == "webrtc":
+        modules.append("webrtcvad")
+    return modules
 
 
 def _check(config: Config) -> list[str]:
     """Devolve a lista de avisos de arranque, sem falhar por falta de extras."""
     warnings: list[str] = []
-    missing = [name for name in VOICE_MODULES if not available(name)]
+    missing = [name for name in voice_modules(config) if not available(name)]
     if missing and config.nox.voice_enabled:
         warnings.append(
             f"Modo voz ativo mas faltam dependências: {', '.join(missing)} "
@@ -60,6 +73,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--check", action="store_true", help="Valida a configuração e o ambiente e sai"
     )
     parser.add_argument("--text", action="store_true", help="Conversa por texto, sem microfone")
+    parser.add_argument("--voice", action="store_true", help="Conversa por voz, com microfone")
+    parser.add_argument(
+        "--input", metavar="WAV", type=Path, default=None, help="Usa um WAV em vez do microfone"
+    )
+    parser.add_argument(
+        "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
+    )
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     parser.add_argument(
         "--speak", metavar="TEXTO", default=None, help="Sintetiza a frase para WAV e sai"
@@ -113,6 +133,10 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return _speak(config, args.speak, args.out, out)
     if args.transcribe:
         return _transcribe(config, args.transcribe, out)
+    if args.voice:
+        return run_voice(config, out=out, input_file=args.input)
+    if args.devices:
+        return _devices(out)
     if args.text:
         return _text_session(config, out)
     out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")
@@ -152,18 +176,22 @@ def _transcribe(config: Config, path: Path, out: Callable[[str], None]) -> int:
     return 0
 
 
-def _agent(config: Config) -> Agent:
-    """Constrói o agente; sem chave, degrada para respostas locais em vez de falhar."""
+def _devices(out: Callable[[str], None]) -> int:
+    from nox.audio.mic import list_input_devices
+
     try:
-        llm = build_llm(config)
-    except LlmError as exc:
-        llm = UnconfiguredLlm(str(exc))
-    return Agent(llm)
+        devices = list_input_devices()
+    except NoxError as exc:
+        out(f"Erro: {exc}")
+        return 2
+    for index, name in devices:
+        out(f"{index:3}  {name}")
+    return 0
 
 
 def _reply_once(config: Config, text: str, out: Callable[[str], None]) -> int:
     try:
-        out(_agent(config).reply(text))
+        out(build_agent(config).reply(text))
     except LlmError as exc:
         out(f"Erro: {exc}")
         return 2
@@ -175,7 +203,7 @@ def _text_session(config: Config, out: Callable[[str], None]) -> int:
         out("Erro: o modo texto precisa de uma consola")
         return 2
 
-    agent = _agent(config)
+    agent = build_agent(config)
     out(f"{config.nox.name} em modo texto. Escreve 'sair' para terminar.")
     while True:
         try:

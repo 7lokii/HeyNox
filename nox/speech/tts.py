@@ -62,4 +62,13 @@ def build_synthesizer(
     if settings.provider == "piper":
         model = ensure_piper_voice(settings.voice, progress=progress)
         return PiperSynthesizer(model, speed=settings.speed)
+    if settings.provider == "edge":
+        from nox.speech.edge import EdgeSynthesizer
+
+        if "_" in settings.voice:
+            raise ModelError(
+                "tts.voice tem um nome de voz Piper; para o edge usa "
+                "pt-PT-DuarteNeural ou pt-PT-RaquelNeural"
+            )
+        return EdgeSynthesizer(settings.voice, speed=settings.speed)
     raise ModelError(f"tts.provider '{settings.provider}' ainda não está implementado")
