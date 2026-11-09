@@ -21,10 +21,9 @@ que falta e é preciso correr `python -m playwright install chromium` uma vez
 
 ## Porque é que o build usa Python 3.11
 
-A build usa 3.11 porque era a versão exigida pelo `kokoro` (`requires_python
-<3.13`). Com a troca para `piper-tts`, esse limite desapareceu e o build pode
-passar a 3.12/3.13 — ainda não testado. O `installer/build.ps1` cria um venv
-3.11 próprio com `uv` (`.build-venv/`) e não toca no Python do sistema.
+A build usa 3.11 porque é a combinação já validada de torch, ctranslate2,
+piper-tts e winrt no Windows. O `installer/build.ps1` cria um venv 3.11 próprio
+com `uv` (`.build-venv/`) e não toca no Python do sistema.
 
 ## Como compilar
 
@@ -90,7 +89,8 @@ caminho e o setup abre interativo.
 
 ## Notas
 
-- Tamanho esperado: ~1 GB instalado (dominado por `torch`, que só serve ao Silero VAD).
+- Tamanho medido: `dist\HeyNox` ~1,1 GB, `dist\nox` ~578 MB, instalador
+  ~340 MB (dominado por `torch`, que só serve ao Silero VAD).
 - Assinatura de código (Authenticode) ainda não configurada; o SmartScreen vai
   mostrar aviso até haver certificado.
 - Linux/macOS: gerar o mesmo `.spec` noutra plataforma e alterar
