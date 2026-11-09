@@ -25,7 +25,7 @@ stt = ["faster-whisper>=1.0"]
 tts = ["piper-tts>=1.8"]
 edge = ["edge-tts>=7.0"]
 voice = [
-    "heynox[audio,wake,vad,stt,tts]",
+    "heynox[audio,wake,vad,stt,tts,edge]",
 ]
 dev = [
     "pytest>=8.0",
