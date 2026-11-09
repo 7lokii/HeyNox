@@ -32,9 +32,9 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Ler ficheiros e listar pastas dentro da sandbox.
   - [x] Shell seguro por allowlist, sem `shell=True`.
   - [x] Audit log em JSONL.
-  - [x] Loop de tool_use (até 4 passos).
-  - [ ] Escrever e editar ficheiros com diff.
-  - [ ] Sistema de aprovações na interface.
+  - [x] Loop de tool_use (até 6 passos).
+  - [x] Escrever e editar ficheiros com diff.
+  - [x] Sistema de aprovações na interface (com expiração).
   - [ ] Pesquisa web e leitura de páginas.
   - [ ] Browser com Playwright.
   - [ ] Notas (além dos factos da memória).
