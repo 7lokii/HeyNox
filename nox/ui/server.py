@@ -126,6 +126,7 @@ class NoxApp:
                 on_turn=self.state.add_turn,
                 on_status=self.state.set_status,
                 on_frame=self.state.set_levels,
+                on_input=self.state.set_input_levels,
                 stop_event=self._stop,
             )
         except NoxError as exc:
@@ -148,7 +149,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(self.app.state.snapshot())
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
-            self._send_json({"levels": snapshot["levels"], "status": snapshot["status"]})
+            self._send_json(
+                {
+                    "levels": snapshot["levels"],
+                    "input": snapshot["input_levels"],
+                    "source": snapshot["source"],
+                    "status": snapshot["status"],
+                }
+            )
         elif self.path == "/api/memory":
             self._send_json({"facts": self.app.memory_facts()})
         else:

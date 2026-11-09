@@ -125,3 +125,14 @@ def test_memory_endpoint_lists_and_forgets(server) -> None:
     removed = post_json(base + "/api/memory/forget", {"pattern": "Rui"})["removed"]
     assert removed == 1
     assert get_json(base + "/api/memory")["facts"] == []
+
+
+def test_state_reports_who_is_speaking() -> None:
+    state = NoxState()
+    assert state.snapshot()["source"] == "none"
+
+    state.set_input_levels([0.4] + [0.0] * 47)
+    assert state.snapshot()["source"] == "user"
+
+    state.set_levels([0.6] + [0.0] * 47)
+    assert state.snapshot()["source"] == "nox"

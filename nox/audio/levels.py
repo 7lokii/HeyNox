@@ -101,3 +101,65 @@ def play_frames(
     thread = Thread(target=run, daemon=True)
     thread.start()
     return thread
+
+
+def band_energy(chunk: Pcm, sample_rate: int, *, bands: int = BANDS) -> list[float]:
+    """Energia por banda de um bloco curto, com a forma normalizada.
+
+    A escala absoluta da FFT depende do tamanho do bloco; por isso a forma vem
+    normalizada e a intensidade é dada pelo RMS. Assim o anel reage ao volume
+    sem precisar de constantes mágicas por banda.
+    """
+    import numpy as np
+
+    samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+    if len(samples) < 64:
+        return [0.0] * bands
+
+    spectrum = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
+    frequencies = np.fft.rfftfreq(len(samples), 1 / sample_rate)
+    upper = min(MAX_HZ, sample_rate / 2 - 1)
+    edges = np.geomspace(80.0, upper, bands + 1)
+    indices = np.searchsorted(frequencies, edges)
+
+    energies = []
+    for index in range(bands):
+        low = int(indices[index])
+        high = max(int(indices[index + 1]), low + 1)
+        energies.append(float(spectrum[low:high].mean()))
+
+    peak = max(energies) or 1.0
+    loudness = min(1.0, float(np.sqrt(np.mean(samples**2))) / 0.09)
+    return [min(1.0, (value / peak) * loudness) for value in energies]
+
+
+class MicMeter:
+    """Medidor do microfone: publica bandas suavizadas a cada bloco."""
+
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        *,
+        bands: int = BANDS,
+        on_frame: Callable[[list[float]], None] | None = None,
+        attack: float = 0.55,
+        release: float = 0.12,
+    ) -> None:
+        self._sample_rate = sample_rate
+        self._bands = bands
+        self._on_frame = on_frame
+        self._attack = attack
+        self._release = release
+        self._current = [0.0] * bands
+
+    def process(self, chunk: Pcm) -> list[float]:
+        target = band_energy(chunk, self._sample_rate, bands=self._bands)
+        for index, value in enumerate(target):
+            weight = self._attack if value > self._current[index] else self._release
+            self._current[index] += (value - self._current[index]) * weight
+        if self._on_frame is not None:
+            self._on_frame(list(self._current))
+        return list(self._current)
+
+    def reset(self) -> None:
+        self._current = [0.0] * self._bands

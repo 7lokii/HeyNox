@@ -304,6 +304,28 @@ exponha um dispositivo de entrada.
 Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
 caminho do áudio.
 
+## O anel da interface
+
+Dois anéis, dois donos:
+
+- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
+- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
+  Cresce para dentro para não se confundir com o outro.
+
+O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
+30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
+## O anel da interface
+
+Dois anéis, dois donos:
+
+- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
+- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
+  Cresce para dentro para não se confundir com o outro.
+
+O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
+30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
 ## Ruído na transcrição
 
 Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
@@ -376,6 +398,28 @@ exponha um dispositivo de entrada.
 
 Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
 caminho do áudio.
+
+## O anel da interface
+
+Dois anéis, dois donos:
+
+- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
+- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
+  Cresce para dentro para não se confundir com o outro.
+
+O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
+30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
+## O anel da interface
+
+Dois anéis, dois donos:
+
+- **Exterior, ciano** — a voz do Nox, calculada sobre o áudio que está a sair.
+- **Interior, verde** — o teu microfone, calculado bloco a bloco enquanto falas.
+  Cresce para dentro para não se confundir com o outro.
+
+O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
+30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
 
 ## Ruído na transcrição
 

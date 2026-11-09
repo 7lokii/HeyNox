@@ -16,6 +16,7 @@ from enum import Enum, auto
 from pathlib import Path
 from threading import Event
 
+from nox.audio.levels import MicMeter
 from nox.audio.mic import AudioError, SoundDeviceSource
 from nox.audio.source import AudioSource, WavSource
 from nox.audio.speaker import SoundDeviceSpeaker, Speaker
@@ -62,15 +63,19 @@ class VoiceLoop:
     barge_in_threshold: float = 800.0
     on_turn: Callable[[str, str], None] | None = None
     on_status: Callable[[str], None] | None = None
+    on_frame: Callable[[list[float]], None] | None = None
+    on_input: Callable[[list[float]], None] | None = None
     stop_event: Event | None = None
-    on_turn: Callable[[str, str], None] | None = None
-    on_status: Callable[[str], None] | None = None
-    stop_event: Event | None = None
+    _meter: MicMeter | None = field(default=None, repr=False, init=False)
     _armed: bool = field(default=False, repr=False)
     _armed_at: float = field(default=0.0, repr=False)
     _follow_up: bool = field(default=False, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
     _filler_index: int = field(default=0, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.on_input is not None:
+            self._meter = MicMeter(self.segmenter.sample_rate, on_frame=self.on_input)
 
     def run(self, *, max_turns: int | None = None) -> int:
         # Carregar modelos leva segundos; o microfone já encheu entretanto.
@@ -102,6 +107,8 @@ class VoiceLoop:
         chunk = self.source.read(self.block_frames)
         if not chunk:
             return Step.END
+        if self._meter is not None:
+            self._meter.process(chunk)
 
         if self.wake is not None and not self._armed:
             if self.wake.process(chunk):
@@ -330,6 +337,7 @@ def run_voice(
     on_turn: Callable[[str, str], None] | None = None,
     on_status: Callable[[str], None] | None = None,
     on_frame: Callable[[list[float]], None] | None = None,
+    on_input: Callable[[list[float]], None] | None = None,
     stop_event: Event | None = None,
 ) -> int:
     """Arranca o pipeline completo. Devolve o número de turnos."""

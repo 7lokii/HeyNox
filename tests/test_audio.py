@@ -2,7 +2,7 @@ from array import array
 
 import pytest
 
-from nox.audio.levels import BANDS, spectrum_frames
+from nox.audio.levels import BANDS, MicMeter, band_energy, spectrum_frames
 from nox.audio.types import Pcm, duration_ms, frame_count, rms, silence, trim_silence
 from nox.audio.vad import EnergyVad, Segmenter
 
@@ -124,3 +124,42 @@ def test_spectrum_of_silence_is_flat() -> None:
 def test_spectrum_of_empty_audio_is_empty() -> None:
     pytest.importorskip("numpy")
     assert spectrum_frames(Pcm(b""), SAMPLE_RATE) == []
+
+
+def test_band_energy_is_normalised() -> None:
+    pytest.importorskip("numpy")
+    values = band_energy(chunk(100, 3000), SAMPLE_RATE)
+
+    assert len(values) == BANDS
+    assert all(0.0 <= value <= 1.0 for value in values)
+    assert max(values) > 0.5
+
+
+def test_band_energy_of_silence_is_zero() -> None:
+    pytest.importorskip("numpy")
+    assert max(band_energy(silence(30, SAMPLE_RATE), SAMPLE_RATE)) == 0.0
+
+
+def test_mic_meter_publishes_frames() -> None:
+    pytest.importorskip("numpy")
+    frames: list[list[float]] = []
+    meter = MicMeter(SAMPLE_RATE, on_frame=frames.append)
+
+    meter.process(chunk(30, 3000))
+
+    assert len(frames) == 1
+    assert max(frames[0]) > 0.3
+
+
+def test_mic_meter_decays_on_silence() -> None:
+    pytest.importorskip("numpy")
+    meter = MicMeter(SAMPLE_RATE)
+    for _ in range(6):
+        meter.process(chunk(30, 3000))
+    loud = max(meter.process(chunk(30, 3000)))
+
+    quiet = loud
+    for _ in range(10):
+        quiet = max(meter.process(chunk(30, 0)))
+
+    assert quiet < loud / 2

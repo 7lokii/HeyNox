@@ -12,6 +12,15 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
+def _source(output: list[float], microphone: list[float]) -> str:
+    """Quem está a fazer barulho: o Nox, o utilizador, ou ninguém."""
+    if any(value > 0.02 for value in output):
+        return "nox"
+    if any(value > 0.02 for value in microphone):
+        return "user"
+    return "none"
+
+
 @dataclass
 class Turn:
     role: str
@@ -28,6 +37,7 @@ class NoxState:
         self._status = "parado"
         self._voice = False
         self._levels: list[float] = []
+        self._input_levels: list[float] = []
         self._limit = limit
 
     def add_turn(self, role: str, text: str) -> None:
@@ -38,8 +48,14 @@ class NoxState:
             del self._turns[: -self._limit]
 
     def set_levels(self, levels: list[float]) -> None:
+        """Espectro da voz do Nox (saída)."""
         with self._lock:
             self._levels = levels
+
+    def set_input_levels(self, levels: list[float]) -> None:
+        """Espectro do microfone (quem fala)."""
+        with self._lock:
+            self._input_levels = levels
 
     def set_status(self, status: str) -> None:
         with self._lock:
@@ -62,5 +78,7 @@ class NoxState:
                 "status": self._status,
                 "voice": self._voice,
                 "levels": self._levels,
+                "input_levels": self._input_levels,
+                "source": _source(self._levels, self._input_levels),
                 "turns": [asdict(turn) for turn in self._turns],
             }
