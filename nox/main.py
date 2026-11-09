@@ -120,6 +120,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--voiceprint", action="store_true", help="Mostra os perfis de voz")
     parser.add_argument(
+        "--test-stt",
+        nargs="?",
+        const=4.0,
+        type=float,
+        metavar="SEGUNDOS",
+        default=None,
+        help="Grava do microfone e mostra o que o STT ouviu",
+    )
+    parser.add_argument(
         "--name", metavar="NOME", default=None, help="Nome do perfil a criar/apagar"
     )
     parser.add_argument("--forget-voice", action="store_true", help="Apaga o perfil de voz")
@@ -186,6 +195,8 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return serve(config, out=out)
     if args.enroll or args.enroll_files or args.voiceprint or args.forget_voice:
         return _voiceprint_command(config, args, out)
+    if args.test_stt is not None:
+        return _test_stt(config, args.test_stt, out)
     if args.memory or args.forget or args.memory_export or args.memory_import or args.memory_reset:
         return _memory_command(config, args, out)
     if args.text:
@@ -328,6 +339,42 @@ def _voiceprint_command(
     except (NoxError, VoiceprintError) as exc:
         out(f"Erro: {exc}")
         return 2
+    return 0
+
+
+def _test_stt(config: Config, seconds: float, out: Callable[[str], None]) -> int:
+    """Grava alguns segundos e mostra o texto tal como o reconhecedor o ouviu."""
+    if not has_console():
+        out("Erro: o teste de STT precisa de uma consola")
+        return 2
+
+    from nox.audio.mic import SoundDeviceSource
+    from nox.audio.types import Pcm
+
+    try:
+        source = SoundDeviceSource(
+            sample_rate=config.audio.sample_rate, block_ms=config.audio.block_ms
+        )
+    except NoxError as exc:
+        out(f"Erro: {exc}")
+        return 2
+
+    frames = round(config.audio.sample_rate * config.audio.block_ms / 1000)
+    blocos = max(1, round(seconds * 1000 / config.audio.block_ms))
+    try:
+        input(f"Fala agora ({seconds:.0f} s) — Enter para começar ")
+        source.flush()
+        audio = Pcm(b"".join(source.read(frames) for _ in range(blocos)))
+    finally:
+        source.close()
+
+    try:
+        transcriber = build_transcriber(config)
+        texto = transcriber.transcribe(audio, config.audio.sample_rate)
+    except NoxError as exc:
+        out(f"Erro: {exc}")
+        return 2
+    out(f"ouvi: {texto!r}" if texto else "ouvi: (nada)")
     return 0
 
 

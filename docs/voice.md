@@ -326,6 +326,27 @@ Dois anéis, dois donos:
 O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
 30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
 
+## Quando ele percebe outra coisa
+
+O gargalo é o reconhecedor, não o modelo de linguagem. Três formas de atacar,
+por ordem de custo:
+
+**1. Ver o que ele ouviu.** Antes de mexer em nada:
+
+```bash
+nox --test-stt        # grava 4 s e mostra o texto tal como saiu do STT
+nox --test-stt 6      # seis segundos
+```
+
+Se o texto sair errado, o problema é o STT. Se sair certo, o problema é o prompt.
+
+**2. Modelo maior, local.** `stt.model: "medium"` (~1,5 GB, 3× mais lento). É a
+opção que mantém tudo no PC.
+
+**3. STT na cloud.** `stt.provider: "openai"` com `GROQ_API_KEY`. É o que o
+FreeFlow faz: `whisper-large-v3` em ~0,4 s, muito mais preciso em português. O
+áudio sai do PC — só tu podes decidir se aceitas.
+
 ## Ruído na transcrição
 
 Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
@@ -420,6 +441,27 @@ Dois anéis, dois donos:
 
 O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
 30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
+## Quando ele percebe outra coisa
+
+O gargalo é o reconhecedor, não o modelo de linguagem. Três formas de atacar,
+por ordem de custo:
+
+**1. Ver o que ele ouviu.** Antes de mexer em nada:
+
+```bash
+nox --test-stt        # grava 4 s e mostra o texto tal como saiu do STT
+nox --test-stt 6      # seis segundos
+```
+
+Se o texto sair errado, o problema é o STT. Se sair certo, o problema é o prompt.
+
+**2. Modelo maior, local.** `stt.model: "medium"` (~1,5 GB, 3× mais lento). É a
+opção que mantém tudo no PC.
+
+**3. STT na cloud.** `stt.provider: "openai"` com `GROQ_API_KEY`. É o que o
+FreeFlow faz: `whisper-large-v3` em ~0,4 s, muito mais preciso em português. O
+áudio sai do PC — só tu podes decidir se aceitas.
 
 ## Ruído na transcrição
 
