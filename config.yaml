@@ -94,8 +94,10 @@ memory:
 github:
   default_repo: "7lokii/HeyNox"
   default_branch: "main"
-  allow_push_to_main: false
-  require_pr: true
+  # Autorizado pelo utilizador: push direto para main, sem PR obrigatório.
+  # A ferramenta da Fase 4 continua a bloquear force-push e push sem testes.
+  allow_push_to_main: true
+  require_pr: false
   require_tests: true
 
 tools:

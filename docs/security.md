@@ -15,7 +15,8 @@ diz o que está implementado e como se comporta na prática.
 | Comandos destrutivos bloqueados **mesmo com aprovação** | `safety/sandbox.py` |
 | Aprovação humana para escrita e comandos fora da lista | `safety/approvals.py` |
 | Registo JSONL de todas as chamadas | `safety/audit.py` |
-| Push para `main` desligado por defeito | `GithubConfig` |
+| Push para `main` desligado por omissão | `GithubConfig` |
+| Neste projeto: push direto para `main` autorizado, force-push sempre bloqueado | `config.yaml` |
 
 ## Como uma ação é aprovada
 

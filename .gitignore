@@ -23,6 +23,8 @@ installer/*.spec
 htmlcov/
 .mypy_cache/
 .pyright/
+# Notas e contexto do agente — nunca vão para o repositório
+.workbuddy-ai/
 
 # Dados locais e projetos autorizados
 data/*
