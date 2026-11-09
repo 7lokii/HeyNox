@@ -22,7 +22,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Instalar projeto
-        run: pip install -e ".[dev]"
+        # `audio` traz o numpy, que o denoise/voiceprint importam no topo. As
+        # restantes dependências (vosk, faster-whisper, piper) são lazy e os
+        # testes que precisam delas saltam sozinhos.
+        run: pip install -e ".[audio,dev]"
       - name: Lint
         run: ruff check .
       - name: Formato
