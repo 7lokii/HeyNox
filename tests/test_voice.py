@@ -38,14 +38,27 @@ class RecordingSynthesizer:
         return block(10, 1000)
 
 
+class FlushingSource(FakeSource):
+    """Conta os flush: o loop tem de limpar o buffer ao arrancar e após falar."""
+
+    def __init__(self, chunks: list[Pcm]) -> None:
+        super().__init__(chunks, sample_rate=RATE)
+        self.flushes = 0
+
+    def flush(self) -> None:
+        self.flushes += 1
+
+
 def build_loop(
-    chunks: list[Pcm], phrases: tuple[str, ...] = ("olá",)
+    chunks: list[Pcm],
+    phrases: tuple[str, ...] = ("olá",),
+    source: FakeSource | None = None,
 ) -> tuple[VoiceLoop, list[str], RecordingSpeaker, RecordingSynthesizer]:
     lines: list[str] = []
     speaker = RecordingSpeaker()
     synthesizer = RecordingSynthesizer()
     loop = VoiceLoop(
-        source=FakeSource(chunks, sample_rate=RATE),
+        source=source or FakeSource(chunks, sample_rate=RATE),
         segmenter=Segmenter(EnergyVad(), sample_rate=RATE),
         transcriber=ScriptedTranscriber(phrases),
         synthesizer=synthesizer,
@@ -92,6 +105,16 @@ def test_empty_transcription_does_not_speak() -> None:
     assert loop.run() == 0
     assert speaker.played == []
     assert not any(line.startswith("tu>") for line in lines)
+
+
+def test_loop_clears_the_microphone_buffer() -> None:
+    source = FlushingSource(speech_then_silence())
+    loop, _, _, _ = build_loop([], source=source)
+
+    loop.run(max_turns=1)
+
+    # Uma vez ao arrancar (modelos a carregar) e outra depois de falar.
+    assert source.flushes == 2
 
 
 def test_step_reports_end_of_stream() -> None:

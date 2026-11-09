@@ -21,6 +21,14 @@ class AudioSource(Protocol):
         """Devolve o bloco seguinte; `b""` quando a fonte acabou."""
         ...
 
+    def flush(self) -> None:
+        """Descarta o que estiver em buffer.
+
+        O microfone continua a encher enquanto o Nox pensa e fala; sem isto, a
+        próxima escuta começa com áudio velho — muitas vezes a própria resposta.
+        """
+        ...
+
     def close(self) -> None: ...
 
 
@@ -38,6 +46,9 @@ class FakeSource:
         chunk = self._chunks[self._index]
         self._index += 1
         return chunk
+
+    def flush(self) -> None:
+        return None
 
     def close(self) -> None:
         self._index = len(self._chunks)
@@ -62,6 +73,9 @@ class WavSource:
         chunk = self._audio[start:end]
         self._offset += len(chunk) // SAMPLE_WIDTH
         return Pcm(chunk)
+
+    def flush(self) -> None:
+        return None
 
     def close(self) -> None:
         self._offset = len(self._audio) // SAMPLE_WIDTH

@@ -45,6 +45,15 @@ class SoundDeviceSource:
             raise AudioError(f"falha a ler do microfone: {exc}") from exc
         return Pcm(data.tobytes())
 
+    def flush(self) -> None:
+        """Deita fora o áudio acumulado — incluindo o que o Nox acabou de dizer."""
+        try:
+            pending = self._stream.read_available
+            if pending:
+                self._stream.read(pending)
+        except Exception:  # o stream pode ter fechado entretanto
+            return None
+
     def close(self) -> None:
         self._stream.stop()
         self._stream.close()

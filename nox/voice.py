@@ -46,6 +46,8 @@ class VoiceLoop:
     block_frames: int = 480
 
     def run(self, *, max_turns: int | None = None) -> int:
+        # Carregar modelos leva segundos; o microfone já encheu entretanto.
+        self.source.flush()
         self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
         turns = 0
         try:
@@ -84,6 +86,9 @@ class VoiceLoop:
         audio = self.synthesizer.synthesize(answer)
         if audio:
             self.speaker.play(audio, self.synthesizer.sample_rate)
+        # O microfone encheu enquanto o Nox falava; deitar fora antes de voltar
+        # a ouvir evita transcrever a própria resposta.
+        self.source.flush()
         return True
 
 
