@@ -128,7 +128,7 @@ class VoiceLoop:
                 self._status("a ouvir")
             return Step.IDLE
 
-        if self._armed and time.monotonic() - self._armed_at > self.wake_timeout_s:
+        if self._armed and time.monotonic() - self._armed_at >= self.wake_timeout_s:
             self._armed = False
             self.segmenter.reset()
             self.out(f"{self.name}> (não ouvi nada)")

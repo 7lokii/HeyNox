@@ -240,7 +240,9 @@ def test_follow_up_can_be_disabled() -> None:
 
 def test_listener_gives_up_after_the_timeout() -> None:
     chunks = [block(30, 2000)] + [block(30, 0) for _ in range(20)] + speech_then_silence()
-    loop, lines, _, _ = build_loop(chunks, wake=ScriptedWake(1), wake_timeout_s=0.0001)
+    # 0.0 e não 0.0001: no Windows o relógio monotónico tem ~15 ms de resolução
+    # e o teste ficava dependente de o loop demorar o suficiente.
+    loop, lines, _, _ = build_loop(chunks, wake=ScriptedWake(1), wake_timeout_s=0.0)
 
     assert loop.run() == 0
     assert "Nox> (não ouvi nada)" in lines
