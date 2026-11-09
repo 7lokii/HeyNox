@@ -145,9 +145,19 @@ class SecurityConfig(BaseModel):
     require_confirmation: list[ConfirmationAction] = Field(default_factory=list)
 
 
+class WakeConfig(BaseModel):
+    """Ativação por voz. `off` deixa o Nox a ouvir sempre."""
+
+    provider: Literal["vosk", "off"] = "vosk"
+    model: str = "vosk-model-small-pt-0.3"
+    # Segundos à espera do pedido depois de ouvir a wake word.
+    timeout_s: float = Field(default=8.0, gt=0)
+
+
 class Config(BaseModel):
     nox: NoxIdentity = Field(default_factory=NoxIdentity)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    wake: WakeConfig = Field(default_factory=WakeConfig)
     stt: SttConfig = Field(default_factory=SttConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)

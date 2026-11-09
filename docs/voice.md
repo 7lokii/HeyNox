@@ -5,7 +5,7 @@ Pipeline: `áudio -> VAD -> STT -> LLM -> TTS -> áudio`.
 | Etapa | Extra | Biblioteca | Estado |
 |---|---|---|---|
 | Captura | `audio` | sounddevice | **funcional** |
-| Wake word | `wake` | openwakeword | contrato + duplos |
+| Wake word | `wake` | vosk | **funcional** |
 | VAD | `vad` | webrtcvad | **funcional** |
 | STT | `stt` | faster-whisper | **funcional** |
 | TTS | `tts` | piper | **funcional** |
@@ -149,16 +149,47 @@ O piso atual é o STT: ~2,3 s por frase, quase tudo codificação. Para baixar
 disto sem GPU só com um modelo acústico mais leve (Vosk, sherpa-onnx) ou
 transcrição incremental enquanto se fala.
 
+## Wake word
+
+O openWakeWord não traz modelo "hey nox" — os prontos são alexa, hey jarvis, hey
+mycroft — e treinar um de raiz exige horas de GPU e vários GB de dados de
+negativos. A solução foi **reconhecimento contínuo com o Vosk** (`vosk-model-small-pt-0.3`,
+30 MB): o Nox transcreve localmente e procura a palavra no texto parcial.
+
+O que se aprendeu por medição:
+
+- **O reconhecedor pt escreve "Nox" como "inox".** "Hey Nox", "Ei Nox" e "Olá
+  Nox" deram todos `a inox` / `olá inox`. A procura é por substring, por isso
+  apanha as três. Exigir "hey" não funcionava — saía como "a".
+- **Comparação por substring, não por distância de edição.** Com distância 1,
+  a palavra "no" (comum demais) passaria por "nox".
+- **O Vosk custa ~25% de um núcleo** a reconhecer. Por isso só é alimentado
+  quando o VAD do WebRTC ouve fala, com 1,5 s de tolerância para não cortar a
+  pausa entre "hey" e "nox". Em 5 s de silêncio: **zero** chamadas ao Vosk.
+
+Custo: um falso positivo se alguém disser mesmo "inox". Aceitável.
+
+```yaml
+wake:
+  provider: "vosk"     # ou "off" para ouvir sempre
+  model: "vosk-model-small-pt-0.3"
+  timeout_s: 8         # segundos à espera do pedido depois da palavra
+```
+
+`nox --voice --no-wake` desliga a exigência da palavra; `--input` desliga-a
+sempre, porque um ficheiro já é o pedido.
+
+### Porque não o Porcupine
+
+Não é gratuito: o console oferece um teste de 7 dias e a partir daí o
+licenciamento é comercial, negociado com vendas. Além disso, exige uma
+AccessKey validada periodicamente com os servidores da Picovoice, o que quebra
+o modo offline.
+
 ## Decisões pendentes
 
-**Wake word.** O openWakeWord não traz um modelo "hey nox" — os modelos prontos
-são alexa, hey jarvis, hey mycroft. É preciso treinar um modelo custom (notebook
-oficial, treina com voz sintética, ~1h).
-
-A alternativa seria o Porcupine da Picovoice, mas não é gratuito: o console
-oferece um teste de 7 dias e a partir daí o licenciamento é comercial, negociado
-com vendas. Além disso, exige uma AccessKey validada periodicamente com os
-servidores da Picovoice, o que quebra o modo offline. Fica como plano B: dá para
-usar os 7 dias para comparar a taxa de falsos positivos com o modelo treinado.
-
-A opção local mantém o princípio local-first: Apache 2.0, sem chave, sem rede.
+- **Modelo dedicado de wake word.** O Vosk resolve, mas gasta CPU e depende da
+  transcrição. Um modelo openWakeWord treinado para "hey nox" seria mais leve
+  (1 MB, ~3% de CPU) e mais preciso. Fica para quando houver tempo de treino.
+- **Interrupção da fala.** O `agent.stop()` existe e ninguém o chama: o Nox
+  ainda não se cala quando o interrompes.

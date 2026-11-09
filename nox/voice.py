@@ -8,6 +8,7 @@ modelo treinado; até lá, `--voice` é conversa contínua.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from nox.audio.source import AudioSource, WavSource
 from nox.audio.speaker import SoundDeviceSpeaker, Speaker
 from nox.audio.types import Pcm
 from nox.audio.vad import EnergyVad, Segmenter, VoiceActivityDetector, WebRtcVad
+from nox.audio.wake import VoskWakeWord, WakeWordDetector
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.models import ModelError
@@ -51,6 +53,10 @@ class VoiceLoop:
     name: str = "Nox"
     block_frames: int = 480
     fillers: tuple[str, ...] = ()
+    wake: WakeWordDetector | None = None
+    wake_timeout_s: float = 8.0
+    _armed: bool = field(default=False, repr=False)
+    _armed_at: float = field(default=0.0, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
     _filler_index: int = field(default=0, repr=False)
 
@@ -58,7 +64,10 @@ class VoiceLoop:
         # Carregar modelos leva segundos; o microfone já encheu entretanto.
         self.source.flush()
         self._prepare_fillers()
-        self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
+        if self.wake is None:
+            self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
+        else:
+            self.out("A aguardar a palavra de ativação. Ctrl+C para parar.")
         turns = 0
         try:
             while max_turns is None or turns < max_turns:
@@ -76,6 +85,21 @@ class VoiceLoop:
         chunk = self.source.read(self.block_frames)
         if not chunk:
             return Step.END
+
+        if self.wake is not None and not self._armed:
+            if self.wake.process(chunk):
+                self._armed = True
+                self._armed_at = time.monotonic()
+                self.segmenter.reset()
+                self.out(f"{self.name}> (pode falar)")
+            return Step.IDLE
+
+        if self._armed and time.monotonic() - self._armed_at > self.wake_timeout_s:
+            self._armed = False
+            self.segmenter.reset()
+            self.out(f"{self.name}> (não ouvi nada)")
+            return Step.IDLE
+
         utterance = self.segmenter.feed(chunk)
         if not utterance:
             return Step.IDLE
@@ -103,6 +127,7 @@ class VoiceLoop:
         # O microfone encheu enquanto o Nox falava; deitar fora antes de voltar
         # a ouvir evita transcrever a própria resposta.
         self.source.flush()
+        self._armed = False
         return True
 
     def speak(self, text: str) -> None:
@@ -175,13 +200,45 @@ def build_segmenter(config: Config) -> Segmenter:
     )
 
 
-def run_voice(config: Config, *, out: Callable[[str], None], input_file: Path | None = None) -> int:
+def build_wake(
+    config: Config, *, progress: Callable[[str], None] | None = None
+) -> WakeWordDetector | None:
+    """Detetor de wake word, ou None para o Nox ouvir sempre."""
+    settings = config.wake
+    if settings.provider == "off":
+        return None
+    if settings.provider == "vosk":
+        from nox.models import ensure_vosk_model
+
+        model = ensure_vosk_model(settings.model, progress=progress)
+        return VoskWakeWord(
+            config.nox.wake_word,
+            model_path=model,
+            sample_rate=config.audio.sample_rate,
+        )
+    raise ModelError(f"wake.provider '{settings.provider}' desconhecido")
+
+
+def run_voice(
+    config: Config,
+    *,
+    out: Callable[[str], None],
+    input_file: Path | None = None,
+    use_wake: bool = True,
+) -> int:
     """Arranca o pipeline completo. Devolve o número de turnos."""
     try:
         source = build_source(config, input_file)
     except NoxError as exc:
         out(f"Erro: {exc}")
         return 2
+
+    # Um ficheiro já é o pedido: não faz sentido exigir a palavra de ativação.
+    wake = (
+        build_wake(config, progress=lambda m: out(f"aviso: {m}"))
+        if use_wake and input_file is None
+        else None
+    )
 
     try:
         loop = VoiceLoop(
@@ -194,6 +251,8 @@ def run_voice(config: Config, *, out: Callable[[str], None], input_file: Path | 
             out=out,
             name=config.nox.name,
             fillers=FILLERS if config.nox.voice_fillers else (),
+            wake=wake,
+            wake_timeout_s=config.wake.timeout_s,
             block_frames=round(config.audio.sample_rate * config.audio.block_ms / 1000),
         )
         return loop.run()

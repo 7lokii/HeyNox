@@ -34,7 +34,8 @@ interrupção da fala.
 ```bash
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
-nox --voice                  # conversa por voz (microfone)
+nox --voice                  # conversa por voz: diz "Hey Nox"
+nox --voice --no-wake        # ouve sempre, sem palavra de ativação
 nox --voice --input a.wav    # o mesmo pipeline, a partir de um ficheiro
 nox --devices                # lista os microfones disponíveis
 nox --say "que horas são?"   # uma resposta e sai

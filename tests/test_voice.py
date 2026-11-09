@@ -49,10 +49,24 @@ class FlushingSource(FakeSource):
         self.flushes += 1
 
 
+class ScriptedWake:
+    """Dispara na n-ésima chamada; None nunca dispara."""
+
+    def __init__(self, trigger_at: int | None = None) -> None:
+        self.trigger_at = trigger_at
+        self.calls = 0
+
+    def process(self, chunk: Pcm) -> bool:
+        self.calls += 1
+        return self.trigger_at is not None and self.calls == self.trigger_at
+
+
 def build_loop(
     chunks: list[Pcm],
     phrases: tuple[str, ...] = ("olá",),
     source: FakeSource | None = None,
+    wake=None,
+    wake_timeout_s: float = 8.0,
 ) -> tuple[VoiceLoop, list[str], RecordingSpeaker, RecordingSynthesizer]:
     lines: list[str] = []
     speaker = RecordingSpeaker()
@@ -67,6 +81,8 @@ def build_loop(
         out=lines.append,
         name="Nox",
         block_frames=480,
+        wake=wake,
+        wake_timeout_s=wake_timeout_s,
     )
     return loop, lines, speaker, synthesizer
 
@@ -158,3 +174,34 @@ def test_no_fillers_means_no_extra_speech() -> None:
 
     assert synthesizer.texts == ["(eco) olá"]
     assert len(speaker.played) == 1
+
+
+def test_wake_word_is_required_before_listening() -> None:
+    loop, _, speaker, _ = build_loop(speech_then_silence(), wake=ScriptedWake())
+
+    assert loop.run() == 0
+    assert speaker.played == []
+
+
+def test_wake_word_arms_the_listener() -> None:
+    loop, lines, speaker, _ = build_loop(speech_then_silence(), wake=ScriptedWake(1))
+
+    assert loop.run() == 1
+    assert "Nox> (pode falar)" in lines
+    assert len(speaker.played) == 1
+
+
+def test_listener_disarms_after_a_turn() -> None:
+    chunks = speech_then_silence() + speech_then_silence()
+    loop, _, _, _ = build_loop(chunks, wake=ScriptedWake(1))
+
+    # Só a primeira frase é atendida: a segunda exige nova ativação.
+    assert loop.run() == 1
+
+
+def test_listener_gives_up_after_the_timeout() -> None:
+    chunks = [block(30, 2000)] + [block(30, 0) for _ in range(20)] + speech_then_silence()
+    loop, lines, _, _ = build_loop(chunks, wake=ScriptedWake(1), wake_timeout_s=0.0001)
+
+    assert loop.run() == 0
+    assert "Nox> (não ouvi nada)" in lines

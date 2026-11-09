@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 import urllib.request
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from nox.config import NoxError
 from nox.paths import user_data_dir
 
 PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+VOSK_BASE = "https://alphacephei.com/vosk/models"
 
 _VOICE_PATTERN = re.compile(
     r"^(?P<family>[^-]+)_(?P<region>[^-]+)-(?P<name>[^-]+)-(?P<quality>.+)$"
@@ -29,6 +31,10 @@ class ModelError(NoxError):
 
 def piper_dir() -> Path:
     return user_data_dir() / "models" / "piper"
+
+
+def vosk_dir() -> Path:
+    return user_data_dir() / "models" / "vosk"
 
 
 def voice_urls(voice: str) -> tuple[str, str]:
@@ -75,10 +81,36 @@ def ensure_piper_voice(
     return model_path
 
 
+def ensure_vosk_model(
+    name: str = "vosk-model-small-pt-0.3",
+    *,
+    directory: Path | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> Path:
+    """Garante o modelo Vosk descompactado e devolve a pasta."""
+    target = (directory or vosk_dir()) / name
+    if target.is_dir():
+        return target
+
+    if progress:
+        progress(f"a descarregar {name}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    archive = target.parent / f"{name}.zip"
+    _download(f"{VOSK_BASE}/{name}.zip", archive)
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            bundle.extractall(target.parent)
+    except zipfile.BadZipFile as exc:
+        archive.unlink(missing_ok=True)
+        raise ModelError(f"o pacote {name} veio corrompido") from exc
+    archive.unlink(missing_ok=True)
+    return target
+
+
 def _download(url: str, destination: Path) -> None:
     partial = destination.with_suffix(destination.suffix + ".part")
     try:
-        with urllib.request.urlopen(url, timeout=120) as response:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=180) as response:  # noqa: S310
             partial.write_bytes(response.read())
     except OSError as exc:
         partial.unlink(missing_ok=True)

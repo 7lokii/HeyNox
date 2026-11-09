@@ -12,8 +12,9 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] TTS local (Piper `pt_PT-tugão-medium`) e opção neural (`edge-tts`).
   - [x] Captura de microfone real (sounddevice) — `nox --voice`.
   - [x] VAD WebRTC + loop de conversação completo.
-  - [ ] Wake word "Hey Nox" — modelo treinado, ver `docs/voice.md`.
-  - [ ] Interrupção da fala e latência (streaming).
+  - [x] Wake word "Hey Nox" (Vosk, ver `docs/voice.md`).
+  - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
+  - [ ] Interrupção da fala (barge-in).
 - [ ] **Fase 2 — Memória.**
 - [ ] **Fase 3 — Ferramentas seguras.**
 - [ ] **Fase 4 — GitHub.**

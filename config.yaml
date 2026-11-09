@@ -8,6 +8,11 @@ nox:
   text_enabled: true
   voice_fillers: true
 
+wake:
+  provider: "vosk"
+  model: "vosk-model-small-pt-0.3"
+  timeout_s: 8
+
 audio:
   input_device: "default"
   sample_rate: 16000

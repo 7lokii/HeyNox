@@ -34,7 +34,9 @@ from nox.voice import run_voice
 
 def voice_modules(config: Config) -> list[str]:
     """Só as dependências que a configuração atual vai mesmo usar."""
-    modules = ["sounddevice", "numpy", "openwakeword"]
+    modules = ["sounddevice", "numpy"]
+    if config.wake.provider == "vosk":
+        modules.append("vosk")
     if config.stt.provider == "faster-whisper":
         modules.append("faster_whisper")
     if config.tts.provider == "piper":
@@ -76,6 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--voice", action="store_true", help="Conversa por voz, com microfone")
     parser.add_argument(
         "--input", metavar="WAV", type=Path, default=None, help="Usa um WAV em vez do microfone"
+    )
+    parser.add_argument(
+        "--no-wake", action="store_true", help="Ouve sempre, sem esperar pela palavra de ativação"
     )
     parser.add_argument(
         "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
@@ -134,7 +139,7 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
     if args.transcribe:
         return _transcribe(config, args.transcribe, out)
     if args.voice:
-        return run_voice(config, out=out, input_file=args.input)
+        return run_voice(config, out=out, input_file=args.input, use_wake=not args.no_wake)
     if args.devices:
         return _devices(out)
     if args.text:

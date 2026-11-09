@@ -12,7 +12,7 @@ from types import ModuleType
 
 _EXTRAS = {
     "faster_whisper": "stt",
-    "openwakeword": "wake",
+    "vosk": "wake",
     "webrtcvad": "vad",
     "silero_vad": "silero",
     "torch": "silero",

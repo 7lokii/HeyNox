@@ -18,7 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 audio = ["sounddevice>=0.4.6", "numpy>=1.26"]
-wake = ["openwakeword>=0.6"]
+wake = ["vosk>=0.3"]
 vad = ["webrtcvad-wheels>=2.0"]
 silero = ["silero-vad>=5.0", "torch>=2.2"]
 stt = ["faster-whisper>=1.0"]
