@@ -19,7 +19,7 @@ from typing import Protocol
 from nox.audio.denoise import NoiseGate, StreamingDenoiser
 from nox.audio.types import Pcm
 from nox.audio.vad import WebRtcVad
-from nox.audio.voiceprint import VoiceProfile, is_me
+from nox.audio.voiceprint import VoiceProfile, is_known
 from nox.config import NoxError
 from nox.models import ensure_vosk_model
 from nox.optional import require
@@ -160,8 +160,9 @@ class VoskWakeWord:
         noise_gate_factor: float = 2.5,
         denoise: bool = True,
         denoise_floor: float = 250.0,
-        profile: VoiceProfile | None = None,
+        profiles: list[VoiceProfile] | None = None,
         voiceprint_threshold: float = 0.35,
+        grammar: Sequence[str] | None = None,
     ) -> None:
         if sample_rate != 16000:
             raise WakeWordError("a wake word por Vosk só funciona a 16 kHz")
@@ -175,13 +176,18 @@ class VoskWakeWord:
 
         SetLogLevel(-1)
         path = Path(model_path) if model_path else ensure_vosk_model()
-        self._recognizer = KaldiRecognizer(Model(str(path)), sample_rate)
+        model_instance = Model(str(path))
+        self._recognizer = (
+            KaldiRecognizer(model_instance, sample_rate, json.dumps(list(grammar)))
+            if grammar
+            else KaldiRecognizer(model_instance, sample_rate)
+        )
         self._tokens = tokens
         self._gate = WebRtcVad(sample_rate)
         self._noise = NoiseGate(factor=noise_gate_factor) if noise_gate else None
         self._denoiser = StreamingDenoiser(sample_rate) if denoise else None
         self._denoise_floor = denoise_floor
-        self._profile = profile
+        self._profiles = profiles or []
         self._voiceprint_threshold = voiceprint_threshold
         self._utterance: list[Pcm] = []
         self._sample_rate = sample_rate
@@ -189,6 +195,9 @@ class VoskWakeWord:
         # Contado em segundos de áudio, não em relógio: assim o detetor é
         # determinístico e testável sem esperar em tempo real.
         self._hold_left = 0.0
+        # Depois de disparar, ignorar o resto da mesma frase: sem isto, a cauda
+        # da palavra voltava a armar o detetor e disparava duas vezes.
+        self._cooldown = 0.0
         self._idle = True
         # O Vosk precisa de contexto antes da palavra: sem este pré-roll ouvia
         # só a fala, sem o silêncio que a antecede, e não fechava a palavra.
@@ -203,6 +212,9 @@ class VoskWakeWord:
             if self._noise is None or self._noise.floor > self._denoise_floor:
                 chunk = cleaned
         duration = len(chunk) / 2 / self._sample_rate
+        if self._cooldown > 0:
+            self._cooldown -= duration
+            return False
         # O portão tem de ver todos os blocos para continuar a aprender o
         # ambiente, mesmo quando a resposta é "não".
         loud = self._noise is None or self._noise.is_open(chunk)
@@ -228,7 +240,7 @@ class VoskWakeWord:
             return self._flush()
 
         # Guardar o troço para, se a palavra aparecer, se confirmar a voz.
-        if self._profile is not None:
+        if self._profiles:
             self._utterance.append(chunk)
             if len(self._utterance) > 100:  # ~3 s a 30 ms
                 self._utterance.pop(0)
@@ -245,13 +257,13 @@ class VoskWakeWord:
 
     def _confirm(self) -> bool:
         """Confirma que a palavra foi dita pelo dono do perfil."""
-        if self._profile is None:
-            self._reset()
+        if not self._profiles:
+            self._fire()
             return True
 
         audio = Pcm(b"".join(self._utterance))
-        if is_me(audio, self._sample_rate, self._profile, threshold=self._voiceprint_threshold):
-            self._reset()
+        if is_known(audio, self._sample_rate, self._profiles, threshold=self._voiceprint_threshold):
+            self._fire()
             return True
         # Voz diferente: ignora e continua a ouvir, sem limpar o contexto.
         self._utterance.clear()
@@ -265,9 +277,16 @@ class VoskWakeWord:
             return True
         return False
 
+    def _fire(self) -> None:
+        self._reset()
+        self._cooldown = self._hold_s + 0.5
+
     def _reset(self) -> None:
         self._recognizer.Reset()
         self._hold_left = 0.0
+        # Depois de disparar, ignorar o resto da mesma frase: sem isto, a cauda
+        # da palavra voltava a armar o detetor e disparava duas vezes.
+        self._cooldown = 0.0
         self._idle = True
         self._pre_roll.clear()
         self._utterance.clear()

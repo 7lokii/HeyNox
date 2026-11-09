@@ -159,20 +159,49 @@ wake:
   phrases: ["nox", "ei nox", "hey nox"]
 ```
 
-Uma palavra curta ("Nox") só aparece no resultado final do Vosk, nunca no
-parcial — daí o `_flush` quando o troço acaba. Custa até 1,5 s a reagir; com
-"Hey Nox" a reação é quase imediata, porque o parcial já traz "a inox".
+### Porque é que "Nox" sozinho não era reconhecido
 
-### Impressão vocal: só tu acordas o Nox
+**"nox" não existe no dicionário do modelo português.** O Vosk não pode
+devolver uma palavra que não conhece, por isso escrevia "inox" — e um "Nox"
+curto virava "bom", "no" ou nada.
+
+A solução é **vocabulário restrito** (`wake.grammar`): em vez de reconhecer
+qualquer coisa, o descodificador escolhe entre três hipóteses.
+
+```yaml
+wake:
+  grammar: ["inox", "ei inox", "[unk]"]
+```
+
+Medido com duas vozes e ruído branco adicionado:
+
+| Ruído | "Nox" | "Hey Nox" | "Ei Nox" | Conversa normal |
+|---|---|---|---|---|
+| 0 | ✅ | ✅ | ✅ | não dispara |
+| 400 | ✅ | ✅ | ✅ | não dispara |
+| 800 | ✅ | ✅ | ✅ | não dispara |
+
+Sem gramática, o mesmo "Nox" saía como "bom" numa das vozes.
+
+Há ainda um **cooldown de 2 s** depois de disparar: sem ele, a cauda da palavra
+voltava a armar o detetor e disparava duas vezes.
+
+### Impressão vocal: várias vozes, ou só a tua
 
 O Vosk não aprende com a tua voz — é um reconhecedor genérico. O que se pode
-fazer, e está feito, é **confirmar quem falou** depois de a palavra ser detetada:
+fazer, e está feito, é **confirmar quem falou** depois de a palavra ser detetada.
+Está **desligado por omissão**: sem perfis, qualquer voz ativa o Nox.
 
 ```bash
-nox --enroll              # grava 3 amostras pelo microfone
-nox --voiceprint          # vê o perfil
-nox --forget-voice        # apaga
+nox --enroll --name rui            # grava 3 amostras pelo microfone
+nox --enroll --name ana            # outra pessoa, mesmo Nox
+nox --voiceprint                   # lista os perfis
+nox --forget-voice --name rui      # apaga um
+nox --forget-voice                 # apaga todos
 ```
+
+Vários perfis convivem: a frase passa se bater com **qualquer um** deles. Para
+ligar a verificação, `wake.voiceprint: true`.
 
 Cada amostra vira um embedding de 256 dimensões (WeSpeaker ResNet34, ONNX,
 25 MB) e o perfil é a média. Na ativação, a frase é comparada por cosseno:

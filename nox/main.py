@@ -63,9 +63,9 @@ def _check(config: Config) -> list[str]:
             "até configurares o .env"
         )
     if config.wake.voiceprint:
-        from nox.audio.voiceprint import load_profile
+        from nox.audio.voiceprint import load_profiles
 
-        if load_profile() is None:
+        if not load_profiles():
             warnings.append(
                 "wake.voiceprint ativo mas sem perfil de voz: qualquer voz ativa o Nox "
                 "(corre 'nox --enroll')"
@@ -118,7 +118,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Cria o perfil de voz a partir de ficheiros WAV",
     )
-    parser.add_argument("--voiceprint", action="store_true", help="Mostra o perfil de voz")
+    parser.add_argument("--voiceprint", action="store_true", help="Mostra os perfis de voz")
+    parser.add_argument(
+        "--name", metavar="NOME", default=None, help="Nome do perfil a criar/apagar"
+    )
     parser.add_argument("--forget-voice", action="store_true", help="Apaga o perfil de voz")
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     parser.add_argument(
@@ -258,25 +261,32 @@ def _voiceprint_command(
 ) -> int:
     from nox.audio.voiceprint import (
         VoiceprintError,
+        add_profile,
         build_profile,
         forget_profile,
-        load_profile,
+        load_profiles,
         profile_path,
-        save_profile,
     )
 
     try:
         if args.forget_voice:
-            removed = forget_profile()
-            out("perfil de voz apagado" if removed else "não havia perfil guardado")
+            removed = forget_profile(args.name)
+            if not removed:
+                out("não havia perfil guardado")
+            elif args.name:
+                out(f"perfil de {args.name} apagado")
+            else:
+                out(f"{removed} perfil(is) apagado(s)")
 
         if args.voiceprint:
-            perfil = load_profile()
-            if perfil is None:
+            perfis = load_profiles()
+            if not perfis:
                 out(f"sem perfil de voz em {profile_path()} — usa --enroll")
             else:
-                out(f"perfil: {profile_path()}")
-                out(f"{perfil.samples} amostras, {len(perfil.embedding)} dimensões")
+                out(f"perfis: {profile_path()}")
+                for perfil in perfis:
+                    dimensoes = len(perfil.embedding)
+                    out(f"  {perfil.name}: {perfil.samples} amostras, {dimensoes} dimensões")
 
         if args.enroll_files:
             from nox.audio.types import resample
@@ -287,8 +297,9 @@ def _voiceprint_command(
                 audio, rate = read_wav(path)
                 clips.append(resample(audio, rate, 16000))
             perfil = build_profile(clips, 16000)
-            save_profile(perfil)
-            out(f"perfil criado com {perfil.samples} amostras -> {profile_path()}")
+            perfil.name = args.name or "eu"
+            add_profile(perfil)
+            out(f"perfil de {perfil.name} criado com {perfil.samples} amostras")
 
         if args.enroll:
             if not has_console():
@@ -311,8 +322,9 @@ def _voiceprint_command(
             finally:
                 source.close()
             perfil = build_profile(clips, config.audio.sample_rate)
-            save_profile(perfil)
-            out(f"perfil criado com {perfil.samples} amostras -> {profile_path()}")
+            perfil.name = args.name or "eu"
+            add_profile(perfil)
+            out(f"perfil de {perfil.name} criado com {perfil.samples} amostras")
     except (NoxError, VoiceprintError) as exc:
         out(f"Erro: {exc}")
         return 2

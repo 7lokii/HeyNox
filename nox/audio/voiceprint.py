@@ -109,6 +109,7 @@ def similarity(left: np.ndarray, right: np.ndarray) -> float:
 class VoiceProfile:
     embedding: list[float]
     samples: int
+    name: str = "eu"
 
     @property
     def vector(self) -> np.ndarray:
@@ -123,38 +124,66 @@ def build_profile(clips: list[Pcm], sample_rate: int) -> VoiceProfile:
     return VoiceProfile(embedding=(mean / np.linalg.norm(mean)).tolist(), samples=len(vectors))
 
 
-def save_profile(profile: VoiceProfile, path: Path | None = None) -> Path:
+def save_profiles(profiles: list[VoiceProfile], path: Path | None = None) -> Path:
     target = path or profile_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(asdict(profile)), encoding="utf-8")
+    payload = {"version": 2, "profiles": [asdict(profile) for profile in profiles]}
+    target.write_text(json.dumps(payload), encoding="utf-8")
     return target
 
 
-def load_profile(path: Path | None = None) -> VoiceProfile | None:
+def load_profiles(path: Path | None = None) -> list[VoiceProfile]:
+    """Perfis inscritos. Várias pessoas podem partilhar o mesmo Nox."""
     target = path or profile_path()
     if not target.is_file():
-        return None
+        return []
     try:
         payload = json.loads(target.read_text(encoding="utf-8"))
-        return VoiceProfile(
-            embedding=[float(value) for value in payload["embedding"]],
-            samples=int(payload.get("samples", 1)),
-        )
+        # Aceita o formato antigo, de um só perfil.
+        items = payload.get("profiles", [payload])
+        return [
+            VoiceProfile(
+                embedding=[float(value) for value in item["embedding"]],
+                samples=int(item.get("samples", 1)),
+                name=str(item.get("name", "eu")),
+            )
+            for item in items
+        ]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise VoiceprintError(f"perfil de voz inválido em {target}: {exc}") from exc
 
 
-def forget_profile(path: Path | None = None) -> bool:
-    target = path or profile_path()
-    if target.is_file():
-        target.unlink()
+def add_profile(profile: VoiceProfile, path: Path | None = None) -> list[VoiceProfile]:
+    """Junta um perfil à lista, substituindo outro com o mesmo nome."""
+    profiles = [item for item in load_profiles(path) if item.name != profile.name]
+    profiles.append(profile)
+    save_profiles(profiles, path)
+    return profiles
+
+
+def forget_profile(name: str | None = None, path: Path | None = None) -> int:
+    """Apaga um perfil (ou todos, sem nome). Devolve quantos saíram."""
+    profiles = load_profiles(path)
+    if name is None:
+        removed = len(profiles)
+        target = path or profile_path()
+        if target.is_file():
+            target.unlink()
+        return removed
+    kept = [item for item in profiles if item.name != name]
+    removed = len(profiles) - len(kept)
+    if removed:
+        save_profiles(kept, path)
+    return removed
+
+
+def is_known(
+    audio: Pcm, sample_rate: int, profiles: list[VoiceProfile], *, threshold: float
+) -> bool:
+    """True se a voz bater com algum dos perfis inscritos."""
+    if not profiles:
         return True
-    return False
-
-
-def is_me(audio: Pcm, sample_rate: int, profile: VoiceProfile, *, threshold: float) -> bool:
-    """True se a voz do áudio se parecer com o perfil acima do limiar."""
     vector = embed(audio, sample_rate)
     if vector is None:
         return False
-    return similarity(vector, profile.vector) >= threshold
+    return any(similarity(vector, profile.vector) >= threshold for profile in profiles)

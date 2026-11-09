@@ -14,8 +14,10 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] VAD WebRTC + loop de conversação completo.
   - [x] Wake word "Nox" / "Ei Nox" / "Hey Nox" (Vosk, ver `docs/voice.md`).
   - [x] Portão de ruído adaptativo e corte espectral antes do STT.
-  - [x] Impressão vocal: só a voz inscrita ativa o Nox.
-  - [x] Impressão vocal: só a voz inscrita ativa o Nox.
+  - [x] Impressão vocal com vários perfis (opcional).
+  - [x] Vocabulário restrito: "Nox" sozinho passa a ser reconhecido.
+  - [x] Impressão vocal com vários perfis (opcional).
+  - [x] Vocabulário restrito: "Nox" sozinho passa a ser reconhecido.
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] Interrupção da fala (barge-in), opcional.
   - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).

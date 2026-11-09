@@ -6,12 +6,13 @@ import pytest
 from nox.audio.types import Pcm, silence
 from nox.audio.voiceprint import (
     VoiceProfile,
+    add_profile,
     build_profile,
     embed,
     fbank,
     forget_profile,
-    load_profile,
-    save_profile,
+    load_profiles,
+    save_profiles,
     similarity,
 )
 
@@ -31,23 +32,47 @@ def test_fbank_returns_mel_bands() -> None:
 
 
 def test_profile_round_trip(tmp_path: Path) -> None:
-    profile = VoiceProfile(embedding=[0.1, 0.2, 0.3], samples=2)
-    path = save_profile(profile, tmp_path / "voz.json")
+    path = tmp_path / "voz.json"
+    save_profiles([VoiceProfile(embedding=[0.1, 0.2, 0.3], samples=2, name="rui")], path)
 
-    loaded = load_profile(path)
-    assert loaded is not None
-    assert loaded.samples == 2
-    assert loaded.embedding == pytest.approx([0.1, 0.2, 0.3])
-
-
-def test_missing_profile_is_none(tmp_path: Path) -> None:
-    assert load_profile(tmp_path / "nao.json") is None
+    loaded = load_profiles(path)
+    assert len(loaded) == 1
+    assert loaded[0].name == "rui"
+    assert loaded[0].samples == 2
+    assert loaded[0].embedding == pytest.approx([0.1, 0.2, 0.3])
 
 
-def test_forget_profile(tmp_path: Path) -> None:
-    path = save_profile(VoiceProfile(embedding=[1.0], samples=1), tmp_path / "voz.json")
-    assert forget_profile(path) is True
-    assert forget_profile(path) is False
+def test_missing_profile_is_empty(tmp_path: Path) -> None:
+    assert load_profiles(tmp_path / "nao.json") == []
+
+
+def test_multiple_profiles_coexist(tmp_path: Path) -> None:
+    path = tmp_path / "voz.json"
+    add_profile(VoiceProfile(embedding=[1.0], samples=1, name="rui"), path)
+    add_profile(VoiceProfile(embedding=[2.0], samples=1, name="ana"), path)
+
+    assert [item.name for item in load_profiles(path)] == ["rui", "ana"]
+
+
+def test_enrolling_the_same_name_replaces_it(tmp_path: Path) -> None:
+    path = tmp_path / "voz.json"
+    add_profile(VoiceProfile(embedding=[1.0], samples=1, name="rui"), path)
+    add_profile(VoiceProfile(embedding=[3.0], samples=2, name="rui"), path)
+
+    loaded = load_profiles(path)
+    assert len(loaded) == 1
+    assert loaded[0].samples == 2
+
+
+def test_forget_one_or_all(tmp_path: Path) -> None:
+    path = tmp_path / "voz.json"
+    add_profile(VoiceProfile(embedding=[1.0], samples=1, name="rui"), path)
+    add_profile(VoiceProfile(embedding=[2.0], samples=1, name="ana"), path)
+
+    assert forget_profile("rui", path) == 1
+    assert [item.name for item in load_profiles(path)] == ["ana"]
+    assert forget_profile(None, path) == 1
+    assert load_profiles(path) == []
 
 
 def test_similarity_of_identical_vectors() -> None:

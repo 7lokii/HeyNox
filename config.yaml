@@ -15,7 +15,11 @@ wake:
     - "nox"
     - "ei nox"
     - "hey nox"
-  voiceprint: true
+  grammar:
+    - "inox"
+    - "ei inox"
+    - "[unk]"
+  voiceprint: false
   voiceprint_threshold: 0.35
   timeout_s: 8
   follow_up_s: 6
