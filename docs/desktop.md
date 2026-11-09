@@ -23,9 +23,10 @@ Dependências:
 pip install -e ".[desktop]"
 ```
 
-`pyautogui` e `pygetwindow` para rato/teclado/janelas, `mss` para capturas e o
-`winrt` para o OCR do Windows. O instalador `.exe` precisa de ser reconstruído
-com este extra para a funcionalidade existir lá dentro.
+`pyautogui` para rato/teclado, `mss` para capturas e o `winrt` para o OCR do
+Windows. As janelas são lidas pela API do Windows (`ctypes`), sem dependência
+extra. O instalador `.exe` precisa de ser reconstruído com este extra para a
+funcionalidade existir lá dentro.
 
 ## Ações
 

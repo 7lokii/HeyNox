@@ -71,9 +71,7 @@ def _check(config: Config) -> list[str]:
                 "(corre 'nox --enroll')"
             )
     if config.desktop.enabled:
-        missing_desktop = [
-            name for name in ("pyautogui", "pygetwindow", "mss") if not available(name)
-        ]
+        missing_desktop = [name for name in ("pyautogui", "mss") if not available(name)]
         if missing_desktop:
             warnings.append(
                 f"Controlo do PC ativo mas faltam dependências: {', '.join(missing_desktop)} "

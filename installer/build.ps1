@@ -81,7 +81,10 @@ Write-Host "HeyNox $ResolvedVersion — build para Windows" -ForegroundColor Gre
 Write-Step "Preparar venv de build (Python $PythonVersion)"
 New-BuildVenv
 $Py = Join-Path $BuildVenv "Scripts\python.exe"
-& uv pip install -q --python $Py -e ".[voice]" pyinstaller
+# O uv falha a compilar sdists antigos (pygetwindow/pytweening) por causa da
+# limpeza da cache de build; o pip instala-os sem problema.
+& uv pip install -q --python $Py pip
+& $Py -m pip install -q -e ".[voice,browser,desktop]" pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Falha a instalar dependências de build" }
 
 Write-Step "Verificar dependências de voz"
@@ -107,6 +110,10 @@ foreach ($spec in @("nox", "HeyNox")) {
 Write-Step "Testar executável compilado"
 & (Join-Path $Root "dist\nox\nox.exe") --check
 if ($LASTEXITCODE -ne 0) { throw "nox.exe compilado não passou no --check" }
+
+# O HeyNox.exe é windowed; o código de saída continua a ser válido.
+& (Join-Path $Root "dist\HeyNox\HeyNox.exe") --check
+if ($LASTEXITCODE -ne 0) { throw "HeyNox.exe compilado não passou no --check" }
 
 if ($SkipInstaller) {
     Write-Host ""

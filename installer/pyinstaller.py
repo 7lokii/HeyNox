@@ -28,7 +28,7 @@ binaries = []
 for pkg in {voice_packages}:
     datas += collect_data_files(pkg)
     hiddenimports += collect_submodules(pkg)
-{torch_block}
+{extra_hidden}{torch_block}
 
 a = Analysis(
     ['{project_root}/scripts/{script}'],
@@ -39,7 +39,7 @@ a = Analysis(
         ('{project_root}/nox/ui/index.html', 'nox/ui'),
     ],
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=['{project_root}/installer/hooks'],
     hooksconfig={{}},
     runtime_hooks=[],
     excludes={excludes},
@@ -63,21 +63,30 @@ coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='{name}')
 
 VOICE_PACKAGES = """[
     'sounddevice',
-    'soundfile',
-    'openwakeword',
     'faster_whisper',
     'ctranslate2',
     'silero_vad',
-    'kokoro',
-    'misaki',
-    'espeakng_loader',
-    'phonemizer',
-    'segments',
-    'csvw',
-    'language_tags',
-    'langcodes',
+    'vosk',
+    'piper',
+    'edge_tts',
+    'av',
     'playwright',
+    'pyautogui',
+    'pyperclip',
+    'mss',
+    'PIL',
+    'winrt',
 ]"""
+
+# Módulos que o collect_submodules pode não apanhar por serem namespace packages.
+EXTRA_HIDDEN = """
+hiddenimports += [
+    'winrt.windows.media.ocr',
+    'winrt.windows.graphics.imaging',
+    'winrt.windows.storage.streams',
+    'winrt.windows.foundation',
+]
+"""
 
 NO_PACKAGES = "[]"
 
@@ -111,6 +120,7 @@ def build_spec(name: str, script: str, console: bool, with_voice: bool) -> Path:
         icon=icon.as_posix() if icon.is_file() else "",
         excludes="[]" if with_voice else TORCH_EXCLUDES,
         voice_packages=VOICE_PACKAGES if with_voice else NO_PACKAGES,
+        extra_hidden=EXTRA_HIDDEN if with_voice else "",
         torch_block=TORCH_BLOCK if with_voice else "",
     )
     out = PROJECT_ROOT / "installer" / f"{name}.spec"

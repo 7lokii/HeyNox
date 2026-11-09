@@ -7,12 +7,17 @@ Alvo atual: **Windows x64**. O código já separa caminhos por plataforma
 
 | Ficheiro | Pasta | Console | Conteúdo |
 |---|---|---|---|
-| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo, incluindo voz (torch, faster-whisper, piper, openwakeword, silero-vad) |
+| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo: voz (torch, faster-whisper, piper, vosk, edge-tts), browser (Playwright) e controlo do PC (pyautogui, mss, OCR winrt) |
 | `nox.exe` | `dist\nox\` | sim | Núcleo e CLI para diagnóstico (`nox.exe --check`) |
 | `HeyNox-Setup.exe` | `dist\` | — | Instalador Inno Setup com atalhos, desinstalador e arranque opcional |
 
-Os modelos (Whisper, Piper, openWakeWord) **não** vão no instalador; são
-descarregados na primeira utilização para `%LOCALAPPDATA%\HeyNox`.
+Os modelos (Whisper, Piper, Vosk) **não** vão no instalador; são descarregados
+na primeira utilização para `%LOCALAPPDATA%\HeyNox`.
+
+Os **browsers** do Playwright também não vão: o Chromium vive em
+`%LOCALAPPDATA%\ms-playwright`. Numa máquina nova, a ferramenta `browser` avisa
+que falta e é preciso correr `python -m playwright install chromium` uma vez
+(ou copiar essa pasta). O OCR não precisa de nada: usa o motor do Windows.
 
 ## Porque é que o build usa Python 3.11
 
@@ -33,6 +38,15 @@ powershell -ExecutionPolicy Bypass -File installer\build.ps1
 powershell -ExecutionPolicy Bypass -File installer\build.ps1 -SkipInstaller   # só os .exe
 ```
 
+O script cria o venv com `uv` mas instala os extras com **pip**:
+`pip install -e ".[voice,browser,desktop]" pyinstaller`. O `uv` falhava a
+compilar sdists antigos (`pygetwindow`, `pytweening`) porque a limpeza da cache
+de build colide com o guard de deleções em massa desta máquina.
+
+Existe um hook próprio em `installer\hooks\hook-webrtcvad.py`: o hook de contrib
+procura metadados de `webrtcvad`, mas a distribuição chama-se
+`webrtcvad-wheels` e o build morria com `PackageNotFoundError`.
+
 Ficheiros gerados (não versionados): `installer\*.spec`, `build\`, `dist\`,
 `.build-venv\`.
 
@@ -46,8 +60,12 @@ dist\nox\nox.exe --check
 dist\HeyNox\HeyNox.exe --check
 ```
 
-O `--check` do `HeyNox.exe` (sem consola) escreve em
+O `HeyNox.exe` respeita os argumentos: sem nenhum abre a interface; com
+`--check` faz o diagnóstico e sai. Sem consola, o resultado vai para
 `%LOCALAPPDATA%\HeyNox\logs\nox.log`.
+
+Para testar as ferramentas de desktop/browser dentro do executável é preciso
+uma chave de modelo: `%LOCALAPPDATA%\HeyNox\.env` (o instalador não a copia).
 
 ### Instalação silenciosa (para testar)
 
