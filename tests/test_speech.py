@@ -77,3 +77,24 @@ def test_split_sentences_breaks_long_clauses() -> None:
     parts = split_sentences(long_sentence, max_chars=40)
     assert len(parts) > 1
     assert all(len(part) <= 40 for part in parts)
+
+
+def test_prompt_echo_is_detected() -> None:
+    from nox.speech.stt import looks_hallucinated
+
+    prompt = "O assistente chama-se Nox. Hey Nox."
+    assert looks_hallucinated("O assistente chama-se Nox. Hey Nox.", prompt) is True
+    assert (
+        looks_hallucinated(
+            "O O assistente chama-se. O O assistente chama-se. O O assistente chama-se.", prompt
+        )
+        is True
+    )
+
+
+def test_real_speech_is_not_flagged() -> None:
+    from nox.speech.stt import looks_hallucinated
+
+    prompt = "O assistente chama-se Nox. Hey Nox."
+    assert looks_hallucinated("Que horas são?", prompt) is False
+    assert looks_hallucinated("Abre o meu projeto.", prompt) is False

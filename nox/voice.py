@@ -61,6 +61,8 @@ class VoiceLoop:
     barge_in: bool = False
     barge_in_ms: int = 300
     barge_in_threshold: float = 800.0
+    min_rms: float = 120.0
+    duplicate_window_s: float = 3.0
     on_turn: Callable[[str, str], None] | None = None
     on_status: Callable[[str], None] | None = None
     on_frame: Callable[[list[float]], None] | None = None
@@ -70,6 +72,8 @@ class VoiceLoop:
     _armed: bool = field(default=False, repr=False)
     _armed_at: float = field(default=0.0, repr=False)
     _follow_up: bool = field(default=False, repr=False)
+    _last_text: str = field(default="", repr=False)
+    _last_at: float = field(default=0.0, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
     _filler_index: int = field(default=0, repr=False)
 
@@ -135,6 +139,10 @@ class VoiceLoop:
         return Step.TURN if self.handle(utterance) else Step.IDLE
 
     def handle(self, utterance: Pcm) -> bool:
+        # Abaixo disto é ruído: transcrever só produziria invenções.
+        if rms(utterance) < self.min_rms:
+            return False
+
         rate = self.segmenter.sample_rate
         # O filler toca enquanto o STT trabalha: cobre o silêncio sem lhe somar
         # tempo. Em série, o "Hmm." atrasava a transcrição em vez de a esconder.
@@ -144,6 +152,15 @@ class VoiceLoop:
             text = pending.result().strip()
         if not text:
             return False
+
+        # A mesma frase duas vezes em poucos segundos é eco ou reprocessamento,
+        # não uma repetição deliberada.
+        now = time.monotonic()
+        if text == self._last_text and now - self._last_at < self.duplicate_window_s:
+            self.out(f"{self.name}> (repetido, ignorado)")
+            return False
+        self._last_text, self._last_at = text, now
+
         self.out(f"tu> {text}")
         self._turn("user", text)
         self._status("a pensar")
@@ -365,6 +382,7 @@ def run_voice(
             out=out,
             name=config.nox.name,
             fillers=FILLERS if config.nox.voice_fillers else (),
+            min_rms=config.audio.min_speech_rms,
             wake=wake,
             wake_timeout_s=config.wake.timeout_s,
             follow_up_s=config.wake.follow_up_s,

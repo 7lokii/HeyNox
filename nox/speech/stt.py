@@ -14,6 +14,39 @@ from nox.optional import require
 WHISPER_RATE = 16000
 
 
+def looks_hallucinated(text: str, prompt: str) -> bool:
+    """True quando o modelo devolveu o próprio prompt em vez de fala.
+
+    O Whisper, em áudio sem fala clara, tende a repetir o `initial_prompt`.
+    Sem este filtro, o Nox "ouve" a sua própria configuração e responde-lhe.
+    """
+    if not prompt.strip() or not text.strip():
+        return not text.strip()
+
+    def words(value: str) -> list[str]:
+        clean = "".join(ch if ch.isalnum() else " " for ch in value.lower())
+        return clean.split()
+
+    heard = words(text)
+    if not heard:
+        return True
+    reference = set(words(prompt))
+    if not reference:
+        return False
+    overlap = len(set(heard) & reference) / len(set(heard))
+    if overlap > 0.8:
+        return True
+    return _is_repetitive(heard)
+
+
+def _is_repetitive(words: list[str]) -> bool:
+    """Deteta saídas em loop: a mesma sequência repetida sem fim."""
+    if len(words) < 6:
+        return False
+    trigrams = [" ".join(words[index : index + 3]) for index in range(len(words) - 2)]
+    return len(set(trigrams)) < len(trigrams) * 0.5
+
+
 class Transcriber(Protocol):
     def transcribe(self, audio: Pcm, sample_rate: int) -> str:
         """Devolve o texto dito, ou `""` se não se percebeu nada."""
@@ -81,7 +114,10 @@ class FasterWhisperTranscriber:
             vad_filter=False,
             initial_prompt=self._prompt,
         )
-        return " ".join(segment.text.strip() for segment in segments).strip()
+        text = " ".join(segment.text.strip() for segment in segments).strip()
+        if looks_hallucinated(text, self._prompt or ""):
+            return ""
+        return text
 
 
 def build_transcriber(config: Config) -> Transcriber:

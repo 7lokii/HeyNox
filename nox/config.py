@@ -50,6 +50,8 @@ class AudioConfig(BaseModel):
     input_device: str = "default"
     sample_rate: int = Field(default=16000, gt=0)
     channels: int = Field(default=1, gt=0, le=2)
+    # Energia mínima para sequer tentar transcrever. Abaixo disto é ruído.
+    min_speech_rms: float = Field(default=120.0, gt=0)
     # Bloco de leitura. O WebRTC VAD só aceita 10, 20 ou 30 ms.
     block_ms: int = Field(default=30, gt=0)
     # Portão adaptativo antes da wake word: fecha o que não se distingue do

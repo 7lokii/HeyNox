@@ -29,6 +29,7 @@ audio:
   sample_rate: 16000
   channels: 1
   block_ms: 30
+  min_speech_rms: 120
   noise_gate: true
   noise_gate_factor: 2.5
   denoise_wake: false

@@ -276,3 +276,20 @@ def test_without_barge_in_the_answer_is_played_whole() -> None:
     assert loop.speak("Uma frase comprida para dar tempo.") is False
     assert speaker.stops == 0
     assert len(speaker.played) == 1
+
+
+def test_quiet_audio_is_not_transcribed() -> None:
+    loop, lines, _, _ = build_loop([], phrases=("olá",))
+
+    assert loop.handle(block(200, 60)) is False
+    assert not any(line.startswith("tu>") for line in lines)
+
+
+def test_repeated_text_within_the_window_is_ignored() -> None:
+    loop, lines, _, _ = build_loop([], phrases=("olá", "olá"))
+
+    assert loop.handle(block(200, 2000)) is True
+    assert loop.handle(block(200, 2000)) is False
+
+    assert lines.count("tu> olá") == 1
+    assert "Nox> (repetido, ignorado)" in lines
