@@ -33,7 +33,9 @@ def require(module_name: str) -> ModuleType:
     """Importa um módulo ou levanta OptionalDependencyError com a instrução de instalação."""
     try:
         return importlib.import_module(module_name)
-    except ImportError as exc:
+    except (ImportError, OSError) as exc:
+        # OSError: bibliotecas nativas em falta (ex.: PortAudio no Linux) também
+        # contam como dependência indisponível.
         extra = _EXTRAS.get(module_name)
         hint = f" (pip install -e .[{extra}])" if extra else ""
         raise OptionalDependencyError(
@@ -45,6 +47,6 @@ def available(module_name: str) -> bool:
     """Diz se um módulo opcional pode ser importado, sem o manter em cache de erro."""
     try:
         importlib.import_module(module_name)
-    except ImportError:
+    except (ImportError, OSError):
         return False
     return True

@@ -31,9 +31,9 @@ def test_allowed_path_resolves(sandbox: Sandbox, tmp_path: Path) -> None:
     assert sandbox.resolve("nota.txt") == target
 
 
-def test_path_outside_the_sandbox_is_refused(sandbox: Sandbox) -> None:
+def test_path_outside_the_sandbox_is_refused(sandbox: Sandbox, tmp_path: Path) -> None:
     with pytest.raises(SandboxError, match="fora das pastas"):
-        sandbox.resolve("C:/Windows/System32/drivers/etc/hosts")
+        sandbox.resolve(str(tmp_path.parent / "fora.txt"))
 
 
 def test_blocked_names_are_refused(sandbox: Sandbox, tmp_path: Path) -> None:
@@ -70,7 +70,7 @@ def test_read_file_returns_content(sandbox: Sandbox, tmp_path: Path) -> None:
 def test_read_file_outside_the_sandbox_is_denied(sandbox: Sandbox, tmp_path: Path) -> None:
     tools = ToolRegistry(build_file_tools(sandbox), audit=AuditLog(tmp_path / "audit.jsonl"))
 
-    result = tools.run("read_file", {"path": "C:/Windows/win.ini"})
+    result = tools.run("read_file", {"path": str(tmp_path.parent / "fora.txt")})
 
     assert result.ok is False
     assert "fora das pastas" in result.content
@@ -191,7 +191,7 @@ def test_write_file_refuses_blocked_names(sandbox: Sandbox, tmp_path: Path) -> N
 def test_write_file_outside_the_sandbox_is_refused(sandbox: Sandbox, tmp_path: Path) -> None:
     tools, _ = _write_tools(sandbox, tmp_path)
 
-    result = tools.run("write_file", {"path": "C:/Windows/win.ini", "content": "x"})
+    result = tools.run("write_file", {"path": str(tmp_path.parent / "fora.txt"), "content": "x"})
 
     assert result.ok is False
     assert "fora das pastas" in result.content
