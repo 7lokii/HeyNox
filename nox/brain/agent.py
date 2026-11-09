@@ -21,6 +21,7 @@ from nox.config import Config
 from nox.memory.extract import extract_facts
 from nox.memory.store import Fact, MemoryStore, resolve_memory_path
 from nox.paths import install_dir
+from nox.safety.approvals import ApprovalBroker
 from nox.safety.sandbox import Sandbox
 from nox.tools.base import ToolRegistry
 from nox.tools.files import build_file_tools
@@ -270,7 +271,12 @@ class Agent:
         return self._stop.is_set()
 
 
-def build_agent(config: Config, *, voice: bool = False) -> Agent:
+def build_agent(
+    config: Config,
+    *,
+    voice: bool = False,
+    approvals: ApprovalBroker | None = None,
+) -> Agent:
     """Agente a partir da config. Sem chave, degrada para respostas locais."""
     try:
         llm = build_llm(config)
@@ -283,8 +289,16 @@ def build_agent(config: Config, *, voice: bool = False) -> Agent:
         sandbox = Sandbox(config, root=install_dir())
         tools = ToolRegistry(
             [
-                *build_file_tools(sandbox),
-                *build_shell_tools(sandbox, timeout=config.tools.command_timeout),
+                *build_file_tools(
+                    sandbox,
+                    approvals=approvals,
+                    confirm_writes=config.tools.confirm_writes,
+                ),
+                *build_shell_tools(
+                    sandbox,
+                    timeout=config.tools.command_timeout,
+                    approvals=approvals,
+                ),
             ]
         )
 

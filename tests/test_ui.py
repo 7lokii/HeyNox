@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -136,3 +137,41 @@ def test_state_reports_who_is_speaking() -> None:
 
     state.set_levels([0.6] + [0.0] * 47)
     assert state.snapshot()["source"] == "nox"
+
+
+def test_state_endpoint_has_no_pending_approvals(server) -> None:
+    base, _ = server
+    assert get_json(base + "/api/state")["approvals"] == []
+
+
+def test_approval_round_trip_through_the_api(server) -> None:
+    base, app = server
+    outcome: dict[str, bool] = {}
+    thread = threading.Thread(
+        target=lambda: outcome.setdefault(
+            "ok", app.approvals.request("write_file", "Criar nota.txt", "+ olá")
+        )
+    )
+    thread.start()
+
+    pending: list[dict] = []
+    for _ in range(200):
+        pending = get_json(base + "/api/state")["approvals"]
+        if pending:
+            break
+        time.sleep(0.01)
+    assert pending[0]["summary"] == "Criar nota.txt"
+
+    decided = post_json(base + "/api/approvals", {"id": pending[0]["id"], "approved": True})
+    thread.join(timeout=2)
+
+    assert decided["decided"] is True
+    assert outcome["ok"] is True
+    assert get_json(base + "/api/state")["approvals"] == []
+
+
+def test_unknown_approval_id_is_reported(server) -> None:
+    base, _ = server
+    assert post_json(base + "/api/approvals", {"id": "nao-existe", "approved": True}) == {
+        "decided": False
+    }

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from nox.audio.types import duration_ms, rms
+from nox.audio.types import Pcm, duration_ms, rms
 from nox.brain.agent import normalize
 from nox.config import Config
 from nox.models import ModelError, piper_dir
@@ -148,7 +148,7 @@ def test_fallback_transcriber_uses_the_local_model() -> None:
     errors: list[ModelError] = []
     transcriber = FallbackTranscriber(Broken(), Fixed(), on_fallback=errors.append)
 
-    assert transcriber.transcribe(b"\x00\x00" * 160, 16000) == "olá"
+    assert transcriber.transcribe(Pcm(b"\x00\x00" * 160), 16000) == "olá"
     assert len(errors) == 1
 
 
@@ -166,8 +166,8 @@ def test_lazy_transcriber_builds_only_once() -> None:
         return Fixed()
 
     transcriber = LazyTranscriber(factory)
-    transcriber.transcribe(b"\x00\x00" * 160, 16000)
-    transcriber.transcribe(b"\x00\x00" * 160, 16000)
+    transcriber.transcribe(Pcm(b"\x00\x00" * 160), 16000)
+    transcriber.transcribe(Pcm(b"\x00\x00" * 160), 16000)
 
     assert builds == [1]
 

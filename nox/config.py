@@ -175,6 +175,24 @@ class SecurityConfig(BaseModel):
     allowed_paths: list[Path] = Field(default_factory=lambda: [Path("./projects"), Path("./data")])
     blocked_paths: list[str] = Field(default_factory=lambda: [".env", ".git", "credentials"])
     allowed_commands: list[str] = Field(default_factory=list)
+    # Nem com aprovação: são destrutivos por natureza.
+    blocked_commands: list[str] = Field(
+        default_factory=lambda: [
+            "rm -rf",
+            "rm -r",
+            "del /s",
+            "del /q",
+            "rd /s",
+            "format",
+            "diskpart",
+            "mkfs",
+            "shutdown",
+            "reg delete",
+            "cipher /w",
+            "vssadmin",
+            "dd if=",
+        ]
+    )
     require_confirmation: list[ConfirmationAction] = Field(default_factory=list)
 
 
@@ -204,6 +222,10 @@ class ToolsConfig(BaseModel):
     # Quantas voltas de ferramentas antes de desistir.
     max_steps: int = Field(default=4, ge=1, le=10)
     command_timeout: float = Field(default=60.0, gt=0)
+    # Quanto tempo a interface tem para aprovar uma ação antes de a recusar.
+    approval_timeout_s: float = Field(default=45.0, gt=0)
+    # Escrever ficheiros exige aprovação. Desligar só se confiares no modelo.
+    confirm_writes: bool = True
 
 
 class Config(BaseModel):

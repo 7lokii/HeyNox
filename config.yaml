@@ -100,8 +100,12 @@ github:
 
 tools:
   enabled: true
-  max_steps: 4
+  max_steps: 6
   command_timeout: 60
+  # Segundos que a interface tem para aprovar. Sem resposta, a ação é recusada.
+  approval_timeout_s: 45
+  # Escrever ficheiros pede aprovação na interface (com diff).
+  confirm_writes: true
 
 security:
   allowed_paths:
@@ -112,11 +116,34 @@ security:
     - ".env"
     - ".git"
     - "credentials"
+  # Comandos que correm sem perguntar. O resto pede aprovação.
   allowed_commands:
     - "git status"
     - "git diff"
+    - "git log"
+    - "git show"
+    - "git branch"
+    - "git add"
+    - "git commit"
     - "pytest"
     - "python -m pytest"
+    - "ruff check"
+    - "ruff format"
+  # Nem com aprovação: destrutivos por natureza.
+  blocked_commands:
+    - "rm -rf"
+    - "rm -r"
+    - "del /s"
+    - "del /q"
+    - "rd /s"
+    - "format"
+    - "diskpart"
+    - "mkfs"
+    - "shutdown"
+    - "reg delete"
+    - "cipher /w"
+    - "vssadmin"
+    - "dd if="
   require_confirmation:
     - "delete"
     - "force_push"

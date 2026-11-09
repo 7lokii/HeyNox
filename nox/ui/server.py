@@ -17,6 +17,7 @@ from typing import Any
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.paths import bundle_dir
+from nox.safety.approvals import ApprovalBroker
 from nox.ui.state import NoxState
 from nox.voice import run_voice
 
@@ -42,10 +43,12 @@ class NoxApp:
         config: Config,
         state: NoxState | None = None,
         agent: Agent | None = None,
+        approvals: ApprovalBroker | None = None,
     ) -> None:
         self.config = config
         self.state = state or NoxState()
-        self.agent = agent or build_agent(config)
+        self.approvals = approvals or ApprovalBroker(timeout=config.tools.approval_timeout_s)
+        self.agent = agent or build_agent(config, approvals=self.approvals)
         self.logs: list[str] = []
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -123,6 +126,7 @@ class NoxApp:
             run_voice(
                 self.config,
                 out=self.logs.append,
+                agent=self.agent,
                 on_turn=self.state.add_turn,
                 on_status=self.state.set_status,
                 on_frame=self.state.set_levels,
@@ -146,7 +150,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self._send_html()
         elif self.path == "/api/state":
-            self._send_json(self.app.state.snapshot())
+            snapshot = self.app.state.snapshot()
+            snapshot["approvals"] = self.app.approvals.pending()
+            self._send_json(snapshot)
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
             self._send_json(
@@ -176,6 +182,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/memory/forget":
             pattern = str(self._body().get("pattern", "")).strip()
             self._send_json({"removed": self.app.forget(pattern)})
+        elif self.path == "/api/approvals":
+            body = self._body()
+            approval_id = str(body.get("id", "")).strip()
+            if not approval_id:
+                self._send_json({"error": "falta o id"}, status=400)
+                return
+            decided = self.app.approvals.decide(approval_id, bool(body.get("approved")))
+            self._send_json({"decided": decided})
         else:
             self.send_error(404)
 
@@ -240,5 +254,6 @@ def serve(
         out("a fechar")
     finally:
         app.stop_voice()
+        app.approvals.cancel_all()
         server.server_close()
     return 0

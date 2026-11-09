@@ -117,8 +117,8 @@
 
   /* ---------- painel lateral ---------- */
   .side {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     min-height: 0;
   }
@@ -131,6 +131,8 @@
     padding-left: 2px;
   }
   .log {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 14px;
     border: 1px solid var(--line);
@@ -224,6 +226,64 @@
   }
   #memlist button:hover { color: #fca5a5; border-color: rgba(252, 165, 165, .5); }
 
+  /* ---------- aprovações ---------- */
+  .approvals {
+    border: 1px solid rgba(251, 191, 36, .45);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(251, 191, 36, .08), var(--panel));
+    padding: 10px 14px 12px;
+  }
+  .approvals-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: #fbbf24;
+  }
+  #approvalcount {
+    padding: 0 7px;
+    border: 1px solid rgba(251, 191, 36, .45);
+    border-radius: 999px;
+    color: #fbbf24;
+  }
+  .approval { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .approval-title { font-size: 12.5px; color: var(--ink); }
+  .approval-detail {
+    margin: 0;
+    max-height: 150px;
+    overflow: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: rgba(0, 0, 0, .28);
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .approval-actions { display: flex; gap: 8px; }
+  .approval-actions button {
+    padding: 4px 12px;
+    font-size: 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--muted);
+  }
+  .approval-actions .approve {
+    border-color: rgba(52, 211, 153, .55);
+    color: #34d399;
+  }
+  .approval-actions .approve:hover { background: rgba(52, 211, 153, .12); }
+  .approval-actions .reject:hover { color: #fca5a5; border-color: rgba(252, 165, 165, .5); }
+  .approval-actions button:disabled { opacity: .45; cursor: default; }
+
   /* ---------- rodapé ---------- */
   .composer { display: flex; gap: 10px; }
   form { flex: 1; display: flex; gap: 10px; }
@@ -299,6 +359,10 @@
       <div class="log" id="log">
         <div class="empty">Diz «Hey Nox» ou escreve em baixo.</div>
       </div>
+      <div class="approvals" id="approvals" hidden>
+        <div class="approvals-head"><span>Aprovação necessária</span><span id="approvalcount"></span></div>
+        <div id="approvallist"></div>
+      </div>
       <details class="memory" id="memory">
         <summary>Memória <span id="memcount">0</span></summary>
         <ul id="memlist"></ul>
@@ -325,6 +389,9 @@ const voiceBtn = document.getElementById("voice");
 const clockEl = document.getElementById("clock");
 const memList = document.getElementById("memlist");
 const memCount = document.getElementById("memcount");
+const approvalsEl = document.getElementById("approvals");
+const approvalList = document.getElementById("approvallist");
+const approvalCount = document.getElementById("approvalcount");
 
 let target = new Array(BANDS).fill(0);
 let current = new Array(BANDS).fill(0);
@@ -333,6 +400,7 @@ let inputCurrent = new Array(BANDS).fill(0);
 let status = "parado";
 let rendered = -1;
 let phase = 0;
+let approvalKey = "";
 
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -376,6 +444,53 @@ function setStatus(value) {
   statusText.textContent = value;
 }
 
+async function decideApproval(id, approved, button) {
+  button.disabled = true;
+  try {
+    await api("/api/approvals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, approved }),
+    });
+  } catch (error) {
+    /* o pedido pode ter expirado; o próximo refresh limpa o painel */
+  }
+  approvalKey = "";
+  refresh();
+}
+
+function renderApprovals(items) {
+  const key = items.map((item) => item.id).join(",");
+  if (key === approvalKey) return;
+  approvalKey = key;
+  approvalsEl.hidden = items.length === 0;
+  approvalCount.textContent = items.length ? String(items.length) : "";
+  approvalList.innerHTML = "";
+  for (const item of items) {
+    const card = document.createElement("div");
+    card.className = "approval";
+    const title = document.createElement("div");
+    title.className = "approval-title";
+    title.textContent = item.summary;
+    const detail = document.createElement("pre");
+    detail.className = "approval-detail";
+    detail.textContent = item.detail || item.action;
+    const actions = document.createElement("div");
+    actions.className = "approval-actions";
+    const yes = document.createElement("button");
+    yes.className = "approve";
+    yes.textContent = "Aprovar";
+    yes.onclick = () => decideApproval(item.id, true, yes);
+    const no = document.createElement("button");
+    no.className = "reject";
+    no.textContent = "Recusar";
+    no.onclick = () => decideApproval(item.id, false, no);
+    actions.append(yes, no);
+    card.append(title, detail, actions);
+    approvalList.append(card);
+  }
+}
+
 async function refresh() {
   try {
     const state = await api("/api/state");
@@ -383,6 +498,7 @@ async function refresh() {
     voiceBtn.setAttribute("aria-pressed", String(state.voice));
     voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
     render(state.turns);
+    renderApprovals(state.approvals || []);
   } catch (error) {
     setStatus("sem ligação");
   }

@@ -29,6 +29,9 @@ class Sandbox:
         self.allowed_paths = [self._resolve(path) for path in config.security.allowed_paths]
         self.blocked = [name.lower() for name in config.security.blocked_paths]
         self.allowed_commands = [command.strip() for command in config.security.allowed_commands]
+        self.blocked_commands = [
+            command.strip().lower() for command in config.security.blocked_commands
+        ]
 
     # --- caminhos -------------------------------------------------------
 
@@ -55,8 +58,12 @@ class Sandbox:
 
     # --- comandos -------------------------------------------------------
 
-    def check_command(self, command: str) -> list[str]:
-        """Devolve o comando já dividido em argumentos, ou levanta erro."""
+    def parse_command(self, command: str) -> list[str]:
+        """Valida a forma do comando, sem olhar à lista de permitidos.
+
+        É o que uma aprovação **não** pode contornar: metacaracteres de shell e
+        comandos destrutivos ficam de fora mesmo que o utilizador aprove.
+        """
         command = " ".join(command.split())
         if not command:
             raise SandboxError("comando vazio")
@@ -66,16 +73,29 @@ class Sandbox:
                 "o comando tem caracteres de shell (; | & > $ `) — só um comando de cada vez"
             )
 
-        if not any(command.startswith(prefix) for prefix in self.allowed_commands):
-            permitidos = ", ".join(self.allowed_commands) or "(nenhum)"
-            raise SandboxError(
-                f"'{command}' não está na lista de comandos permitidos. Permitidos: {permitidos}"
-            )
+        lowered = command.lower()
+        for blocked in self.blocked_commands:
+            if blocked and (lowered == blocked or lowered.startswith(blocked + " ")):
+                raise SandboxError(f"'{command}' é destrutivo e está bloqueado")
 
         try:
             return shlex.split(command)
         except ValueError as exc:
             raise SandboxError(f"comando inválido: {exc}") from exc
+
+    def is_allowed_command(self, command: str) -> bool:
+        normalized = " ".join(command.split())
+        return any(normalized.startswith(prefix) for prefix in self.allowed_commands)
+
+    def check_command(self, command: str) -> list[str]:
+        """Devolve o comando já dividido em argumentos, ou levanta erro."""
+        normalized = " ".join(command.split())
+        if not self.is_allowed_command(normalized):
+            permitidos = ", ".join(self.allowed_commands) or "(nenhum)"
+            raise SandboxError(
+                f"'{normalized}' não está na lista de comandos permitidos. Permitidos: {permitidos}"
+            )
+        return self.parse_command(normalized)
 
 
 def _is_within(path: Path, parent: Path) -> bool:

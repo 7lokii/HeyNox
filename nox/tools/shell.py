@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 from typing import Any
 
+from nox.safety.approvals import ApprovalBroker
 from nox.safety.sandbox import Sandbox
 from nox.tools.base import ToolResult
 
@@ -19,9 +20,9 @@ MAX_OUTPUT = 4000
 class RunCommandTool:
     name = "run_command"
     description = (
-        "Executa um comando permitido na raiz do projeto e devolve a saída. "
-        "Só funciona com comandos da lista de permitidos (ex.: git status, "
-        "git diff, pytest, python -m pytest, ruff)."
+        "Executa um comando na raiz do projeto e devolve a saída. Comandos da "
+        "lista de permitidos correm logo; os outros pedem aprovação na "
+        "interface. Comandos destrutivos são sempre recusados."
     )
     schema = {
         "type": "object",
@@ -31,13 +32,35 @@ class RunCommandTool:
         "required": ["command"],
     }
 
-    def __init__(self, sandbox: Sandbox, *, timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        sandbox: Sandbox,
+        *,
+        timeout: float = 60.0,
+        approvals: ApprovalBroker | None = None,
+    ) -> None:
         self._sandbox = sandbox
         self._timeout = timeout
+        self._approvals = approvals
 
     def run(self, arguments: dict[str, Any]) -> ToolResult:
-        command = str(arguments.get("command", "")).strip()
-        argv = self._sandbox.check_command(command)
+        command = " ".join(str(arguments.get("command", "")).split())
+        argv = self._sandbox.parse_command(command)
+
+        if not self._sandbox.is_allowed_command(command):
+            if self._approvals is None:
+                return ToolResult(
+                    False,
+                    f"'{command}' não está na lista de comandos permitidos "
+                    "e não há interface para aprovar",
+                )
+            approved = self._approvals.request(
+                "run_command",
+                f"Executar: {command}",
+                detail=f"Comando: {command}\nPasta: {self._sandbox.root}",
+            )
+            if not approved:
+                return ToolResult(False, f"não aprovado: {command}")
 
         try:
             completed = subprocess.run(  # noqa: S603 — argv validado, sem shell
@@ -67,5 +90,10 @@ class RunCommandTool:
         return ToolResult(completed.returncode == 0, "\n".join(parts))
 
 
-def build_shell_tools(sandbox: Sandbox, *, timeout: float = 60.0) -> list[Any]:
-    return [RunCommandTool(sandbox, timeout=timeout)]
+def build_shell_tools(
+    sandbox: Sandbox,
+    *,
+    timeout: float = 60.0,
+    approvals: ApprovalBroker | None = None,
+) -> list[Any]:
+    return [RunCommandTool(sandbox, timeout=timeout, approvals=approvals)]
