@@ -28,6 +28,11 @@ class RecordingLlm:
         self.systems.append(system)
         return "certo"
 
+    def complete_with_tools(self, messages, *, system: str = "", tools=()):
+        from nox.brain.llm import LlmReply
+
+        return LlmReply(text=self.complete(messages, system=system))
+
 
 def test_fact_is_stored_once(store: MemoryStore) -> None:
     assert store.add_fact("nome", "O utilizador chama-se Rui.") is True

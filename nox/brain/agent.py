@@ -20,6 +20,11 @@ from nox.brain.prompt import system_prompt
 from nox.config import Config
 from nox.memory.extract import extract_facts
 from nox.memory.store import Fact, MemoryStore, resolve_memory_path
+from nox.paths import install_dir
+from nox.safety.sandbox import Sandbox
+from nox.tools.base import ToolRegistry
+from nox.tools.files import build_file_tools
+from nox.tools.shell import build_shell_tools
 
 WEEKDAYS = (
     "segunda-feira",
@@ -85,6 +90,8 @@ class Agent:
     memory: MemoryStore | None = None
     session: str = "local"
     history_turns: int = 12
+    tools: ToolRegistry | None = None
+    max_steps: int = 4
     history_turns: int = 12
     conversation: Conversation = field(init=False)
     _stop: Event = field(default_factory=Event, repr=False, init=False)
@@ -117,19 +124,57 @@ class Agent:
             return local
 
         self.conversation.system = self._base_system + self._memory_block(text)
-        system, messages = self.conversation.request()
         try:
-            answer = self.llm.complete(messages, system=system).strip()
+            answer = self._reply_with_tools() if self.tools is not None else self._reply_plain()
         except LlmError:
             self.conversation.undo_last()
             raise
-        if not answer:
-            self.conversation.undo_last()
-            raise LlmError("o modelo devolveu uma resposta vazia")
 
         self.conversation.add_assistant(answer)
         self._remember("assistant", answer)
         return answer
+
+    def _reply_plain(self) -> str:
+        system, messages = self.conversation.request()
+        answer = self.llm.complete(messages, system=system).strip()
+        if not answer:
+            raise LlmError("o modelo devolveu uma resposta vazia")
+        return answer
+
+    def _reply_with_tools(self) -> str:
+        """Deixa o modelo pedir ferramentas até ter resposta.
+
+        Cada pedido é executado dentro do sandbox, registado na auditoria, e o
+        resultado volta ao modelo como `tool_result`. O ciclo para quando o
+        modelo responde em texto ou quando esgota `max_steps`.
+        """
+        assert self.tools is not None
+        definitions = self.tools.definitions()
+
+        for _ in range(self.max_steps):
+            system, messages = self.conversation.request()
+            reply = self.llm.complete_with_tools(messages, system=system, tools=definitions)
+            if not reply.tool_calls:
+                answer = reply.text.strip()
+                if not answer:
+                    raise LlmError("o modelo devolveu uma resposta vazia")
+                return answer
+
+            self.conversation.add_raw("assistant", reply.raw)
+            results = []
+            for call in reply.tool_calls:
+                outcome = self.tools.run(call.name, call.arguments)
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": call.id,
+                        "content": outcome.content,
+                        "is_error": not outcome.ok,
+                    }
+                )
+            self.conversation.add_raw("user", results)
+
+        return "Não consegui resolver isso: dei voltas a mais com as ferramentas."
 
     def local_answer(self, text: str) -> str | None:
         """Resposta sem modelo, ou None para deixar seguir para o LLM."""
@@ -232,4 +277,22 @@ def build_agent(config: Config, *, voice: bool = False) -> Agent:
     except LlmError as exc:
         llm = UnconfiguredLlm(str(exc))
     memory = MemoryStore(resolve_memory_path(config)) if config.memory.enabled else None
-    return Agent(llm, voice=voice, memory=memory, history_turns=config.memory.history_turns)
+
+    tools = None
+    if config.tools.enabled:
+        sandbox = Sandbox(config, root=install_dir())
+        tools = ToolRegistry(
+            [
+                *build_file_tools(sandbox),
+                *build_shell_tools(sandbox, timeout=config.tools.command_timeout),
+            ]
+        )
+
+    return Agent(
+        llm,
+        voice=voice,
+        memory=memory,
+        history_turns=config.memory.history_turns,
+        tools=tools,
+        max_steps=config.tools.max_steps,
+    )

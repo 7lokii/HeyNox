@@ -93,8 +93,14 @@ github:
   require_pr: true
   require_tests: true
 
+tools:
+  enabled: true
+  max_steps: 4
+  command_timeout: 60
+
 security:
   allowed_paths:
+    - "."
     - "./projects"
     - "./data"
   blocked_paths:

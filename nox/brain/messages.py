@@ -7,7 +7,7 @@ contexto infinito e cada mensagem extra custa latência e dinheiro.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 Role = Literal["system", "user", "assistant"]
 
@@ -15,7 +15,8 @@ Role = Literal["system", "user", "assistant"]
 @dataclass(frozen=True, slots=True)
 class Message:
     role: Role
-    content: str
+    # Texto simples, ou blocos (tool_use / tool_result) quando há ferramentas.
+    content: str | list[dict[str, Any]]
 
 
 @dataclass
@@ -32,6 +33,10 @@ class Conversation:
 
     def add_assistant(self, text: str) -> None:
         self._messages.append(Message("assistant", text))
+        self._trim()
+
+    def add_raw(self, role: Role, content: list[dict[str, Any]]) -> None:
+        self._messages.append(Message(role, content))
         self._trim()
 
     def undo_last(self) -> None:
@@ -53,6 +58,9 @@ class Conversation:
     def _trim(self) -> None:
         if len(self._messages) > self.limit:
             del self._messages[: len(self._messages) - self.limit]
-        # Um turno nunca pode começar por uma resposta órfã.
-        while self._messages and self._messages[0].role == "assistant":
+        # Um turno nunca pode começar por uma resposta órfã nem por um
+        # tool_result sem o tool_use que o originou.
+        while self._messages and (
+            self._messages[0].role == "assistant" or isinstance(self._messages[0].content, list)
+        ):
             self._messages.pop(0)

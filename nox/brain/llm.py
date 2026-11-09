@@ -11,6 +11,7 @@ import os
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from nox.brain.messages import Message
@@ -23,11 +24,36 @@ class LlmError(NoxError):
     """O modelo não está configurado, não respondeu ou devolveu lixo."""
 
 
+@dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class LlmReply:
+    text: str
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    # Blocos como vieram, para os devolver ao modelo no turno seguinte.
+    raw: list[dict[str, Any]] = field(default_factory=list)
+
+
 class LlmClient(Protocol):
     name: str
 
     def complete(self, messages: Sequence[Message], *, system: str = "") -> str:
         """Devolve a resposta do modelo em texto simples."""
+        ...
+
+    def complete_with_tools(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+        tools: Sequence[dict[str, Any]] = (),
+    ) -> LlmReply:
+        """Como `complete`, mas o modelo pode pedir ferramentas."""
         ...
 
 
@@ -39,6 +65,15 @@ class EchoLlm:
     def complete(self, messages: Sequence[Message], *, system: str = "") -> str:
         last = next((m for m in reversed(messages) if m.role == "user"), None)
         return f"(eco) {last.content}" if last else ""
+
+    def complete_with_tools(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+        tools: Sequence[dict[str, Any]] = (),
+    ) -> LlmReply:
+        return LlmReply(text=self.complete(messages, system=system))
 
 
 class UnconfiguredLlm:
@@ -54,6 +89,15 @@ class UnconfiguredLlm:
         self._reason = reason
 
     def complete(self, messages: Sequence[Message], *, system: str = "") -> str:
+        raise LlmError(self._reason)
+
+    def complete_with_tools(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+        tools: Sequence[dict[str, Any]] = (),
+    ) -> LlmReply:
         raise LlmError(self._reason)
 
 
@@ -143,6 +187,46 @@ class AnthropicLlm:
         )
         return _anthropic_text(data)
 
+    def complete_with_tools(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+        tools: Sequence[dict[str, Any]] = (),
+    ) -> LlmReply:
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+        }
+        if system:
+            payload["system"] = system
+        if self._temperature:
+            payload["temperature"] = self._temperature
+        if tools:
+            payload["tools"] = list(tools)
+
+        data = _post_json(
+            self._url,
+            payload,
+            {"x-api-key": self._key, "anthropic-version": ANTHROPIC_VERSION},
+            self._timeout,
+        )
+        blocks = data.get("content") or []
+        text = "".join(
+            block.get("text", "") for block in blocks if block.get("type") == "text"
+        ).strip()
+        calls = [
+            ToolCall(
+                id=str(block.get("id", "")),
+                name=str(block.get("name", "")),
+                arguments=block.get("input") or {},
+            )
+            for block in blocks
+            if block.get("type") == "tool_use"
+        ]
+        return LlmReply(text=text, tool_calls=calls, raw=blocks)
+
 
 class OpenAiLlm:
     """Endpoint compatível com OpenAI (`POST /chat/completions`)."""
@@ -166,7 +250,7 @@ class OpenAiLlm:
         self._timeout = timeout
 
     def complete(self, messages: Sequence[Message], *, system: str = "") -> str:
-        chat: list[dict[str, str]] = []
+        chat: list[dict[str, Any]] = []
         if system:
             chat.append({"role": "system", "content": system})
         chat.extend({"role": m.role, "content": m.content} for m in messages)
@@ -180,6 +264,17 @@ class OpenAiLlm:
             self._url, payload, {"Authorization": f"Bearer {self._key}"}, self._timeout
         )
         return _openai_text(data)
+
+    def complete_with_tools(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+        tools: Sequence[dict[str, Any]] = (),
+    ) -> LlmReply:
+        # Este dialeto ainda não devolve tool_calls; degrada para texto em vez
+        # de fingir que sabe usar ferramentas.
+        return LlmReply(text=self.complete(messages, system=system))
 
 
 def build_llm(config: Config) -> LlmClient:

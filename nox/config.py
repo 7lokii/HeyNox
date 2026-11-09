@@ -196,6 +196,13 @@ class WakeConfig(BaseModel):
     follow_up_s: float = Field(default=6.0, ge=0.0, le=60.0)
 
 
+class ToolsConfig(BaseModel):
+    enabled: bool = True
+    # Quantas voltas de ferramentas antes de desistir.
+    max_steps: int = Field(default=4, ge=1, le=10)
+    command_timeout: float = Field(default=60.0, gt=0)
+
+
 class Config(BaseModel):
     nox: NoxIdentity = Field(default_factory=NoxIdentity)
     audio: AudioConfig = Field(default_factory=AudioConfig)
@@ -206,6 +213,7 @@ class Config(BaseModel):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     github: GithubConfig = Field(default_factory=GithubConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
 
     @field_validator("nox", mode="after")
     @classmethod

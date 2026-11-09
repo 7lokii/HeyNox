@@ -17,6 +17,9 @@ class FailingLlm:
     def complete(self, messages, *, system: str = "") -> str:
         raise LlmError("o modelo caiu")
 
+    def complete_with_tools(self, messages, *, system: str = "", tools=()):
+        raise LlmError("o modelo caiu")
+
 
 def test_normalize_removes_accents_and_punctuation() -> None:
     assert normalize("Que horas são?!") == "que horas sao"
