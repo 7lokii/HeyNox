@@ -19,8 +19,15 @@ Nenhum áudio sai do PC sem confirmação explícita.
 
 **Wake word.** O openWakeWord não traz um modelo "hey nox" — os modelos prontos
 são alexa, hey jarvis, hey mycroft. É preciso treinar um modelo custom (notebook
-oficial, treina com voz sintética, ~1h) ou trocar para o Porcupine da Picovoice,
-que exige chave e é serviço externo. A opção local mantém o princípio local-first.
+oficial, treina com voz sintética, ~1h).
+
+A alternativa seria o Porcupine da Picovoice, mas não é gratuito: o console
+oferece um teste de 7 dias e a partir daí o licenciamento é comercial, negociado
+com vendas. Além disso, exige uma AccessKey validada periodicamente com os
+servidores da Picovoice, o que quebra o modo offline. Fica como plano B: dá para
+usar os 7 dias para comparar a taxa de falsos positivos com o modelo treinado.
+
+A opção local mantém o princípio local-first: Apache 2.0, sem chave, sem rede.
 
 **TTS em pt-PT.** O Kokoro só tem vozes de português do Brasil, e o
 `config.yaml` aponta `voice: "pt-PT-male"`, que não é um id válido do Kokoro.
