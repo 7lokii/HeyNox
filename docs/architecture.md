@@ -36,6 +36,14 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   jantar?".
 - **Sem chave, o Nox não morre.** `UnconfiguredLlm` deixa o arranque e as
   respostas locais a funcionar; o erro só aparece quando o modelo é necessário.
+- **STT e TTS sem PyTorch.** faster-whisper corre em CTranslate2 e o Piper em
+  ONNX Runtime. O `torch` fica só para o Silero VAD, o que tira ~2 GB ao
+  instalador.
+- **O ciclo fecha sem microfone.** `--speak` grava WAV, `--transcribe` lê WAV e
+  `nox/audio/wav.py` converte entre os dois. O teste de ida e volta
+  (TTS -> WAV -> STT) valida o pipeline antes de existir hardware.
+- **Reamostragem em Python.** `nox.audio.types.resample` faz interpolação
+  linear: o Piper produz 22,05 kHz e o Whisper quer 16 kHz.
 
 ## Próxima fase
 

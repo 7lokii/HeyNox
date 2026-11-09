@@ -8,10 +8,10 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Contratos do pipeline + duplos de teste sem hardware.
   - [x] Modo texto (`nox --text`, `nox --say`) com LLM configurável.
   - [x] Respostas locais para horas, data e agradecimentos.
+  - [x] STT local (faster-whisper) — `nox --transcribe`.
+  - [x] TTS local (Piper `pt_PT-tugão-medium`) — `nox --speak`.
   - [ ] Captura de microfone real (sounddevice).
   - [ ] Wake word "Hey Nox" — modelo treinado, ver `docs/voice.md`.
-  - [ ] STT local (faster-whisper).
-  - [ ] TTS — decidir pt-PT (Piper) vs pt-BR (Kokoro), ver `docs/voice.md`.
   - [ ] Interrupção da fala.
 - [ ] **Fase 2 — Memória.**
 - [ ] **Fase 3 — Ferramentas seguras.**

@@ -51,7 +51,14 @@ class SttConfig(BaseModel):
     provider: Literal["faster-whisper", "openai"] = "faster-whisper"
     model: Literal["tiny", "base", "small", "medium", "large-v3"] = "small"
     device: Literal["auto", "cpu", "cuda"] = "auto"
+    compute_type: Literal["int8", "int8_float16", "float16", "float32"] = "int8"
+    # 3 é o ponto onde o modelo deixa de dizer "está ouvindo" (pt-BR) e passa a
+    # dizer "está a ouvir" (pt-PT), sem o custo do beam 5.
+    beam_size: int = Field(default=3, ge=1, le=5)
     language: str = "pt"
+    # Texto de arranque que enviesa o descodificador. Vazio = gerado a partir do
+    # nome e da wake word, para o modelo não trocar "Nox" por "nosso".
+    initial_prompt: str = ""
     fallback_provider: Literal["openai"] | None = "openai"
 
 
@@ -81,8 +88,8 @@ class LlmConfig(BaseModel):
 
 
 class TtsConfig(BaseModel):
-    provider: Literal["kokoro", "piper", "elevenlabs", "openai"] = "kokoro"
-    voice: str = "pt-PT-male"
+    provider: Literal["piper", "kokoro", "elevenlabs", "openai"] = "piper"
+    voice: str = "pt_PT-tugão-medium"
     speed: float = Field(default=1.0, gt=0.0, le=3.0)
 
 

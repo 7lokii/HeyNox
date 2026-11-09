@@ -13,13 +13,24 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
 
+from nox.audio.types import duration_ms
+from nox.audio.wav import read_wav, write_wav
 from nox.brain.agent import Agent
 from nox.brain.llm import LlmError, UnconfiguredLlm, build_llm
-from nox.config import Config, ConfigError, load_config, load_environment, resolve_config_path
+from nox.config import (
+    Config,
+    ConfigError,
+    NoxError,
+    load_config,
+    load_environment,
+    resolve_config_path,
+)
 from nox.optional import available
 from nox.paths import has_console, user_data_dir
+from nox.speech.stt import build_transcriber
+from nox.speech.tts import build_synthesizer
 
-VOICE_MODULES = ("sounddevice", "numpy", "openwakeword", "faster_whisper", "kokoro")
+VOICE_MODULES = ("sounddevice", "numpy", "openwakeword", "faster_whisper", "piper")
 
 
 def _check(config: Config) -> list[str]:
@@ -50,6 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--text", action="store_true", help="Conversa por texto, sem microfone")
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
+    parser.add_argument(
+        "--speak", metavar="TEXTO", default=None, help="Sintetiza a frase para WAV e sai"
+    )
+    parser.add_argument(
+        "--transcribe", metavar="WAV", type=Path, default=None, help="Transcreve um WAV e sai"
+    )
+    parser.add_argument("--out", metavar="WAV", type=Path, default=None, help="Destino do --speak")
     return parser
 
 
@@ -91,9 +109,46 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return 0
     if args.say:
         return _reply_once(config, args.say, out)
+    if args.speak:
+        return _speak(config, args.speak, args.out, out)
+    if args.transcribe:
+        return _transcribe(config, args.transcribe, out)
     if args.text:
         return _text_session(config, out)
     out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")
+    return 0
+
+
+def _speak(config: Config, text: str, destination: Path | None, out: Callable[[str], None]) -> int:
+    try:
+        synthesizer = build_synthesizer(config, progress=lambda message: out(f"aviso: {message}"))
+        audio = synthesizer.synthesize(text)
+    except NoxError as exc:
+        out(f"Erro: {exc}")
+        return 2
+    if not audio:
+        out("Erro: não foi gerado áudio")
+        return 2
+
+    target = destination or user_data_dir() / "out" / "nox.wav"
+    try:
+        write_wav(target, audio, synthesizer.sample_rate)
+    except OSError as exc:
+        out(f"Erro: não consegui escrever {target}: {exc}")
+        return 2
+    out(f"{duration_ms(audio, synthesizer.sample_rate)} ms -> {target}")
+    return 0
+
+
+def _transcribe(config: Config, path: Path, out: Callable[[str], None]) -> int:
+    try:
+        audio, sample_rate = read_wav(path)
+        transcriber = build_transcriber(config)
+        text = transcriber.transcribe(audio, sample_rate)
+    except NoxError as exc:
+        out(f"Erro: {exc}")
+        return 2
+    out(text or "(nada percetível)")
     return 0
 
 

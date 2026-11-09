@@ -15,7 +15,7 @@ _EXTRAS = {
     "openwakeword": "wake",
     "silero_vad": "vad",
     "torch": "vad",
-    "kokoro": "tts",
+    "piper": "tts",
     "sounddevice": "audio",
     "numpy": "audio",
 }

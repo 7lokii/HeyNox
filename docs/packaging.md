@@ -7,17 +7,18 @@ Alvo atual: **Windows x64**. O código já separa caminhos por plataforma
 
 | Ficheiro | Pasta | Console | Conteúdo |
 |---|---|---|---|
-| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo, incluindo voz (torch, faster-whisper, kokoro, openwakeword, silero-vad) |
+| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo, incluindo voz (torch, faster-whisper, piper, openwakeword, silero-vad) |
 | `nox.exe` | `dist\nox\` | sim | Núcleo e CLI para diagnóstico (`nox.exe --check`) |
 | `HeyNox-Setup.exe` | `dist\` | — | Instalador Inno Setup com atalhos, desinstalador e arranque opcional |
 
-Os modelos (Whisper, Kokoro, openWakeWord) **não** vão no instalador; são
+Os modelos (Whisper, Piper, openWakeWord) **não** vão no instalador; são
 descarregados na primeira utilização para `%LOCALAPPDATA%\HeyNox`.
 
 ## Porque é que o build usa Python 3.11
 
-`kokoro` declara `requires_python <3.13`, e no Windows as dependências de voz
-resolvem-se sem compilador apenas em 3.11. O `installer/build.ps1` cria um venv
+A build usa 3.11 porque era a versão exigida pelo `kokoro` (`requires_python
+<3.13`). Com a troca para `piper-tts`, esse limite desapareceu e o build pode
+passar a 3.12/3.13 — ainda não testado. O `installer/build.ps1` cria um venv
 3.11 próprio com `uv` (`.build-venv/`) e não toca no Python do sistema.
 
 ## Como compilar
@@ -71,7 +72,7 @@ caminho e o setup abre interativo.
 
 ## Notas
 
-- Tamanho esperado: ~1 GB instalado (dominado por `torch`).
+- Tamanho esperado: ~1 GB instalado (dominado por `torch`, que só serve ao Silero VAD).
 - Assinatura de código (Authenticode) ainda não configurada; o SmartScreen vai
   mostrar aviso até haver certificado.
 - Linux/macOS: gerar o mesmo `.spec` noutra plataforma e alterar

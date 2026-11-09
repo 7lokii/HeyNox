@@ -25,8 +25,8 @@ Projeto em desenvolvimento. Fase 0 (fundações) concluída: estrutura,
 configuração validada, CLI de verificação de ambiente, testes e CI.
 O instalador Windows também já está pronto.
 
-A Fase 1 arrancou: os contratos do pipeline de voz estão definidos e o modo
-texto já conversa. Falta ligar microfone, wake word, STT e TTS reais.
+A Fase 1 arrancou: os contratos do pipeline de voz estão definidos, o modo
+texto conversa e o STT/TTS locais já funcionam. Falta ligar microfone e wake word.
 
 ## Uso
 
@@ -34,6 +34,8 @@ texto já conversa. Falta ligar microfone, wake word, STT e TTS reais.
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
 nox --say "que horas são?"   # uma resposta e sai
+nox --speak "Bom dia."       # sintetiza para WAV (Piper)
+nox --transcribe audio.wav   # transcreve um WAV (faster-whisper)
 ```
 
 Perguntas simples — horas, data, agradecimentos — são respondidas localmente,

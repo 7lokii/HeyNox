@@ -19,7 +19,10 @@ stt:
   provider: "faster-whisper"
   model: "small"
   device: "auto"
+  compute_type: "int8"
+  beam_size: 3
   language: "pt"
+  initial_prompt: ""
   fallback_provider: "openai"
 
 llm:
@@ -38,8 +41,8 @@ llm:
     fallback: "openai_compatible"
 
 tts:
-  provider: "kokoro"
-  voice: "pt-PT-male"
+  provider: "piper"
+  voice: "pt_PT-tugão-medium"
   speed: 1.0
 
 memory:

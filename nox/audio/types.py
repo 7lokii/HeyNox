@@ -38,3 +38,28 @@ def rms(pcm: Pcm) -> float:
     if not samples:
         return 0.0
     return math.sqrt(sum(sample * sample for sample in samples) / len(samples))
+
+
+def resample(pcm: Pcm, from_rate: int, to_rate: int) -> Pcm:
+    """Reamostragem por interpolação linear.
+
+    Chega para voz: o Whisper quer 16 kHz e o Piper produz 22,05 kHz. Não é
+    anti-aliasing de livro, mas a diferença é inaudível para reconhecimento.
+    """
+    if from_rate == to_rate or from_rate <= 0 or to_rate <= 0:
+        return pcm
+    source = array("h", pcm)
+    if not source:
+        return Pcm(b"")
+
+    ratio = to_rate / from_rate
+    out_length = int(len(source) * ratio)
+    output = array("h", bytes(out_length * SAMPLE_WIDTH))
+    last = len(source) - 1
+    for index in range(out_length):
+        position = index / ratio
+        left = int(position)
+        right = min(left + 1, last)
+        fraction = position - left
+        output[index] = int(source[left] + (source[right] - source[left]) * fraction)
+    return Pcm(output.tobytes())
