@@ -62,7 +62,7 @@ def test_state_ignores_empty_text() -> None:
 def test_state_stops_being_voice_when_stopped() -> None:
     state = NoxState()
     state.set_voice(True)
-    assert state.snapshot()["status"] == "parado"
+    assert state.snapshot()["status"] == "a arrancar"
 
     state.set_status("a falar")
     state.set_voice(False)

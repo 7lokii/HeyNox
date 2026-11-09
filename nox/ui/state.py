@@ -43,8 +43,9 @@ class NoxState:
     def set_voice(self, running: bool) -> None:
         with self._lock:
             self._voice = running
-            if not running:
-                self._status = "parado"
+            # "a arrancar" porque carregar os modelos leva segundos; sem isto a
+            # interface dizia "parado" enquanto o microfone já estava a abrir.
+            self._status = "a arrancar" if running else "parado"
 
     def clear(self) -> None:
         with self._lock:
