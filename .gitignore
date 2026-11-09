@@ -11,6 +11,10 @@ build/
 dist/
 .venv/
 venv/
+.build-venv/
+
+# Empacotamento (os .spec são gerados)
+installer/*.spec
 
 # Ferramentas
 .pytest_cache/

@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
+from collections.abc import Callable
 from contextlib import suppress
+from datetime import datetime
 from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
 
-from nox.config import Config, ConfigError, load_config
+from nox.config import Config, ConfigError, load_config, resolve_config_path
 from nox.optional import available
+from nox.paths import has_console, user_data_dir
 
 VOICE_MODULES = ("sounddevice", "numpy", "openwakeword", "faster_whisper", "kokoro")
 
@@ -42,30 +46,58 @@ def build_parser() -> argparse.ArgumentParser:
 def _fix_console_encoding() -> None:
     # A consola do Windows usa cp1252 por defeito e estraga acentos nos avisos.
     for stream in (sys.stdout, sys.stderr):
+        if stream is None:
+            continue
         with suppress(AttributeError, ValueError):
             cast("TextIOWrapper", stream).reconfigure(encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
     _fix_console_encoding()
-    args = build_parser().parse_args(argv)
+    attached = has_console()
+    sink = _emit if attached else _append_log
     try:
-        config = load_config(args.config)
+        return _run(build_parser().parse_args(argv), sink)
     except ConfigError as exc:
-        print(f"Erro de configuração: {exc}", file=sys.stderr)
+        sink(f"Erro de configuração: {exc}")
         return 2
+    except Exception:
+        if attached:
+            raise
+        _append_log(traceback.format_exc())
+        return 1
 
+
+def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
+    config = load_config(args.config)
     warnings = _check(config)
     for warning in warnings:
-        print(f"aviso: {warning}", file=sys.stderr)
-
+        out(f"aviso: {warning}")
     if args.check:
         wake_word = config.nox.wake_word
-        print(f"{config.nox.name} configurado ({config.nox.language}), wake word '{wake_word}'")
+        out(f"{config.nox.name} configurado ({config.nox.language}), wake word '{wake_word}'")
+        out(f"config: {resolve_config_path(args.config)}")
         return 0
-
-    print(f"{config.nox.name} 0.x — fundações instaladas. O pipeline de voz chega na Fase 1.")
+    out(f"{config.nox.name} 0.x — fundações instaladas. O pipeline de voz chega na Fase 1.")
     return 0
+
+
+def _emit(message: str) -> None:
+    stream = sys.stderr if message.startswith(("aviso:", "Erro")) else sys.stdout
+    if stream is not None:
+        print(message, file=stream)
+
+
+def log_path() -> Path:
+    return user_data_dir() / "logs" / "nox.log"
+
+
+def _append_log(message: str) -> None:
+    path = log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with path.open("a", encoding="utf-8") as log:
+        log.write(f"[{timestamp}] {message.rstrip()}\n")
 
 
 if __name__ == "__main__":

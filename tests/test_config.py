@@ -13,7 +13,8 @@ from nox.config import (
 )
 
 
-def test_project_config_is_valid() -> None:
+def test_project_config_is_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("nox.config.user_data_dir", lambda: tmp_path / "user")
     config = load_config()
     assert config.nox.name == "Nox"
     assert config.nox.wake_word == "hey nox"
@@ -96,3 +97,33 @@ def test_env_does_not_override_existing(tmp_path: Path, monkeypatch: pytest.Monk
     assert os.environ["NOX_DATA_DIR"] == "./from_env"
     assert os.environ["NOX_TEST_FLAG"] == "from_file"
     assert data_dir().name == "from_env"
+
+
+def test_explicit_env_file_wins_over_globals(tmp_path: Path, monkeypatch) -> None:
+    global_env = tmp_path / ".env"
+    global_env.write_text("NOX_EXPLICIT_FLAG=global\n", encoding="utf-8")
+    explicit_env = tmp_path / "custom.env"
+    explicit_env.write_text("NOX_EXPLICIT_FLAG=custom\n", encoding="utf-8")
+    monkeypatch.setattr("nox.config.user_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nox.config.PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv("NOX_EXPLICIT_FLAG", raising=False)
+    load_environment(explicit_env)
+    assert os.environ["NOX_EXPLICIT_FLAG"] == "custom"
+
+
+def test_user_config_preferred_when_present(tmp_path: Path, monkeypatch) -> None:
+    user_dir = tmp_path / "user"
+    user_dir.mkdir()
+    (user_dir / "config.yaml").write_text("nox:\n  wake_word: 'user nox'\n", encoding="utf-8")
+    monkeypatch.setattr("nox.config.user_data_dir", lambda: user_dir)
+    assert load_config().nox.wake_word == "user nox"
+
+
+def test_explicit_path_beats_user_config(tmp_path: Path, monkeypatch) -> None:
+    user_dir = tmp_path / "user"
+    user_dir.mkdir()
+    (user_dir / "config.yaml").write_text("nox:\n  wake_word: 'user nox'\n", encoding="utf-8")
+    monkeypatch.setattr("nox.config.user_data_dir", lambda: user_dir)
+    explicit = tmp_path / "explicit.yaml"
+    explicit.write_text("nox:\n  wake_word: 'explicit nox'\n", encoding="utf-8")
+    assert load_config(explicit).nox.wake_word == "explicit nox"

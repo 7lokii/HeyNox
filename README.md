@@ -59,6 +59,16 @@ cp .env.example .env         # Windows: copy .env.example .env
 nox --check
 ```
 
+## Instalador Windows
+
+O build gera `dist\HeyNox-Setup.exe` (Inno Setup) com `HeyNox.exe`, `nox.exe` e
+arranque opcional. Ver [`docs/packaging.md`](docs/packaging.md).
+
+```powershell
+winget install astral-sh.uv JRSoftware.InnoSetup
+powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```
+
 ## Estrutura
 
 ```text
@@ -73,6 +83,9 @@ nox/
 ├── integrations/  Fornecedores LLM
 ├── ui/            Interface web local
 └── safety/        Permissões, sandbox, segredos, audit log
+
+installer/         Build Windows: PyInstaller + Inno Setup
+scripts/           Pontos de entrada dos .exe
 ```
 
 ## Segurança

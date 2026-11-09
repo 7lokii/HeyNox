@@ -11,8 +11,10 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+from nox.paths import bundle_dir, install_dir, user_data_dir
+
+PROJECT_ROOT = install_dir()
+DEFAULT_CONFIG_PATH = install_dir() / "config.yaml"
 
 
 class NoxError(Exception):
@@ -123,7 +125,7 @@ class Config(BaseModel):
 
 def load_config(path: Path | str | None = None) -> Config:
     """Lê o config.yaml (ou o caminho indicado) e devolve uma Config validada."""
-    config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    config_path = resolve_config_path(path)
     try:
         raw_text = config_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -147,9 +149,24 @@ def load_config(path: Path | str | None = None) -> Config:
         raise ConfigError(f"Configuração inválida em {config_path}:\n{exc}") from exc
 
 
+def resolve_config_path(path: Path | str | None) -> Path:
+    """Prefere um config.yaml editado em %LOCALAPPDATA%\\HeyNox ao embutido/instalado."""
+    if path:
+        return Path(path)
+    user_config = user_data_dir() / "config.yaml"
+    if user_config.is_file():
+        return user_config
+    if DEFAULT_CONFIG_PATH.is_file():
+        return DEFAULT_CONFIG_PATH
+    return bundle_dir() / "config.yaml"
+
+
 def load_environment(env_file: Path | str | None = None) -> None:
     """Carrega o .env sem o versionar. Variáveis já definidas no ambiente têm prioridade."""
-    load_dotenv(env_file or PROJECT_ROOT / ".env", override=False)
+    candidates = [env_file] if env_file else [user_data_dir() / ".env", PROJECT_ROOT / ".env"]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            load_dotenv(candidate, override=False)
 
 
 def data_dir() -> Path:

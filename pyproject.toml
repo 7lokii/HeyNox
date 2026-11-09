@@ -55,8 +55,10 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S105", "S106"]
+"installer/pyinstaller.py" = ["S603"]
 
 [tool.pyright]
-include = ["nox", "tests"]
+include = ["nox", "tests", "installer"]
+exclude = ["installer/*.spec"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from nox.main import main
 
 
@@ -28,3 +30,28 @@ def test_no_warning_when_voice_disabled(tmp_path: Path, capsys) -> None:
     path.write_text("nox:\n  voice_enabled: false\n", encoding="utf-8")
     main(["--check", "--config", str(path)])
     assert "Modo voz" not in capsys.readouterr().err
+
+
+def test_windowed_mode_logs_instead_of_printing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("nox.main.user_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nox.main.has_console", lambda: False)
+    assert main(["--check"]) == 0
+    log = (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
+    assert "Nox configurado (pt-PT)" in log
+
+
+def test_windowed_mode_logs_unexpected_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("nox.main.user_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nox.main.has_console", lambda: False)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("falha simulada")
+
+    monkeypatch.setattr("nox.main.load_config", boom)
+    assert main(["--check"]) == 1
+    log = (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
+    assert "RuntimeError: falha simulada" in log
