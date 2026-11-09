@@ -29,6 +29,22 @@ def test_unknown_action_is_refused(sandbox: Sandbox) -> None:
     assert "ação desconhecida" in result.content
 
 
+def test_click_needs_approval_before_launching(sandbox: Sandbox) -> None:
+    result = BrowserTool(sandbox).run(
+        {"url": "https://example.com", "action": "click", "selector": "#botao"}
+    )
+
+    assert result.ok is False
+    assert "aprovação" in result.content
+
+
+def test_click_needs_a_selector(sandbox: Sandbox) -> None:
+    result = BrowserTool(sandbox).run({"url": "https://example.com", "action": "click"})
+
+    assert result.ok is False
+    assert "seletor" in result.content
+
+
 @pytest.mark.skipif(not available("playwright"), reason="extra browser não instalado")
 @pytest.mark.skipif(
     not os.environ.get("NOX_SLOW_TESTS"), reason="precisa de rede e de NOX_SLOW_TESTS=1"

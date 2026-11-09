@@ -160,6 +160,29 @@ class GithubConfig(BaseModel):
     require_tests: bool = True
 
 
+class McpServerConfig(BaseModel):
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class McpConfig(BaseModel):
+    """Servidores MCP por stdio. Desligado por omissão: arrancar processos
+    externos no arranque não pode ser surpresa."""
+
+    enabled: bool = False
+    timeout_s: float = Field(default=20.0, gt=0)
+    servers: dict[str, McpServerConfig] = Field(default_factory=dict)
+
+
+class AutomationConfig(BaseModel):
+    """Rotinas que correm sozinhas enquanto a interface estiver aberta."""
+
+    enabled: bool = True
+    tick_s: float = Field(default=30.0, gt=0)
+
+
 ConfirmationAction = Literal[
     "delete",
     "force_push",
@@ -234,6 +257,8 @@ class Config(BaseModel):
     wake: WakeConfig = Field(default_factory=WakeConfig)
     stt: SttConfig = Field(default_factory=SttConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
+    automation: AutomationConfig = Field(default_factory=AutomationConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     github: GithubConfig = Field(default_factory=GithubConfig)

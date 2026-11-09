@@ -109,6 +109,23 @@ tools:
   # Escrever ficheiros pede aprovação na interface (com diff).
   confirm_writes: true
 
+automation:
+  # Rotinas correm enquanto a interface estiver aberta.
+  enabled: true
+  tick_s: 30
+
+mcp:
+  # Servidores MCP por stdio. Desligado: arrancar processos externos é uma
+  # decisão explícita. Exemplo:
+  #   enabled: true
+  #   servers:
+  #     filesystem:
+  #       command: "npx"
+  #       args: ["-y", "@modelcontextprotocol/server-filesystem", "./projects"]
+  enabled: false
+  timeout_s: 20
+  servers: {}
+
 security:
   allowed_paths:
     - "."

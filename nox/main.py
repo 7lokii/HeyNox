@@ -94,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
     )
     parser.add_argument("--ui", action="store_true", help="Abre a interface web local")
+    parser.add_argument("--routines", action="store_true", help="Lista as rotinas e sai")
     parser.add_argument("--memory", action="store_true", help="Mostra o que o Nox sabe e sai")
     parser.add_argument(
         "--forget", metavar="TEXTO", default=None, help="Esquece os factos que contenham o texto"
@@ -197,11 +198,33 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return _voiceprint_command(config, args, out)
     if args.test_stt is not None:
         return _test_stt(config, args.test_stt, out)
+    if args.routines:
+        return _routines_command(out)
     if args.memory or args.forget or args.memory_export or args.memory_import or args.memory_reset:
         return _memory_command(config, args, out)
     if args.text:
         return _text_session(config, out)
     out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")
+    return 0
+
+
+def _routines_command(out: Callable[[str], None]) -> int:
+    from datetime import datetime
+
+    from nox.automation.routines import RoutineStore
+
+    routines = RoutineStore().load()
+    if not routines:
+        out("não há rotinas")
+        return 0
+    for routine in routines:
+        state = "ativa" if routine.enabled else "desligada"
+        last = (
+            datetime.fromtimestamp(routine.last_run).strftime("%Y-%m-%d %H:%M")
+            if routine.last_run
+            else "nunca"
+        )
+        out(f"{routine.id} [{state}] {routine.schedule} (última: {last}) — {routine.prompt}")
     return 0
 
 

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Event
 
+from nox.automation.routines import RoutineStore
 from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
@@ -24,12 +25,17 @@ from nox.memory.store import Fact, MemoryStore, resolve_memory_path
 from nox.paths import install_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.safety.sandbox import Sandbox
+from nox.skills import load_skills, skill_index
 from nox.tools.base import ToolRegistry
 from nox.tools.browser import build_browser_tools
 from nox.tools.files import build_file_tools
 from nox.tools.github import build_github_tools
+from nox.tools.mcp import build_mcp_tools
 from nox.tools.notes import build_notes_tools
+from nox.tools.routines import build_routine_tools
 from nox.tools.shell import build_shell_tools
+from nox.tools.skills import build_skill_tools
+from nox.tools.subagent import SpawnAgentTool
 from nox.tools.web import build_web_tools
 
 WEEKDAYS = (
@@ -98,13 +104,14 @@ class Agent:
     history_turns: int = 12
     tools: ToolRegistry | None = None
     max_steps: int = 4
-    history_turns: int = 12
+    # Texto extra para o system prompt (índice de skills, por exemplo).
+    extra_system: str = ""
     conversation: Conversation = field(init=False)
     _stop: Event = field(default_factory=Event, repr=False, init=False)
     _base_system: str = field(default="", repr=False, init=False)
 
     def __post_init__(self) -> None:
-        self._base_system = system_prompt(voice=self.voice)
+        self._base_system = system_prompt(voice=self.voice) + self.extra_system
         self.conversation = Conversation(self._base_system)
         if self.memory is not None:
             for role, text in self.memory.recent_turns(self.session, self.history_turns):
@@ -288,28 +295,45 @@ def build_agent(
     except LlmError as exc:
         llm = UnconfiguredLlm(str(exc))
     memory = MemoryStore(resolve_memory_path(config)) if config.memory.enabled else None
+    skills = load_skills()
 
     tools = None
     if config.tools.enabled:
         sandbox = Sandbox(config, root=install_dir())
-        tools = ToolRegistry(
-            [
-                *build_file_tools(
-                    sandbox,
-                    approvals=approvals,
-                    confirm_writes=config.tools.confirm_writes,
-                ),
-                *build_shell_tools(
-                    sandbox,
-                    timeout=config.tools.command_timeout,
-                    approvals=approvals,
-                ),
-                *build_web_tools(),
-                *build_browser_tools(sandbox),
-                *build_notes_tools(sandbox),
-                *build_github_tools(GitHub(config, sandbox)),
-            ]
-        )
+        base_tools = [
+            *build_file_tools(
+                sandbox,
+                approvals=approvals,
+                confirm_writes=config.tools.confirm_writes,
+            ),
+            *build_shell_tools(
+                sandbox,
+                timeout=config.tools.command_timeout,
+                approvals=approvals,
+            ),
+            *build_web_tools(),
+            *build_browser_tools(sandbox, approvals=approvals),
+            *build_notes_tools(sandbox),
+            *build_github_tools(GitHub(config, sandbox)),
+            *build_routine_tools(RoutineStore()),
+            *build_skill_tools(skills),
+            *build_mcp_tools(config),
+        ]
+        # O sub-agente vê as mesmas ferramentas, menos `spawn_agent`: sem isto
+        # podia abrir sub-agentes em cadeia até esgotar a máquina.
+        sub_tools = ToolRegistry(base_tools)
+
+        def sub_agent() -> Agent:
+            return Agent(
+                llm,
+                voice=False,
+                memory=None,
+                tools=sub_tools,
+                max_steps=config.tools.max_steps,
+                extra_system=skill_index(skills),
+            )
+
+        tools = ToolRegistry([*base_tools, SpawnAgentTool(sub_agent)])
 
     return Agent(
         llm,
@@ -318,4 +342,5 @@ def build_agent(
         history_turns=config.memory.history_turns,
         tools=tools,
         max_steps=config.tools.max_steps,
+        extra_system=skill_index(skills),
     )

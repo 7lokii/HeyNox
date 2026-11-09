@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, cast
 
 import pytest
 
@@ -95,3 +96,31 @@ def test_stop_and_resume() -> None:
     assert agent.stopped is True
     agent.resume()
     assert agent.stopped is False
+
+
+def test_extra_system_is_added_to_the_prompt() -> None:
+    agent = Agent(EchoLlm(), extra_system="\nSKILL-X\n")
+    assert "SKILL-X" in agent.conversation.system
+
+
+def test_build_agent_registers_the_phase_5_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    from nox.brain.agent import build_agent
+    from nox.config import Config
+    from nox.skills import Skill
+
+    skill = Skill(name="teste", description="skill de teste", body="corpo", path=Path("x.md"))
+    monkeypatch.setattr("nox.brain.agent.load_skills", lambda: [skill])
+
+    config = Config.model_validate({"memory": {"enabled": False}})
+    agent = build_agent(config)
+
+    assert agent.tools is not None
+    names = agent.tools.names
+    assert {"routine", "skill", "spawn_agent"} <= set(names)
+    # O sub-agente não pode abrir sub-agentes em cadeia.
+    spawn = agent.tools._tools["spawn_agent"]  # noqa: SLF001 — teste do contrato
+    sub = cast(Any, spawn)._factory()
+    assert sub.tools is not None
+    assert "spawn_agent" not in sub.tools.names

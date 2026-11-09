@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.paths import bundle_dir
@@ -48,6 +49,7 @@ class NoxApp:
         self.config = config
         self.state = state or NoxState()
         self.approvals = approvals or ApprovalBroker(timeout=config.tools.approval_timeout_s)
+        self.routines = RoutineStore()
         self.agent = agent or build_agent(config, approvals=self.approvals)
         self.logs: list[str] = []
         self._stop = threading.Event()
@@ -56,7 +58,14 @@ class NoxApp:
         self._speaker = None
 
     def say(self, text: str) -> str:
-        self.state.add_turn("user", text)
+        return self._respond(text, label=None)
+
+    def run_routine(self, prompt: str) -> str:
+        """Corre uma rotina e deixa-a marcada na conversa como tal."""
+        return self._respond(prompt, label=f"(rotina) {prompt}")
+
+    def _respond(self, text: str, *, label: str | None) -> str:
+        self.state.add_turn("user", label or text)
         try:
             answer = self.agent.reply(text)
         except NoxError as exc:
@@ -246,6 +255,15 @@ def serve(
     server, bound = build_server(app, port)
     url = f"http://127.0.0.1:{bound}/"
     out(f"Nox UI em {url}")
+    scheduler: RoutineScheduler | None = None
+    if config.automation.enabled:
+        scheduler = RoutineScheduler(
+            app.routines,
+            lambda routine: app.run_routine(routine.prompt),
+            tick_s=config.automation.tick_s,
+            on_error=lambda routine, exc: app.logs.append(f"rotina {routine.id} falhou: {exc}"),
+        )
+        scheduler.start()
     if open_browser:
         webbrowser.open(url)
     try:
@@ -253,6 +271,8 @@ def serve(
     except KeyboardInterrupt:
         out("a fechar")
     finally:
+        if scheduler is not None:
+            scheduler.stop()
         app.stop_voice()
         app.approvals.cancel_all()
         server.server_close()
