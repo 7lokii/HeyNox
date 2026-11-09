@@ -167,8 +167,6 @@ class VoiceLoop:
         self.out(f"tu> {text}")
         self._turn("user", text)
         self._status("a pensar")
-        self._turn("user", text)
-        self._status("a pensar")
         try:
             answer = self.agent.reply(text)
         except NoxError as exc:

@@ -293,3 +293,12 @@ def test_repeated_text_within_the_window_is_ignored() -> None:
 
     assert lines.count("tu> olá") == 1
     assert "Nox> (repetido, ignorado)" in lines
+
+
+def test_each_turn_is_published_once() -> None:
+    loop, _, _, _ = build_loop([], phrases=("olá",))
+    turns: list[tuple[str, str]] = []
+    loop.on_turn = lambda role, text: turns.append((role, text))
+
+    assert loop.handle(block(200, 2000)) is True
+    assert turns == [("user", "olá"), ("assistant", "(eco) olá")]
