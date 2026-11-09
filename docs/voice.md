@@ -151,6 +151,31 @@ transcrição incremental enquanto se fala.
 
 ## Wake word
 
+Três formas ativam o Nox: **"Nox"**, **"Ei Nox"** e **"Hey Nox"**. O detetor
+procura a palavra distintiva, por isso "hey"/"ei" são opcionais:
+
+```yaml
+wake:
+  phrases: ["nox", "ei nox", "hey nox"]
+```
+
+Uma palavra curta ("Nox") só aparece no resultado final do Vosk, nunca no
+parcial — daí o `_flush` quando o troço acaba. Custa até 1,5 s a reagir; com
+"Hey Nox" a reação é quase imediata, porque o parcial já traz "a inox".
+
+### Amostras da tua voz ajudam?
+
+Para o detetor atual, **não**. O Vosk é um reconhecedor genérico: mais gravações
+da tua voz não mudam o modelo, e uma dúzia de clipes não chega para treinar
+nada. Seriam úteis em dois cenários futuros: treinar um modelo openWakeWord
+dedicado (precisa de milhares de amostras sintéticas, não de dezenas reais) ou
+treinar um *verificador* de locutor que confirme que a palavra foi dita por ti.
+
+O que **ajudaria hoje**: umas horas de gravação do ruído real da tua sala para
+afinar `audio.noise_gate_factor`.
+
+## Wake word (detalhe técnico)
+
 O openWakeWord não traz modelo "hey nox" — os prontos são alexa, hey jarvis, hey
 mycroft — e treinar um de raiz exige horas de GPU e vários GB de dados de
 negativos. A solução foi **reconhecimento contínuo com o Vosk** (`vosk-model-small-pt-0.3`,
@@ -168,6 +193,68 @@ O que se aprendeu por medição:
   pausa entre "hey" e "nox". Em 5 s de silêncio: **zero** chamadas ao Vosk.
 
 Custo: um falso positivo se alguém disser mesmo "inox". Aceitável.
+
+### Ruído de fundo
+
+Duas defesas, medidas com ruído branco adicionado:
+
+| Ruído (RMS) | "Nox" | "Ei Nox" | "Hey Nox" | "Bom dia, tudo bem?" |
+|---|---|---|---|---|
+| 0 | ✅ | ✅ | ✅ | — |
+| 300 | — | ✅ | ✅ | — |
+| 600 | — | — | — | — |
+
+- **Portão adaptativo** (`audio.noise_gate`): aprende o piso de ruído e só deixa
+  passar o que está 2,5× acima. É o que impede o Vosk de correr num escritório
+  ruidoso — e o que garante que uma conversa normal nunca acorda o Nox.
+- **Subtração espectral em fluxo** (`audio.denoise_wake`, desligada por
+  omissão): ajuda "Hey Nox" a 600 de ruído, mas estraga palavras curtas como
+  "Nox". Experimental.
+
+Acima de ~600 de ruído branco contínuo o reconhecedor deixa de ouvir a palavra.
+É o limite do modelo pequeno, não do portão.
+
+## Ruído na transcrição
+
+Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
+
+| Ruído | Sem limpeza | Com limpeza |
+|---|---|---|
+| 600 | "Que horas são?" | "Que horas são?" |
+| 1200 | "E oração." | "E horas são." |
+
+Em ruído moderado não muda nada; em ruído forte evita a transcrição inventada.
+
+### Ruído de fundo
+
+Duas defesas, medidas com ruído branco adicionado:
+
+| Ruído (RMS) | "Nox" | "Ei Nox" | "Hey Nox" | "Bom dia, tudo bem?" |
+|---|---|---|---|---|
+| 0 | ✅ | ✅ | ✅ | — |
+| 300 | — | ✅ | ✅ | — |
+| 600 | — | — | — | — |
+
+- **Portão adaptativo** (`audio.noise_gate`): aprende o piso de ruído e só deixa
+  passar o que está 2,5× acima. É o que impede o Vosk de correr num escritório
+  ruidoso — e o que garante que uma conversa normal nunca acorda o Nox.
+- **Subtração espectral em fluxo** (`audio.denoise_wake`, desligada por
+  omissão): ajuda "Hey Nox" a 600 de ruído, mas estraga palavras curtas como
+  "Nox". Experimental.
+
+Acima de ~600 de ruído branco contínuo o reconhecedor deixa de ouvir a palavra.
+É o limite do modelo pequeno, não do portão.
+
+## Ruído na transcrição
+
+Antes do Whisper, a frase passa por `spectral_gate` (`stt.denoise`). Medido:
+
+| Ruído | Sem limpeza | Com limpeza |
+|---|---|---|
+| 600 | "Que horas são?" | "Que horas são?" |
+| 1200 | "E oração." | "E horas são." |
+
+Em ruído moderado não muda nada; em ruído forte evita a transcrição inventada.
 
 ```yaml
 wake:

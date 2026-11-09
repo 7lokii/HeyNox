@@ -11,6 +11,10 @@ nox:
 wake:
   provider: "vosk"
   model: "vosk-model-small-pt-0.3"
+  phrases:
+    - "nox"
+    - "ei nox"
+    - "hey nox"
   timeout_s: 8
   follow_up_s: 6
 
@@ -19,6 +23,9 @@ audio:
   sample_rate: 16000
   channels: 1
   block_ms: 30
+  noise_gate: true
+  noise_gate_factor: 2.5
+  denoise_wake: false
   barge_in: false
   barge_in_ms: 300
   barge_in_threshold: 800
@@ -37,6 +44,8 @@ stt:
   language: "pt"
   initial_prompt: ""
   trim_silence: true
+  denoise: true
+  denoise_strength: 1.5
   fallback_provider: "openai"
 
 llm:

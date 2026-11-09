@@ -52,6 +52,13 @@ class AudioConfig(BaseModel):
     channels: int = Field(default=1, gt=0, le=2)
     # Bloco de leitura. O WebRTC VAD só aceita 10, 20 ou 30 ms.
     block_ms: int = Field(default=30, gt=0)
+    # Portão adaptativo antes da wake word: fecha o que não se distingue do
+    # ruído de fundo aprendido.
+    noise_gate: bool = True
+    noise_gate_factor: float = Field(default=2.5, gt=1.0, le=10.0)
+    # Limpa o áudio antes do reconhecedor da wake word. Experimental: em ruído
+    # alto ajuda a frase longa, mas estraga palavras curtas como "Nox".
+    denoise_wake: bool = False
     # Interromper o Nox a falar. Só é fiável com auscultadores: com
     # altifalantes o microfone ouve o próprio Nox e ele cala-se sozinho.
     barge_in: bool = False
@@ -84,6 +91,10 @@ class SttConfig(BaseModel):
     initial_prompt: str = ""
     # Corta o silêncio das pontas antes de transcrever: menos áudio, menos tempo.
     trim_silence: bool = True
+    # Subtração espectral antes de transcrever. Ajuda em ruído forte; em
+    # silêncio não muda nada.
+    denoise: bool = True
+    denoise_strength: float = Field(default=1.5, ge=0.0, le=4.0)
     fallback_provider: Literal["openai"] | None = "openai"
 
 
@@ -159,6 +170,8 @@ class WakeConfig(BaseModel):
 
     provider: Literal["vosk", "off"] = "vosk"
     model: str = "vosk-model-small-pt-0.3"
+    # Qualquer uma destas formas ativa o Nox. Basta a palavra distintiva.
+    phrases: list[str] = Field(default_factory=lambda: ["nox", "ei nox", "hey nox"])
     # Segundos à espera do pedido depois de ouvir a wake word.
     timeout_s: float = Field(default=8.0, gt=0)
     # Depois de responder, o Nox continua a ouvir sem exigir a palavra outra

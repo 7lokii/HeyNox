@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol
 
+from nox.audio.denoise import spectral_gate
 from nox.audio.types import Pcm, resample, trim_silence
 from nox.config import Config
 from nox.models import ModelError
@@ -47,6 +48,8 @@ class FasterWhisperTranscriber:
         initial_prompt: str = "",
         beam_size: int = 3,
         trim_silence: bool = True,
+        denoise: bool = True,
+        denoise_strength: float = 1.5,
     ) -> None:
         require("faster_whisper")
         from faster_whisper import WhisperModel
@@ -56,10 +59,14 @@ class FasterWhisperTranscriber:
         self._prompt = initial_prompt.strip() or None
         self._beam_size = beam_size
         self._trim = trim_silence
+        self._denoise = denoise
+        self._denoise_strength = denoise_strength
 
     def transcribe(self, audio: Pcm, sample_rate: int) -> str:
         import numpy as np
 
+        if self._denoise:
+            audio = spectral_gate(audio, sample_rate, strength=self._denoise_strength)
         if self._trim:
             audio = trim_silence(audio, sample_rate)
         if not audio:
@@ -92,5 +99,7 @@ def build_transcriber(config: Config) -> Transcriber:
             initial_prompt=prompt,
             beam_size=settings.beam_size,
             trim_silence=settings.trim_silence,
+            denoise=settings.denoise,
+            denoise_strength=settings.denoise_strength,
         )
     raise ModelError(f"stt.provider '{settings.provider}' ainda não está implementado")

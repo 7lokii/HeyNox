@@ -12,7 +12,8 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] TTS local (Piper `pt_PT-tugão-medium`) e opção neural (`edge-tts`).
   - [x] Captura de microfone real (sounddevice) — `nox --voice`.
   - [x] VAD WebRTC + loop de conversação completo.
-  - [x] Wake word "Hey Nox" (Vosk, ver `docs/voice.md`).
+  - [x] Wake word "Nox" / "Ei Nox" / "Hey Nox" (Vosk, ver `docs/voice.md`).
+  - [x] Portão de ruído adaptativo e corte espectral antes do STT.
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] Interrupção da fala (barge-in), opcional.
   - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).

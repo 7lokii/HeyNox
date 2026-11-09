@@ -1,7 +1,14 @@
 import pytest
 
 from nox.audio.types import Pcm
-from nox.audio.wake import AlwaysAwake, NeverWake, VoskWakeWord, WakeWordError, matches
+from nox.audio.wake import (
+    AlwaysAwake,
+    NeverWake,
+    VoskWakeWord,
+    WakeWordError,
+    matches,
+    wake_tokens,
+)
 
 
 def test_matches_accepts_the_recognizer_spelling() -> None:
@@ -35,3 +42,19 @@ def test_vosk_rejects_other_sample_rates() -> None:
 def test_vosk_rejects_phrases_without_content() -> None:
     with pytest.raises(WakeWordError, match="distintivas"):
         VoskWakeWord("hey", sample_rate=16000)
+
+
+def test_all_three_forms_share_one_token() -> None:
+    tokens = wake_tokens(["nox", "ei nox", "hey nox"])
+    assert tokens == ("nox",)
+
+
+def test_matches_accepts_every_form() -> None:
+    tokens = wake_tokens(["nox", "ei nox", "hey nox"])
+    for frase in ("Nox", "Ei Nox", "Hey Nox", "hey nox, que horas são?"):
+        assert matches(frase, tokens) is True
+
+
+def test_phrases_without_content_are_rejected() -> None:
+    assert wake_tokens("hey") == ()
+    assert wake_tokens(["ei", "olá"]) == ()
