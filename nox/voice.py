@@ -9,7 +9,8 @@ modelo treinado; até lá, `--voice` é conversa contínua.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.models import ModelError
 from nox.speech.stt import Transcriber, build_transcriber
-from nox.speech.tts import Synthesizer, build_synthesizer
+from nox.speech.tts import Synthesizer, build_synthesizer, split_sentences
 
 
 class Step(Enum):
@@ -31,6 +32,11 @@ class Step(Enum):
     IDLE = auto()
     TURN = auto()
     END = auto()
+
+
+# Frases curtas sintetizadas uma vez no arranque. Cobrem o silêncio enquanto o
+# STT e o modelo trabalham, para a resposta não parecer um congelamento.
+FILLERS = ("Hmm.", "Deixa-me ver.", "Um momento.")
 
 
 @dataclass
@@ -44,10 +50,14 @@ class VoiceLoop:
     out: Callable[[str], None]
     name: str = "Nox"
     block_frames: int = 480
+    fillers: tuple[str, ...] = ()
+    _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
+    _filler_index: int = field(default=0, repr=False)
 
     def run(self, *, max_turns: int | None = None) -> int:
         # Carregar modelos leva segundos; o microfone já encheu entretanto.
         self.source.flush()
+        self._prepare_fillers()
         self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
         turns = 0
         try:
@@ -72,7 +82,13 @@ class VoiceLoop:
         return Step.TURN if self.handle(utterance) else Step.IDLE
 
     def handle(self, utterance: Pcm) -> bool:
-        text = self.transcriber.transcribe(utterance, self.segmenter.sample_rate).strip()
+        rate = self.segmenter.sample_rate
+        # O filler toca enquanto o STT trabalha: cobre o silêncio sem lhe somar
+        # tempo. Em série, o "Hmm." atrasava a transcrição em vez de a esconder.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(self.transcriber.transcribe, utterance, rate)
+            self._play_filler()
+            text = pending.result().strip()
         if not text:
             return False
         self.out(f"tu> {text}")
@@ -83,13 +99,48 @@ class VoiceLoop:
             return False
         self.out(f"{self.name}> {answer}")
 
-        audio = self.synthesizer.synthesize(answer)
-        if audio:
-            self.speaker.play(audio, self.synthesizer.sample_rate)
+        self.speak(answer)
         # O microfone encheu enquanto o Nox falava; deitar fora antes de voltar
         # a ouvir evita transcrever a própria resposta.
         self.source.flush()
         return True
+
+    def speak(self, text: str) -> None:
+        """Fala por frases, sintetizando a seguinte enquanto a atual é reproduzida.
+
+        A primeira frase chega ao altifalante sem esperar pela síntese do resto.
+        """
+        sentences = split_sentences(text)
+        if not sentences:
+            return
+        rate = self.synthesizer.sample_rate
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(self.synthesizer.synthesize, sentences[0])
+            for index in range(len(sentences)):
+                audio = pending.result()
+                if index + 1 < len(sentences):
+                    pending = pool.submit(self.synthesizer.synthesize, sentences[index + 1])
+                if audio:
+                    self.speaker.play(audio, rate)
+
+    def _prepare_fillers(self) -> None:
+        """Sintetiza as frases de espera uma única vez, no arranque.
+
+        Em paralelo: com voz de rede, três pedidos em série custam três
+        handshakes antes de o Nox começar a ouvir.
+        """
+        if not self.fillers:
+            return
+        with ThreadPoolExecutor(max_workers=len(self.fillers)) as pool:
+            self._filler_audio = list(pool.map(self.synthesizer.synthesize, self.fillers))
+
+    def _play_filler(self) -> None:
+        if not self._filler_audio:
+            return
+        audio = self._filler_audio[self._filler_index % len(self._filler_audio)]
+        self._filler_index += 1
+        if audio:
+            self.speaker.play(audio, self.synthesizer.sample_rate)
 
 
 def build_source(config: Config, input_file: Path | None = None) -> AudioSource:
@@ -117,7 +168,11 @@ def build_vad(config: Config) -> VoiceActivityDetector:
 
 
 def build_segmenter(config: Config) -> Segmenter:
-    return Segmenter(build_vad(config), sample_rate=config.audio.sample_rate)
+    return Segmenter(
+        build_vad(config),
+        sample_rate=config.audio.sample_rate,
+        silence_ms=config.audio.vad.silence_ms,
+    )
 
 
 def run_voice(config: Config, *, out: Callable[[str], None], input_file: Path | None = None) -> int:
@@ -138,6 +193,7 @@ def run_voice(config: Config, *, out: Callable[[str], None], input_file: Path | 
             agent=build_agent(config, voice=True),
             out=out,
             name=config.nox.name,
+            fillers=FILLERS if config.nox.voice_fillers else (),
             block_frames=round(config.audio.sample_rate * config.audio.block_ms / 1000),
         )
         return loop.run()

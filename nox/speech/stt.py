@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol
 
-from nox.audio.types import Pcm, resample
+from nox.audio.types import Pcm, resample, trim_silence
 from nox.config import Config
 from nox.models import ModelError
 from nox.optional import require
@@ -46,6 +46,7 @@ class FasterWhisperTranscriber:
         language: str = "pt",
         initial_prompt: str = "",
         beam_size: int = 3,
+        trim_silence: bool = True,
     ) -> None:
         require("faster_whisper")
         from faster_whisper import WhisperModel
@@ -54,10 +55,15 @@ class FasterWhisperTranscriber:
         self._language = language or None
         self._prompt = initial_prompt.strip() or None
         self._beam_size = beam_size
+        self._trim = trim_silence
 
     def transcribe(self, audio: Pcm, sample_rate: int) -> str:
         import numpy as np
 
+        if self._trim:
+            audio = trim_silence(audio, sample_rate)
+        if not audio:
+            return ""
         if sample_rate != WHISPER_RATE:
             audio = resample(audio, sample_rate, WHISPER_RATE)
         samples = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
@@ -85,5 +91,6 @@ def build_transcriber(config: Config) -> Transcriber:
             language=settings.language,
             initial_prompt=prompt,
             beam_size=settings.beam_size,
+            trim_silence=settings.trim_silence,
         )
     raise ModelError(f"stt.provider '{settings.provider}' ainda não está implementado")

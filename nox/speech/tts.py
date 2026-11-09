@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -10,6 +11,44 @@ from nox.audio.types import Pcm
 from nox.config import Config
 from nox.models import ModelError, ensure_piper_voice
 from nox.optional import require
+
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+_CLAUSE_END = re.compile(r"(?<=[,;:])\s+")
+
+
+def split_sentences(text: str, *, max_chars: int = 120) -> list[str]:
+    """Parte a resposta em pedaços faláveis.
+
+    Frases curtas chegam mais depressa ao altifalante: sintetizar 20 caracteres
+    demora uma fracção do que sintetizar 200. Frases muito longas são ainda
+    cortadas nas vírgulas.
+    """
+    parts = [part.strip() for part in _SENTENCE_END.split(text.strip()) if part.strip()]
+    chunks: list[str] = []
+    for part in parts:
+        if len(part) <= max_chars:
+            chunks.append(part)
+            continue
+        for clause in _CLAUSE_END.split(part):
+            chunks.extend(_wrap(clause.strip(), max_chars))
+    return [chunk for chunk in chunks if chunk]
+
+
+def _wrap(text: str, max_chars: int) -> list[str]:
+    """Quebra por palavras quando nem uma oração cabe no limite."""
+    if len(text) <= max_chars:
+        return [text]
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        if current and len(current) + 1 + len(word) > max_chars:
+            lines.append(current)
+            current = word
+        else:
+            current = f"{current} {word}".strip()
+    if current:
+        lines.append(current)
+    return lines
 
 
 class Synthesizer(Protocol):

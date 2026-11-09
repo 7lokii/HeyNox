@@ -120,3 +120,41 @@ def test_loop_clears_the_microphone_buffer() -> None:
 def test_step_reports_end_of_stream() -> None:
     loop, _, _, _ = build_loop([])
     assert loop.step() is Step.END
+
+
+def test_speak_sends_each_sentence_to_the_synthesizer() -> None:
+    loop, _, speaker, synthesizer = build_loop([])
+
+    loop.speak("Um. Dois. Três.")
+
+    assert synthesizer.texts == ["Um.", "Dois.", "Três."]
+    assert len(speaker.played) == 3
+
+
+def test_speak_does_nothing_for_empty_text() -> None:
+    loop, _, speaker, synthesizer = build_loop([])
+
+    loop.speak("   ")
+
+    assert synthesizer.texts == []
+    assert speaker.played == []
+
+
+def test_fillers_cover_the_wait_before_the_answer() -> None:
+    loop, _, speaker, synthesizer = build_loop(speech_then_silence())
+    loop.fillers = ("Hmm.",)
+
+    loop.run(max_turns=1)
+
+    assert synthesizer.texts[0] == "Hmm."
+    assert "(eco) olá" in synthesizer.texts
+    assert len(speaker.played) == 2
+
+
+def test_no_fillers_means_no_extra_speech() -> None:
+    loop, _, speaker, synthesizer = build_loop(speech_then_silence())
+
+    loop.run(max_turns=1)
+
+    assert synthesizer.texts == ["(eco) olá"]
+    assert len(speaker.played) == 1

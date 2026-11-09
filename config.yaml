@@ -6,6 +6,7 @@ nox:
   wake_word_sensitivity: 0.7
   voice_enabled: true
   text_enabled: true
+  voice_fillers: true
 
 audio:
   input_device: "default"
@@ -16,6 +17,7 @@ audio:
     provider: "webrtc"
     sensitivity: 0.5
     aggressiveness: 2
+    silence_ms: 500
 
 stt:
   provider: "faster-whisper"
@@ -25,6 +27,7 @@ stt:
   beam_size: 3
   language: "pt"
   initial_prompt: ""
+  trim_silence: true
   fallback_provider: "openai"
 
 llm:

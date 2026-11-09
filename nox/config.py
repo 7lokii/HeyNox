@@ -33,6 +33,8 @@ class NoxIdentity(BaseModel):
     wake_word_sensitivity: float = Field(default=0.7, ge=0.0, le=1.0)
     voice_enabled: bool = True
     text_enabled: bool = True
+    # Frases curtas ("Hmm.") que cobrem o silêncio enquanto o Nox pensa.
+    voice_fillers: bool = True
 
 
 class VadConfig(BaseModel):
@@ -40,6 +42,8 @@ class VadConfig(BaseModel):
     sensitivity: float = Field(default=0.5, ge=0.0, le=1.0)
     # 0 = permissivo, 3 = só aceita fala clara. 2 é o equilíbrio habitual.
     aggressiveness: int = Field(default=2, ge=0, le=3)
+    # Silêncio que fecha a frase. Baixo demais corta quem respira a meio.
+    silence_ms: int = Field(default=500, ge=200, le=2000)
 
 
 class AudioConfig(BaseModel):
@@ -73,6 +77,8 @@ class SttConfig(BaseModel):
     # Texto de arranque que enviesa o descodificador. Vazio = gerado a partir do
     # nome e da wake word, para o modelo não trocar "Nox" por "nosso".
     initial_prompt: str = ""
+    # Corta o silêncio das pontas antes de transcrever: menos áudio, menos tempo.
+    trim_silence: bool = True
     fallback_provider: Literal["openai"] | None = "openai"
 
 

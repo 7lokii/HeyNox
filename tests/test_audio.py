@@ -2,7 +2,7 @@ from array import array
 
 import pytest
 
-from nox.audio.types import Pcm, duration_ms, frame_count, rms, silence
+from nox.audio.types import Pcm, duration_ms, frame_count, rms, silence, trim_silence
 from nox.audio.vad import EnergyVad, Segmenter
 
 SAMPLE_RATE = 16000
@@ -89,3 +89,15 @@ def test_segmenter_flush_closes_open_utterance() -> None:
         segmenter.feed(chunk(30, 2000))
     assert segmenter.flush() is not None
     assert segmenter.flush() is None
+
+
+def test_trim_silence_removes_the_padding() -> None:
+    audio = Pcm(silence(600, SAMPLE_RATE) + chunk(300, 2000) + silence(600, SAMPLE_RATE))
+
+    trimmed = trim_silence(audio, SAMPLE_RATE)
+
+    assert 400 <= duration_ms(trimmed, SAMPLE_RATE) <= 560
+
+
+def test_trim_silence_of_pure_silence_is_empty() -> None:
+    assert trim_silence(silence(500, SAMPLE_RATE), SAMPLE_RATE) == b""

@@ -54,6 +54,11 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   alguém falar ao microfone.
 - **`Step` em vez de booleano.** Ler um bloco devolve `IDLE`, `TURN` ou `END`:
   uma fonte de ficheiro tem fim, um microfone não.
+- **Filler em paralelo com o STT.** As frases de espera são sintetizadas no
+  arranque e tocadas numa thread enquanto a transcrição corre noutra. Em série
+  somavam 0,7 s ao turno; em paralelo escondem esse tempo.
+- **TTS por frases.** `split_sentences` parte a resposta e a síntese da frase
+  seguinte sobrepõe-se à reprodução da atual.
 
 ## Próxima fase
 

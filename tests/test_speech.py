@@ -7,7 +7,7 @@ from nox.brain.agent import normalize
 from nox.config import Config
 from nox.models import ModelError, piper_dir
 from nox.speech.stt import build_transcriber
-from nox.speech.tts import build_synthesizer
+from nox.speech.tts import build_synthesizer, split_sentences
 
 PIPER_MODEL = piper_dir() / "pt_PT-tugão-medium.onnx"
 
@@ -60,3 +60,20 @@ def test_tts_to_stt_round_trip() -> None:
     got = set(normalize(heard).split())
     overlap = len(expected & got) / len(expected)
     assert overlap >= 0.6, f"ouvido: {heard!r} (sobreposição {overlap:.0%})"
+
+
+def test_split_sentences_keeps_short_phrases_whole() -> None:
+    assert split_sentences("Sou o Nox. Em que posso ajudar?") == [
+        "Sou o Nox.",
+        "Em que posso ajudar?",
+    ]
+
+
+def test_split_sentences_breaks_long_clauses() -> None:
+    long_sentence = (
+        "Isto é uma frase bastante longa, com várias orações, "
+        "que não deve ser sintetizada de uma só vez porque demora."
+    )
+    parts = split_sentences(long_sentence, max_chars=40)
+    assert len(parts) > 1
+    assert all(len(part) <= 40 for part in parts)

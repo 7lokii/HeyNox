@@ -118,11 +118,36 @@ omissão é o do WebRTC, que também não precisa.
 
 ## Latência do loop completo
 
-Medido neste CPU (i5/Ryzen, `small` int8), por turno: ~0,7 s de silêncio para o
-`Segmenter` fechar a frase, ~2,5 s de transcrição, ~1 s de modelo (quando não é
-resposta local) e ~1,5 s de síntese. Dá cerca de **5 segundos** entre acabar de
-falar e ouvir a resposta. É o próximo alvo a atacar: streaming do STT e frases
-curtas do TTS.
+CPU sem GPU, `small` int8, voz `edge`, pergunta de 3 s:
+
+| | Antes | Agora |
+|---|---|---|
+| Silêncio até haver som | 4,2 s | 0 s (filler) |
+| A resposta começa | 4,2 s | 3,4 s |
+| Fim do turno | 4,0 s | 4,0 s |
+
+O que mexeu:
+
+- **Filler pré-sintetizado.** "Hmm." / "Deixa-me ver." são gerados no arranque
+  (em paralelo) e tocados assim que a frase fecha, enquanto o STT corre noutra
+  thread. Cobre o silêncio *sem* lhe somar tempo — em série, atrasava.
+- **Silêncio do segmentador 700 → 500 ms** (`audio.vad.silence_ms`).
+- **TTS por frases**, com a síntese da seguinte a sobrepor-se à reprodução.
+
+O que **não** mexeu, e porquê:
+
+- **Cortar o silêncio antes do STT** poupa 2,4 s de áudio e 0 s de tempo: o
+  Whisper codifica sempre uma janela de 30 s. Fica por limpeza do sinal, não
+  por velocidade.
+- **`base` em vez de `small`** é 2× mais rápido mas inventa — "Que horas são?"
+  saiu "Eora-seu." e uma vez repetiu o próprio prompt. Fica `small`.
+- **`beam_size` e `without_timestamps`** valem <0,1 s. O encoder domina, não o
+  descodificador.
+- **GPU** não há nesta máquina; com CUDA o STT deixaria de ser o gargalo.
+
+O piso atual é o STT: ~2,3 s por frase, quase tudo codificação. Para baixar
+disto sem GPU só com um modelo acústico mais leve (Vosk, sherpa-onnx) ou
+transcrição incremental enquanto se fala.
 
 ## Decisões pendentes
 
