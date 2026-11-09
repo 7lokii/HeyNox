@@ -1,0 +1,108 @@
+import json
+import threading
+import urllib.error
+import urllib.request
+
+import pytest
+
+from nox.brain.agent import Agent
+from nox.brain.llm import EchoLlm
+from nox.config import Config
+from nox.ui.server import NoxApp, build_server
+from nox.ui.state import NoxState
+
+
+@pytest.fixture
+def server():
+    app = NoxApp(Config(), agent=Agent(EchoLlm()))
+    httpd, port = build_server(app, port=0)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{port}", app
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
+def get_json(url: str) -> dict:
+    with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310
+        return json.loads(response.read().decode("utf-8"))
+
+
+def post_json(url: str, payload: dict) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(  # noqa: S310
+        url, data=data, headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
+        return json.loads(response.read().decode("utf-8"))
+
+
+def test_state_records_turns_and_status() -> None:
+    state = NoxState()
+    state.add_turn("user", "olá")
+    state.add_turn("assistant", "olá!")
+    state.set_status("a ouvir")
+
+    snapshot = state.snapshot()
+
+    assert [turn["role"] for turn in snapshot["turns"]] == ["user", "assistant"]
+    assert snapshot["status"] == "a ouvir"
+    assert snapshot["voice"] is False
+
+
+def test_state_ignores_empty_text() -> None:
+    state = NoxState()
+    state.add_turn("assistant", "   ")
+    assert state.snapshot()["turns"] == []
+
+
+def test_state_stops_being_voice_when_stopped() -> None:
+    state = NoxState()
+    state.set_voice(True)
+    assert state.snapshot()["status"] == "parado"
+
+    state.set_status("a falar")
+    state.set_voice(False)
+    assert state.snapshot()["status"] == "parado"
+
+
+def test_index_page_is_served(server) -> None:
+    base, _ = server
+    with urllib.request.urlopen(base + "/", timeout=5) as response:  # noqa: S310
+        body = response.read().decode("utf-8")
+    assert response.status == 200
+    assert "<title>Nox</title>" in body
+
+
+def test_say_returns_the_answer_and_records_it(server) -> None:
+    base, app = server
+
+    answer = post_json(base + "/api/say", {"text": "olá"})["answer"]
+
+    assert answer == "(eco) olá"
+    assert [turn["text"] for turn in app.state.snapshot()["turns"]] == ["olá", "(eco) olá"]
+
+
+def test_say_rejects_empty_text(server) -> None:
+    base, _ = server
+    request = urllib.request.Request(  # noqa: S310
+        base + "/api/say",
+        data=json.dumps({"text": "  "}).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(request, timeout=5)  # noqa: S310
+    assert exc.value.code == 400
+
+
+def test_state_endpoint_reflects_the_conversation(server) -> None:
+    base, _ = server
+    post_json(base + "/api/say", {"text": "olá"})
+
+    state = get_json(base + "/api/state")
+
+    assert len(state["turns"]) == 2
+    assert state["voice"] is False

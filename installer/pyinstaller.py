@@ -34,7 +34,10 @@ a = Analysis(
     ['{project_root}/scripts/{script}'],
     pathex=['{project_root}'],
     binaries=binaries,
-    datas=datas + [('{project_root}/config.yaml', '.')],
+    datas=datas + [
+        ('{project_root}/config.yaml', '.'),
+        ('{project_root}/nox/ui/index.html', 'nox/ui'),
+    ],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={{}},

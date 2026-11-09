@@ -85,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
     )
+    parser.add_argument("--ui", action="store_true", help="Abre a interface web local")
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     parser.add_argument(
         "--speak", metavar="TEXTO", default=None, help="Sintetiza a frase para WAV e sai"
@@ -142,6 +143,10 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return run_voice(config, out=out, input_file=args.input, use_wake=not args.no_wake)
     if args.devices:
         return _devices(out)
+    if args.ui:
+        from nox.ui.server import serve
+
+        return serve(config, out=out)
     if args.text:
         return _text_session(config, out)
     out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")

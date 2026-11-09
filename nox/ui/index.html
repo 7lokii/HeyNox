@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nox</title>
+<style>
+  :root {
+    --bg: #f6f6f7;
+    --card: #ffffff;
+    --ink: #16181d;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #2f6f4f;
+    --user: #eef2ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  main {
+    width: min(760px, 100%);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 20px 16px;
+    gap: 12px;
+  }
+  header { display: flex; align-items: center; gap: 12px; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .pill {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #eceef1;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    transition: background .2s, color .2s;
+  }
+  .pill[data-status="a ouvir"] { background: #e3f3ea; color: #1f6b45; }
+  .pill[data-status="a falar"] { background: #e4eefb; color: #1d4ed8; }
+  .pill[data-status="a pensar"] { background: #fdf1dc; color: #92620b; }
+  .pill[data-status="a aguardar palavra"] { background: #f0e9fb; color: #6b21a8; }
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .turn { display: flex; flex-direction: column; gap: 3px; max-width: 86%; }
+  .turn.user { align-self: flex-end; align-items: flex-end; }
+  .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .bubble {
+    padding: 9px 13px;
+    border-radius: 12px;
+    background: #f3f4f6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .turn.user .bubble { background: var(--user); }
+  .empty { margin: auto; color: var(--muted); text-align: center; font-size: 13px; }
+  form { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    background: var(--card);
+    color: var(--ink);
+  }
+  input[type="text"]:focus { outline: 2px solid #cfe3d8; border-color: var(--accent); }
+  button {
+    padding: 11px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: #f0f1f3; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.06); }
+  button[aria-pressed="true"] { background: #fdecec; border-color: #f3c2c2; color: #a12626; }
+  footer { display: flex; gap: 8px; align-items: center; }
+  footer .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Nox</h1>
+    <span class="meta" id="meta">a carregar…</span>
+    <span class="pill" id="status" data-status="parado">parado</span>
+  </header>
+
+  <div id="log"><div class="empty">Ainda não há conversa. Escreve em baixo ou carrega em Ouvir.</div></div>
+
+  <form id="composer">
+    <input id="text" type="text" autocomplete="off" placeholder="Escreve ao Nox…" autofocus>
+    <button class="primary" type="submit">Enviar</button>
+  </form>
+
+  <footer>
+    <button id="voice" aria-pressed="false">Ouvir</button>
+    <button id="clear">Limpar</button>
+    <span class="hint" id="hint">Ctrl+C na consola fecha</span>
+  </footer>
+</main>
+
+<script>
+const log = document.getElementById("log");
+const statusEl = document.getElementById("status");
+const voiceBtn = document.getElementById("voice");
+const metaEl = document.getElementById("meta");
+const input = document.getElementById("text");
+let rendered = -1;
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+function render(turns) {
+  if (turns.length === rendered) return;
+  rendered = turns.length;
+  log.innerHTML = "";
+  if (!turns.length) {
+    log.innerHTML = '<div class="empty">Ainda não há conversa. Escreve em baixo ou carrega em Ouvir.</div>';
+    return;
+  }
+  for (const turn of turns) {
+    const wrap = document.createElement("div");
+    wrap.className = "turn " + turn.role;
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = turn.role === "user" ? "tu" : "nox";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = turn.text;
+    wrap.append(who, bubble);
+    log.append(wrap);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+async function refresh() {
+  try {
+    const state = await api("/api/state");
+    statusEl.textContent = state.status;
+    statusEl.dataset.status = state.status;
+    voiceBtn.setAttribute("aria-pressed", String(state.voice));
+    voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
+    render(state.turns);
+  } catch (error) {
+    statusEl.textContent = "sem ligação";
+    statusEl.dataset.status = "parado";
+  }
+}
+
+document.getElementById("composer").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  try {
+    await api("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+  } catch (error) {
+    console.error(error);
+  }
+  refresh();
+});
+
+voiceBtn.addEventListener("click", async () => {
+  const on = voiceBtn.getAttribute("aria-pressed") !== "true";
+  await api("/api/voice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ on })
+  });
+  refresh();
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+  rendered = -1;
+  refresh();
+});
+
+metaEl.textContent = "local · pt-PT";
+refresh();
+setInterval(refresh, 800);
+</script>
+</body>
+</html>

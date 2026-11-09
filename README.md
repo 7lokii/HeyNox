@@ -32,6 +32,8 @@ interrupção da fala.
 ## Uso
 
 ```bash
+nox --ui                     # interface web local (o .exe abre isto)
+nox --ui                     # interface web local (o .exe abre isto)
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
 nox --voice                  # conversa por voz: diz "Hey Nox"

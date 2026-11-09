@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
+from threading import Event
 
 from nox.audio.mic import AudioError, SoundDeviceSource
 from nox.audio.source import AudioSource, WavSource
@@ -58,6 +59,12 @@ class VoiceLoop:
     barge_in: bool = False
     barge_in_ms: int = 300
     barge_in_threshold: float = 800.0
+    on_turn: Callable[[str, str], None] | None = None
+    on_status: Callable[[str], None] | None = None
+    stop_event: Event | None = None
+    on_turn: Callable[[str, str], None] | None = None
+    on_status: Callable[[str], None] | None = None
+    stop_event: Event | None = None
     _armed: bool = field(default=False, repr=False)
     _armed_at: float = field(default=0.0, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
@@ -71,9 +78,12 @@ class VoiceLoop:
             self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
         else:
             self.out("A aguardar a palavra de ativação. Ctrl+C para parar.")
+        self._status("a ouvir" if self.wake is None else "a aguardar palavra")
         turns = 0
         try:
             while max_turns is None or turns < max_turns:
+                if self.stop_event is not None and self.stop_event.is_set():
+                    break
                 outcome = self.step()
                 if outcome is Step.END:
                     break
@@ -81,6 +91,8 @@ class VoiceLoop:
                     turns += 1
         except KeyboardInterrupt:
             self.out("")
+        finally:
+            self._status("parado")
         return turns
 
     def step(self) -> Step:
@@ -95,12 +107,16 @@ class VoiceLoop:
                 self._armed_at = time.monotonic()
                 self.segmenter.reset()
                 self.out(f"{self.name}> (pode falar)")
+                self._status("a ouvir")
+                self._status("a ouvir")
             return Step.IDLE
 
         if self._armed and time.monotonic() - self._armed_at > self.wake_timeout_s:
             self._armed = False
             self.segmenter.reset()
             self.out(f"{self.name}> (não ouvi nada)")
+            self._status("a aguardar palavra")
+            self._status("a aguardar palavra")
             return Step.IDLE
 
         utterance = self.segmenter.feed(chunk)
@@ -119,13 +135,19 @@ class VoiceLoop:
         if not text:
             return False
         self.out(f"tu> {text}")
+        self._turn("user", text)
+        self._status("a pensar")
+        self._turn("user", text)
+        self._status("a pensar")
         try:
             answer = self.agent.reply(text)
         except NoxError as exc:
             self.out(f"Erro: {exc}")
             return False
         self.out(f"{self.name}> {answer}")
+        self._turn("assistant", answer)
 
+        self._status("a falar")
         interrupted = self.speak(answer)
         if interrupted:
             # O utilizador está a falar: não deitar fora o que ele já disse nem
@@ -136,6 +158,7 @@ class VoiceLoop:
         # a ouvir evita transcrever a própria resposta.
         self.source.flush()
         self._armed = False
+        self._status("a ouvir" if self.wake is None else "a aguardar palavra")
         return True
 
     def speak(self, text: str) -> bool:
@@ -197,6 +220,14 @@ class VoiceLoop:
 
     def _is_barge_in(self, chunk: Pcm) -> bool:
         return self.segmenter.vad.is_speech(chunk) and rms(chunk) >= self.barge_in_threshold
+
+    def _turn(self, role: str, text: str) -> None:
+        if self.on_turn is not None:
+            self.on_turn(role, text)
+
+    def _status(self, status: str) -> None:
+        if self.on_status is not None:
+            self.on_status(status)
 
     def _prepare_fillers(self) -> None:
         """Sintetiza as frases de espera uma única vez, no arranque.
@@ -275,6 +306,9 @@ def run_voice(
     out: Callable[[str], None],
     input_file: Path | None = None,
     use_wake: bool = True,
+    on_turn: Callable[[str, str], None] | None = None,
+    on_status: Callable[[str], None] | None = None,
+    stop_event: Event | None = None,
 ) -> int:
     """Arranca o pipeline completo. Devolve o número de turnos."""
     try:
@@ -306,6 +340,9 @@ def run_voice(
             barge_in=config.audio.barge_in,
             barge_in_ms=config.audio.barge_in_ms,
             barge_in_threshold=config.audio.barge_in_threshold,
+            on_turn=on_turn,
+            on_status=on_status,
+            stop_event=stop_event,
             block_frames=round(config.audio.sample_rate * config.audio.block_ms / 1000),
         )
         return loop.run()

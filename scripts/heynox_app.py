@@ -2,4 +2,5 @@
 
 from nox.main import main
 
-raise SystemExit(main())
+# Sem consola não há nada para mostrar: o executável abre a interface local.
+raise SystemExit(main(["--ui"]))

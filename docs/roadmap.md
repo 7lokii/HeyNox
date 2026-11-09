@@ -15,7 +15,7 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Wake word "Hey Nox" (Vosk, ver `docs/voice.md`).
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] Interrupção da fala (barge-in), opcional.
-  - [ ] Interface visual (spec §10) — em curso.
+  - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).
 - [ ] **Fase 2 — Memória.**
 - [ ] **Fase 3 — Ferramentas seguras.**
 - [ ] **Fase 4 — GitHub.**
