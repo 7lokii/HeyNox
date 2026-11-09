@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import io
+import json
+import urllib.error
+import urllib.request
+import uuid
+import wave
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -120,9 +126,103 @@ class FasterWhisperTranscriber:
         return text
 
 
+class OpenAiTranscriber:
+    """Transcrição por API compatível com OpenAI (`/audio/transcriptions`).
+
+    Groq, OpenAI e afins. Muito mais rápido e preciso do que o modelo pequeno
+    local — a troco de o áudio sair do PC. É a peça que o FreeFlow usa.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str = "whisper-large-v3-turbo",
+        *,
+        language: str = "pt",
+        timeout: float = 30.0,
+    ) -> None:
+        self._url = base_url.rstrip("/") + "/audio/transcriptions"
+        self._key = api_key
+        self._model = model
+        self._language = language
+        self._timeout = timeout
+
+    def transcribe(self, audio: Pcm, sample_rate: int) -> str:
+        if not audio:
+            return ""
+        boundary = f"----nox{uuid.uuid4().hex}"
+        payload = _multipart(boundary, self._model, self._language, audio, sample_rate)
+        request = urllib.request.Request(  # noqa: S310
+            self._url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self._key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
+                data = json.load(response)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:200]
+            raise ModelError(f"a transcrição na cloud falhou ({exc.code}): {detail}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise ModelError(f"sem ligação ao serviço de transcrição: {exc}") from exc
+        text = str(data.get("text", "")).strip()
+        return "" if looks_hallucinated(text, "") else text
+
+
+def _wav_bytes(audio: Pcm, sample_rate: int) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(audio)
+    return buffer.getvalue()
+
+
+def _multipart(boundary: str, model: str, language: str, audio: Pcm, sample_rate: int) -> bytes:
+    parts: list[bytes] = []
+
+    def field(name: str, value: str) -> None:
+        parts.append(f"--{boundary}\r\n".encode())
+        parts.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
+        parts.append(value.encode() + b"\r\n")
+
+    field("model", model)
+    if language:
+        field("language", language)
+    field("response_format", "json")
+
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(b'Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n')
+    parts.append(b"Content-Type: audio/wav\r\n\r\n")
+    parts.append(_wav_bytes(audio, sample_rate))
+    parts.append(b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    return b"".join(parts)
+
+
 def build_transcriber(config: Config) -> Transcriber:
     """Constrói o transcritor configurado. O modelo é descarregado na 1.ª vez."""
     settings = config.stt
+    if settings.provider == "openai":
+        import os
+
+        api_key = os.environ.get(settings.cloud_api_key_env, "").strip()
+        if not api_key:
+            raise ModelError(
+                f"stt.provider é 'openai' mas falta {settings.cloud_api_key_env} no .env"
+            )
+        return OpenAiTranscriber(
+            settings.cloud_base_url,
+            api_key,
+            settings.cloud_model,
+            language=settings.language,
+            timeout=settings.timeout,
+        )
     if settings.provider == "faster-whisper":
         prompt = settings.initial_prompt.strip() or (
             f"O assistente chama-se {config.nox.name}. {config.nox.wake_word.title()}."

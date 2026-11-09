@@ -53,6 +53,10 @@ stt:
   trim_silence: true
   denoise: true
   denoise_strength: 1.5
+  # Para transcrição na cloud: provider "openai" + GROQ_API_KEY no .env.
+  cloud_base_url: "https://api.groq.com/openai/v1"
+  cloud_model: "whisper-large-v3-turbo"
+  cloud_api_key_env: "GROQ_API_KEY"
   fallback_provider: "openai"
 
 llm:
@@ -61,7 +65,7 @@ llm:
   api_format: "anthropic"
   base_url: "https://api.selora.lol/v1"
   api_key_env: "NOX_LLM_API_KEY"
-  max_tokens: 400
+  max_tokens: 1200
   temperature: 0.4
   timeout: 30
   router:

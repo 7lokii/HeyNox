@@ -18,9 +18,9 @@ def test_unknown_tts_provider_is_reported() -> None:
         build_synthesizer(config)
 
 
-def test_unknown_stt_provider_is_reported() -> None:
+def test_stt_provider_openai_requires_a_key() -> None:
     config = Config.model_validate({"stt": {"provider": "openai"}})
-    with pytest.raises(ModelError, match="não está implementado"):
+    with pytest.raises(ModelError, match="GROQ_API_KEY"):
         build_transcriber(config)
 
 
@@ -98,3 +98,22 @@ def test_real_speech_is_not_flagged() -> None:
     prompt = "O assistente chama-se Nox. Hey Nox."
     assert looks_hallucinated("Que horas são?", prompt) is False
     assert looks_hallucinated("Abre o meu projeto.", prompt) is False
+
+
+def test_cloud_transcriber_needs_a_key() -> None:
+    config = Config.model_validate({"stt": {"provider": "openai"}})
+    with pytest.raises(ModelError, match="GROQ_API_KEY"):
+        build_transcriber(config)
+
+
+def test_multipart_payload_has_the_expected_parts() -> None:
+    from nox.audio.types import silence
+    from nox.speech.stt import _multipart
+
+    payload = _multipart("XB", "whisper-large-v3-turbo", "pt", silence(200, 16000), 16000)
+
+    assert b'name="model"' in payload
+    assert b'name="language"' in payload
+    assert b'filename="audio.wav"' in payload
+    assert payload.startswith(b"--XB\r\n")
+    assert payload.endswith(b"--XB--\r\n")

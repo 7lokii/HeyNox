@@ -91,6 +91,12 @@ class SttConfig(BaseModel):
     # Texto de arranque que enviesa o descodificador. Vazio = gerado a partir do
     # nome e da wake word, para o modelo não trocar "Nox" por "nosso".
     initial_prompt: str = ""
+    # STT na cloud (provider "openai"): mais rápido e preciso, mas o áudio sai
+    # do PC. Compatível com Groq e OpenAI.
+    cloud_base_url: str = "https://api.groq.com/openai/v1"
+    cloud_model: str = "whisper-large-v3-turbo"
+    cloud_api_key_env: str = "GROQ_API_KEY"
+    timeout: float = Field(default=30.0, gt=0)
     # Corta o silêncio das pontas antes de transcrever: menos áudio, menos tempo.
     trim_silence: bool = True
     # Subtração espectral antes de transcrever. Ajuda em ruído forte; em
@@ -119,7 +125,9 @@ class LlmConfig(BaseModel):
     api_format: Literal["anthropic", "openai"] = "openai"
     base_url: str = ""
     api_key_env: str = "NOX_LLM_API_KEY"
-    max_tokens: int = Field(default=400, gt=0)
+    # Alguns modelos gastam parte do orçamento num bloco de raciocínio
+    # antes de escrever; 400 chegava para ficar sem resposta.
+    max_tokens: int = Field(default=1200, gt=0)
     temperature: float = Field(default=0.4, ge=0.0, le=2.0)
     timeout: float = Field(default=30.0, gt=0)
     router: LlmRouterConfig = Field(default_factory=LlmRouterConfig)
