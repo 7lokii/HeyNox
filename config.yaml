@@ -25,7 +25,10 @@ wake:
   follow_up_s: 6
 
 audio:
-  input_device: "default"
+  # Preferido: o headset Bluetooth. Cai para o microfone do sistema quando
+  # não estiver ligado.
+  input_device: "Mi TW"
+  input_fallback: "default"
   sample_rate: 16000
   channels: 1
   block_ms: 30

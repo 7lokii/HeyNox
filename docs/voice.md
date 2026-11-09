@@ -304,6 +304,28 @@ exponha um dispositivo de entrada.
 Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
 caminho do áudio.
 
+## Microfone preferido (Bluetooth)
+
+```yaml
+audio:
+  input_device: "Mi TW"      # parte do nome chega
+  input_fallback: "default"
+```
+
+O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
+se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
+desligado), reabre no preferido ou na omissão.
+
+Duas armadilhas resolvidas por medição:
+
+- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
+  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
+  yet". A captura passou a usar callback + fila.
+- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
+  16 kHz. A fonte negocia a taxa e reamostra à saída.
+
+`nox --devices` mostra qual seria escolhido, com `<-`.
+
 ## O anel da interface
 
 Dois anéis, dois donos:
@@ -314,6 +336,28 @@ Dois anéis, dois donos:
 
 O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
 30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
+## Microfone preferido (Bluetooth)
+
+```yaml
+audio:
+  input_device: "Mi TW"      # parte do nome chega
+  input_fallback: "default"
+```
+
+O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
+se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
+desligado), reabre no preferido ou na omissão.
+
+Duas armadilhas resolvidas por medição:
+
+- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
+  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
+  yet". A captura passou a usar callback + fila.
+- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
+  16 kHz. A fonte negocia a taxa e reamostra à saída.
+
+`nox --devices` mostra qual seria escolhido, com `<-`.
 
 ## O anel da interface
 
@@ -420,6 +464,28 @@ exponha um dispositivo de entrada.
 Custo: a Krisp tem 7 dias de teste e depois ~8 €/mês. E acrescenta latência ao
 caminho do áudio.
 
+## Microfone preferido (Bluetooth)
+
+```yaml
+audio:
+  input_device: "Mi TW"      # parte do nome chega
+  input_fallback: "default"
+```
+
+O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
+se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
+desligado), reabre no preferido ou na omissão.
+
+Duas armadilhas resolvidas por medição:
+
+- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
+  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
+  yet". A captura passou a usar callback + fila.
+- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
+  16 kHz. A fonte negocia a taxa e reamostra à saída.
+
+`nox --devices` mostra qual seria escolhido, com `<-`.
+
 ## O anel da interface
 
 Dois anéis, dois donos:
@@ -430,6 +496,28 @@ Dois anéis, dois donos:
 
 O microfone é medido no `VoiceLoop`, com `MicMeter`: 48 bandas por bloco de
 30 ms, com ataque rápido e decaimento lento, para o anel não tremer.
+
+## Microfone preferido (Bluetooth)
+
+```yaml
+audio:
+  input_device: "Mi TW"      # parte do nome chega
+  input_fallback: "default"
+```
+
+O Nox procura o dispositivo pelo nome em cada arranque. Se estiver ligado, usa-o;
+se não estiver, cai para a omissão sem reclamar. Se desaparecer a meio (headset
+desligado), reabre no preferido ou na omissão.
+
+Duas armadilhas resolvidas por medição:
+
+- **WDM-KS não suporta a API bloqueante.** Headsets Bluetooth expõem-se muitas
+  vezes só por WDM-KS, e `stream.read()` falha com "Blocking API not supported
+  yet". A captura passou a usar callback + fila.
+- **Taxas nativas diferentes.** O mesmo headset declara 8 kHz; o pipeline quer
+  16 kHz. A fonte negocia a taxa e reamostra à saída.
+
+`nox --devices` mostra qual seria escolhido, com `<-`.
 
 ## O anel da interface
 

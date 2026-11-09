@@ -47,7 +47,10 @@ class VadConfig(BaseModel):
 
 
 class AudioConfig(BaseModel):
+    # Nome (ou parte) do microfone preferido: se estiver ligado, é este que o
+    # Nox usa. Um headset Bluetooth só aparece no sistema quando está ligado.
     input_device: str = "default"
+    input_fallback: str = "default"
     sample_rate: int = Field(default=16000, gt=0)
     channels: int = Field(default=1, gt=0, le=2)
     # Energia mínima para sequer tentar transcrever. Abaixo disto é ruído.

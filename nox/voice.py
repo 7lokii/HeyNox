@@ -85,6 +85,9 @@ class VoiceLoop:
         # Carregar modelos leva segundos; o microfone já encheu entretanto.
         self.source.flush()
         self._prepare_fillers()
+        label = getattr(self.source, "device_label", "")
+        if label:
+            self.out(f"microfone: {label[:70]}")
         if self.wake is None:
             self.out("A ouvir. Fala à vontade; Ctrl+C para parar.")
         else:
@@ -291,6 +294,7 @@ def build_source(config: Config, input_file: Path | None = None) -> AudioSource:
         sample_rate=settings.sample_rate,
         block_ms=settings.block_ms,
         device=settings.input_device,
+        fallback=settings.input_fallback,
     )
 
 

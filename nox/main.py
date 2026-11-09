@@ -188,7 +188,7 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
     if args.voice:
         return run_voice(config, out=out, input_file=args.input, use_wake=not args.no_wake)
     if args.devices:
-        return _devices(out)
+        return _devices(config, out)
     if args.ui:
         from nox.ui.server import serve
 
@@ -378,16 +378,20 @@ def _test_stt(config: Config, seconds: float, out: Callable[[str], None]) -> int
     return 0
 
 
-def _devices(out: Callable[[str], None]) -> int:
-    from nox.audio.mic import list_input_devices
+def _devices(config: Config, out: Callable[[str], None]) -> int:
+    from nox.audio.devices import input_devices, resolve_input
 
     try:
-        devices = list_input_devices()
+        devices = input_devices()
+        chosen, label = resolve_input(config.audio.input_device, config.audio.input_fallback)
     except NoxError as exc:
         out(f"Erro: {exc}")
         return 2
+
+    out(f"preferido: {config.audio.input_device!r} -> {label}")
     for index, name in devices:
-        out(f"{index:3}  {name}")
+        marca = "  <-" if index == chosen else ""
+        out(f"{index:3}  {name}{marca}")
     return 0
 
 
