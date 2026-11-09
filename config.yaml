@@ -12,6 +12,7 @@ wake:
   provider: "vosk"
   model: "vosk-model-small-pt-0.3"
   timeout_s: 8
+  follow_up_s: 6
 
 audio:
   input_device: "default"

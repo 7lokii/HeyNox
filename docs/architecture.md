@@ -67,6 +67,13 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   dito de forma explícita e o resto fica para um extrator semântico.
 - **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
   e o SQLite recusa ligações partilhadas.
+- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
+  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
+  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
+  respira devagar em vez de fingir dados.
+- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
+  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
+  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
 - **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
   framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
   ao porto já está na máquina. O motor corre numa thread e publica estado
@@ -79,6 +86,13 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   dito de forma explícita e o resto fica para um extrator semântico.
 - **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
   e o SQLite recusa ligações partilhadas.
+- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
+  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
+  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
+  respira devagar em vez de fingir dados.
+- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
+  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
+  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
 - **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
   framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
   ao porto já está na máquina. O motor corre numa thread e publica estado
@@ -95,6 +109,13 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   dito de forma explícita e o resto fica para um extrator semântico.
 - **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
   e o SQLite recusa ligações partilhadas.
+- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
+  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
+  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
+  respira devagar em vez de fingir dados.
+- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
+  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
+  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
 - **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
   framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
   ao porto já está na máquina. O motor corre numa thread e publica estado
@@ -107,6 +128,13 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   dito de forma explícita e o resto fica para um extrator semântico.
 - **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
   e o SQLite recusa ligações partilhadas.
+- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
+  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
+  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
+  respira devagar em vez de fingir dados.
+- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
+  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
+  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
 - **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
   framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
   ao porto já está na máquina. O motor corre numa thread e publica estado

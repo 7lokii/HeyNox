@@ -56,6 +56,7 @@ class VoiceLoop:
     fillers: tuple[str, ...] = ()
     wake: WakeWordDetector | None = None
     wake_timeout_s: float = 8.0
+    follow_up_s: float = 6.0
     barge_in: bool = False
     barge_in_ms: int = 300
     barge_in_threshold: float = 800.0
@@ -67,6 +68,7 @@ class VoiceLoop:
     stop_event: Event | None = None
     _armed: bool = field(default=False, repr=False)
     _armed_at: float = field(default=0.0, repr=False)
+    _follow_up: bool = field(default=False, repr=False)
     _filler_audio: list[Pcm] = field(default_factory=list, repr=False)
     _filler_index: int = field(default=0, repr=False)
 
@@ -105,6 +107,7 @@ class VoiceLoop:
             if self.wake.process(chunk):
                 self._armed = True
                 self._armed_at = time.monotonic()
+                self._follow_up = False
                 self.segmenter.reset()
                 self.out(f"{self.name}> (pode falar)")
                 self._status("a ouvir")
@@ -157,8 +160,15 @@ class VoiceLoop:
         # O microfone encheu enquanto o Nox falava; deitar fora antes de voltar
         # a ouvir evita transcrever a própria resposta.
         self.source.flush()
-        self._armed = False
-        self._status("a ouvir" if self.wake is None else "a aguardar palavra")
+        # Continua a ouvir para a réplica, sem exigir a palavra outra vez.
+        if self.wake is not None and self.follow_up_s > 0:
+            self._armed = True
+            self._armed_at = time.monotonic()
+            self._follow_up = True
+            self._status("a ouvir")
+        else:
+            self._armed = False
+            self._status("a ouvir" if self.wake is None else "a aguardar palavra")
         return True
 
     def speak(self, text: str) -> bool:
@@ -308,6 +318,7 @@ def run_voice(
     use_wake: bool = True,
     on_turn: Callable[[str, str], None] | None = None,
     on_status: Callable[[str], None] | None = None,
+    on_frame: Callable[[list[float]], None] | None = None,
     stop_event: Event | None = None,
 ) -> int:
     """Arranca o pipeline completo. Devolve o número de turnos."""
@@ -330,13 +341,14 @@ def run_voice(
             segmenter=build_segmenter(config),
             transcriber=build_transcriber(config),
             synthesizer=build_synthesizer(config, progress=lambda m: out(f"aviso: {m}")),
-            speaker=SoundDeviceSpeaker(),
+            speaker=SoundDeviceSpeaker(on_frame=on_frame),
             agent=build_agent(config, voice=True),
             out=out,
             name=config.nox.name,
             fillers=FILLERS if config.nox.voice_fillers else (),
             wake=wake,
             wake_timeout_s=config.wake.timeout_s,
+            follow_up_s=config.wake.follow_up_s,
             barge_in=config.audio.barge_in,
             barge_in_ms=config.audio.barge_in_ms,
             barge_in_threshold=config.audio.barge_in_threshold,

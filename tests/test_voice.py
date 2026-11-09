@@ -93,6 +93,7 @@ def build_loop(
     source: FakeSource | None = None,
     wake=None,
     wake_timeout_s: float = 8.0,
+    follow_up_s: float = 6.0,
     speaker: RecordingSpeaker | None = None,
 ) -> tuple[VoiceLoop, list[str], RecordingSpeaker, RecordingSynthesizer]:
     lines: list[str] = []
@@ -110,6 +111,7 @@ def build_loop(
         block_frames=480,
         wake=wake,
         wake_timeout_s=wake_timeout_s,
+        follow_up_s=follow_up_s,
     )
     return loop, lines, speaker, synthesizer
 
@@ -218,11 +220,21 @@ def test_wake_word_arms_the_listener() -> None:
     assert len(speaker.played) == 1
 
 
-def test_listener_disarms_after_a_turn() -> None:
+def test_follow_up_does_not_need_the_wake_word() -> None:
     chunks = speech_then_silence() + speech_then_silence()
-    loop, _, _, _ = build_loop(chunks, wake=ScriptedWake(1))
+    loop, _, _, _ = build_loop(chunks, phrases=("olá", "e agora?"), wake=ScriptedWake(1))
 
-    # Só a primeira frase é atendida: a segunda exige nova ativação.
+    # A segunda frase é respondida sem repetir "Hey Nox".
+    assert loop.run() == 2
+
+
+def test_follow_up_can_be_disabled() -> None:
+    chunks = speech_then_silence() + speech_then_silence()
+    loop, _, _, _ = build_loop(
+        chunks, phrases=("olá", "e agora?"), wake=ScriptedWake(1), follow_up_s=0
+    )
+
+    # Com follow_up_s a zero, a segunda frase exige nova ativação.
     assert loop.run() == 1
 
 

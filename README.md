@@ -54,6 +54,13 @@ Perguntas simples — horas, data, agradecimentos — são respondidas localment
 sem rede e sem custo. Tudo o resto vai ao modelo configurado no `config.yaml`;
 a chave fica em `NOX_LLM_API_KEY`, no `.env`.
 
+## Interface
+
+A interface local (aberta pelo `HeyNox.exe`) é um HUD: o nome no centro, um anel
+com o **espectro real** do áudio que está a sair, a conversa à direita e a
+memória por baixo. Não é uma animação: os níveis vêm do PCM que o altifalante
+está a reproduzir (`/api/levels`, 48 bandas a 25 fps).
+
 ## Instalação
 
 ```bash

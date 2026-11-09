@@ -16,6 +16,7 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] Interrupção da fala (barge-in), opcional.
   - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).
+  - [x] HUD com espectro do áudio real e réplica sem repetir a palavra.
 - [x] **Fase 2 — Memória.** SQLite + FTS5, ver `docs/memory.md`.
   - [x] Memória de conversa (retomada entre sessões).
   - [x] Factos duradouros (nome, preferências, notas) por regras.

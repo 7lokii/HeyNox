@@ -2,6 +2,7 @@ from array import array
 
 import pytest
 
+from nox.audio.levels import BANDS, spectrum_frames
 from nox.audio.types import Pcm, duration_ms, frame_count, rms, silence, trim_silence
 from nox.audio.vad import EnergyVad, Segmenter
 
@@ -101,3 +102,25 @@ def test_trim_silence_removes_the_padding() -> None:
 
 def test_trim_silence_of_pure_silence_is_empty() -> None:
     assert trim_silence(silence(500, SAMPLE_RATE), SAMPLE_RATE) == b""
+
+
+def test_spectrum_has_the_expected_shape() -> None:
+    pytest.importorskip("numpy")
+    frames = spectrum_frames(chunk(500, 2000), SAMPLE_RATE)
+
+    assert frames
+    assert len(frames[0]) == BANDS
+    assert all(0.0 <= value <= 1.0 for frame in frames for value in frame)
+
+
+def test_spectrum_of_silence_is_flat() -> None:
+    pytest.importorskip("numpy")
+    frames = spectrum_frames(silence(300, SAMPLE_RATE), SAMPLE_RATE)
+
+    assert frames
+    assert all(value == 0.0 for frame in frames for value in frame)
+
+
+def test_spectrum_of_empty_audio_is_empty() -> None:
+    pytest.importorskip("numpy")
+    assert spectrum_frames(Pcm(b""), SAMPLE_RATE) == []

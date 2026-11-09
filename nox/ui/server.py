@@ -49,6 +49,8 @@ class NoxApp:
         self.logs: list[str] = []
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._synth = None
+        self._speaker = None
 
     def say(self, text: str) -> str:
         self.state.add_turn("user", text)
@@ -57,7 +59,33 @@ class NoxApp:
         except NoxError as exc:
             answer = f"Erro: {exc}"
         self.state.add_turn("assistant", answer)
+        if self.config.nox.voice_enabled and not answer.startswith("Erro:"):
+            threading.Thread(target=self._speak, args=(answer,), daemon=True).start()
         return answer
+
+    def _speak(self, text: str) -> None:
+        """Fala a resposta sem bloquear o pedido HTTP.
+
+        É o que dá matéria ao espectro: a interface desenha o áudio que está
+        mesmo a sair, não uma animação a fingir.
+        """
+        self.state.set_status("a falar")
+        try:
+            if self._synth is None:
+                from nox.audio.speaker import SoundDeviceSpeaker
+                from nox.speech.tts import build_synthesizer
+
+                self._synth = build_synthesizer(self.config)
+                self._speaker = SoundDeviceSpeaker(on_frame=self.state.set_levels)
+            audio = self._synth.synthesize(text)
+            if audio and self._speaker is not None:
+                self._speaker.play(audio, self._synth.sample_rate)
+        except (NoxError, OSError):
+            return
+        finally:
+            # Em modo voz o estado é do loop; aqui só se não houver loop.
+            if not self.state.snapshot()["voice"]:
+                self.state.set_status("parado")
 
     def memory_facts(self) -> list[dict[str, Any]]:
         if self.agent.memory is None:
@@ -97,6 +125,7 @@ class NoxApp:
                 out=self.logs.append,
                 on_turn=self.state.add_turn,
                 on_status=self.state.set_status,
+                on_frame=self.state.set_levels,
                 stop_event=self._stop,
             )
         except NoxError as exc:
@@ -117,6 +146,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_html()
         elif self.path == "/api/state":
             self._send_json(self.app.state.snapshot())
+        elif self.path == "/api/levels":
+            snapshot = self.app.state.snapshot()
+            self._send_json({"levels": snapshot["levels"], "status": snapshot["status"]})
         elif self.path == "/api/memory":
             self._send_json({"facts": self.app.memory_facts()})
         else:

@@ -6,95 +6,192 @@
 <title>Nox</title>
 <style>
   :root {
-    --bg: #f6f6f7;
-    --card: #ffffff;
-    --ink: #16181d;
-    --muted: #6b7280;
-    --line: #e5e7eb;
-    --accent: #2f6f4f;
-    --user: #eef2ff;
+    --bg: #04070d;
+    --panel: rgba(9, 20, 31, 0.72);
+    --line: rgba(34, 211, 238, 0.16);
+    --line-strong: rgba(34, 211, 238, 0.38);
+    --cyan: #22d3ee;
+    --ink: #d9f6ff;
+    --muted: #5b8497;
+    --accent: var(--cyan);
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0;
-    min-height: 100vh;
-    background: var(--bg);
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(14, 116, 144, 0.18), transparent 60%),
+      radial-gradient(900px 600px at 80% 110%, rgba(34, 211, 238, 0.07), transparent 60%),
+      var(--bg);
     color: var(--ink);
-    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
-    display: flex;
-    justify-content: center;
+    font: 14px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
   }
-  main {
-    width: min(760px, 100%);
+  body[data-status="a falar"] { --accent: #67e8f9; }
+  body[data-status="a pensar"] { --accent: #a5b4fc; }
+  body[data-status="a ouvir"] { --accent: #34d399; }
+  body[data-status="a aguardar palavra"] { --accent: #c084fc; }
+
+  .app {
     height: 100vh;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 20px 16px;
-    gap: 12px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 18px 22px 16px;
+    gap: 14px;
   }
-  header { display: flex; align-items: center; gap: 12px; }
-  h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
-  .meta { color: var(--muted); font-size: 12px; }
-  .pill {
-    margin-left: auto;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: #eceef1;
-    color: var(--muted);
-    font-size: 12px;
+
+  /* ---------- topo ---------- */
+  .topbar { display: flex; align-items: center; gap: 18px; }
+  .brand {
+    font-size: 15px;
+    letter-spacing: 0.42em;
     font-weight: 600;
-    transition: background .2s, color .2s;
+    color: var(--accent);
+    text-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
   }
-  .pill[data-status="a ouvir"] { background: #e3f3ea; color: #1f6b45; }
-  .pill[data-status="a falar"] { background: #e4eefb; color: #1d4ed8; }
-  .pill[data-status="a pensar"] { background: #fdf1dc; color: #92620b; }
-  .pill[data-status="a aguardar palavra"] { background: #f0e9fb; color: #6b21a8; }
-  #log {
-    flex: 1;
-    overflow-y: auto;
-    background: var(--card);
+  .brand .mark { opacity: .55; margin-right: 8px; }
+  .clock {
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.14em;
+  }
+  .status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 14px;
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 16px;
+    border-radius: 999px;
+    background: var(--panel);
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .status i {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* ---------- palco ---------- */
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr minmax(320px, 400px);
+    gap: 18px;
+    min-height: 0;
+  }
+
+  .reactor { position: relative; min-height: 0; }
+  #spectrum { width: 100%; height: 100%; display: block; }
+  .core {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
   }
-  .turn { display: flex; flex-direction: column; gap: 3px; max-width: 86%; }
-  .turn.user { align-self: flex-end; align-items: flex-end; }
-  .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .core-title {
+    font-size: clamp(30px, 5vw, 54px);
+    font-weight: 300;
+    letter-spacing: 0.34em;
+    padding-left: 0.34em;
+    color: #eafcff;
+    text-shadow: 0 0 26px rgba(34, 211, 238, .55), 0 0 70px rgba(34, 211, 238, .22);
+  }
+  .core-sub {
+    margin-top: 10px;
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.34em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ---------- painel lateral ---------- */
+  .side {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 10px;
+    min-height: 0;
+  }
+  .panel-head {
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding-left: 2px;
+  }
+  .log {
+    overflow-y: auto;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .log::-webkit-scrollbar { width: 6px; }
+  .log::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+  .empty { margin: auto; color: var(--muted); text-align: center; font-size: 12px; letter-spacing: .04em; }
+  .turn { display: flex; flex-direction: column; gap: 5px; }
+  .who {
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 9px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .turn.user .who { color: #7dd3fc; }
+  .turn.assistant .who { color: var(--accent); }
   .bubble {
-    padding: 9px 13px;
-    border-radius: 12px;
-    background: #f3f4f6;
+    padding: 9px 12px;
+    border-left: 1px solid var(--line-strong);
+    background: linear-gradient(90deg, rgba(34, 211, 238, .07), transparent 70%);
     white-space: pre-wrap;
     word-wrap: break-word;
+    font-size: 13.5px;
   }
-  .turn.user .bubble { background: var(--user); }
-  .empty { margin: auto; color: var(--muted); text-align: center; font-size: 13px; }
-  #memory {
-    background: var(--card);
+  .turn.user .bubble {
+    border-left-color: rgba(125, 211, 252, .5);
+    background: linear-gradient(90deg, rgba(125, 211, 252, .07), transparent 70%);
+  }
+
+  .memory {
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 10px;
+    background: var(--panel);
     padding: 10px 14px;
   }
-  #memory summary {
+  .memory summary {
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
     list-style: none;
-  }
-  #memory summary::-webkit-details-marker { display: none; }
-  #memcount {
-    display: inline-block;
-    min-width: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: #eceef1;
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
     color: var(--muted);
-    font-size: 11px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .memory summary::-webkit-details-marker { display: none; }
+  #memcount {
+    padding: 0 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--accent);
   }
   #memlist {
     list-style: none;
@@ -103,83 +200,137 @@
     display: flex;
     flex-direction: column;
     gap: 7px;
-    max-height: 170px;
+    max-height: 150px;
     overflow-y: auto;
   }
-  #memlist li { display: flex; gap: 9px; align-items: baseline; font-size: 13px; }
+  #memlist li { display: flex; gap: 9px; align-items: baseline; font-size: 12px; }
   #memlist .kind {
-    font-size: 10px;
+    font-family: Consolas, monospace;
+    font-size: 9px;
+    letter-spacing: .14em;
     text-transform: uppercase;
-    letter-spacing: .05em;
     color: var(--muted);
-    min-width: 76px;
+    min-width: 70px;
   }
-  #memlist button { padding: 2px 8px; font-size: 11px; margin-left: auto; }
-  form { display: flex; gap: 8px; }
-  input[type="text"] {
-    flex: 1;
-    padding: 12px 14px;
+  #memlist button {
+    margin-left: auto;
+    padding: 1px 7px;
+    font-size: 10px;
+    background: transparent;
     border: 1px solid var(--line);
-    border-radius: 10px;
-    font: inherit;
-    background: var(--card);
-    color: var(--ink);
-  }
-  input[type="text"]:focus { outline: 2px solid #cfe3d8; border-color: var(--accent); }
-  button {
-    padding: 11px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink);
-    font: inherit;
-    font-weight: 600;
+    color: var(--muted);
+    border-radius: 6px;
     cursor: pointer;
   }
-  button:hover { background: #f0f1f3; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover { filter: brightness(1.06); }
-  button[aria-pressed="true"] { background: #fdecec; border-color: #f3c2c2; color: #a12626; }
-  footer { display: flex; gap: 8px; align-items: center; }
-  footer .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+  #memlist button:hover { color: #fca5a5; border-color: rgba(252, 165, 165, .5); }
+
+  /* ---------- rodapé ---------- */
+  .composer { display: flex; gap: 10px; }
+  form { flex: 1; display: flex; gap: 10px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 13px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(6, 16, 25, .8);
+    color: var(--ink);
+    font: inherit;
+    letter-spacing: .01em;
+  }
+  input[type="text"]::placeholder { color: #3f6274; }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, .18), 0 0 22px rgba(34, 211, 238, .10);
+  }
+  button {
+    font-family: Consolas, "SF Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: rgba(6, 16, 25, .8);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0 18px;
+    cursor: pointer;
+    transition: border-color .2s, color .2s, background .2s;
+  }
+  button:hover { border-color: var(--line-strong); color: #fff; }
+  button.primary {
+    color: #04121a;
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.voice[aria-pressed="true"] {
+    color: #04121a;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .voice { min-width: 120px; }
+
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .reactor { min-height: 240px; }
+  }
 </style>
 </head>
-<body>
-<main>
-  <header>
-    <h1>Nox</h1>
-    <span class="meta" id="meta">a carregar…</span>
-    <span class="pill" id="status" data-status="parado">parado</span>
+<body data-status="parado">
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="mark">◈</span>NOX</div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="status" id="status"><i></i><span id="statustext">parado</span></div>
   </header>
 
-  <div id="log"><div class="empty">Ainda não há conversa. Escreve em baixo ou carrega em Ouvir.</div></div>
+  <main class="stage">
+    <section class="reactor">
+      <canvas id="spectrum"></canvas>
+      <div class="core">
+        <div class="core-title">NOX</div>
+        <div class="core-sub">local · pt-PT</div>
+      </div>
+    </section>
 
-  <details id="memory">
-    <summary>Memória <span id="memcount">0</span></summary>
-    <ul id="memlist"></ul>
-  </details>
+    <aside class="side">
+      <div class="panel-head">Conversa</div>
+      <div class="log" id="log">
+        <div class="empty">Diz «Hey Nox» ou escreve em baixo.</div>
+      </div>
+      <details class="memory" id="memory">
+        <summary>Memória <span id="memcount">0</span></summary>
+        <ul id="memlist"></ul>
+      </details>
+    </aside>
+  </main>
 
-  <form id="composer">
-    <input id="text" type="text" autocomplete="off" placeholder="Escreve ao Nox…" autofocus>
-    <button class="primary" type="submit">Enviar</button>
-  </form>
-
-  <footer>
-    <button id="voice" aria-pressed="false">Ouvir</button>
-    <button id="clear">Limpar</button>
-    <span class="hint" id="hint">Ctrl+C na consola fecha</span>
+  <footer class="composer">
+    <form id="form">
+      <input id="text" type="text" autocomplete="off" placeholder="Escreve ao Nox…" autofocus>
+      <button class="primary" type="submit">Enviar</button>
+    </form>
+    <button class="voice" id="voice" aria-pressed="false">Ouvir</button>
   </footer>
-</main>
+</div>
 
 <script>
-const log = document.getElementById("log");
-const statusEl = document.getElementById("status");
+const BANDS = 48;
+const canvas = document.getElementById("spectrum");
+const ctx = canvas.getContext("2d");
+const logEl = document.getElementById("log");
+const statusText = document.getElementById("statustext");
 const voiceBtn = document.getElementById("voice");
-const metaEl = document.getElementById("meta");
-const input = document.getElementById("text");
+const clockEl = document.getElementById("clock");
 const memList = document.getElementById("memlist");
 const memCount = document.getElementById("memcount");
+
+let target = new Array(BANDS).fill(0);
+let current = new Array(BANDS).fill(0);
+let status = "parado";
 let rendered = -1;
+let phase = 0;
 
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -187,41 +338,65 @@ async function api(path, options) {
   return response.json();
 }
 
+function tick() {
+  clockEl.textContent = new Date().toLocaleTimeString("pt-PT", { hour12: false });
+}
+setInterval(tick, 1000);
+tick();
+
 function render(turns) {
   if (turns.length === rendered) return;
   rendered = turns.length;
-  log.innerHTML = "";
+  logEl.innerHTML = "";
   if (!turns.length) {
-    log.innerHTML = '<div class="empty">Ainda não há conversa. Escreve em baixo ou carrega em Ouvir.</div>';
+    logEl.innerHTML = '<div class="empty">Diz «Hey Nox» ou escreve em baixo.</div>';
     return;
   }
   for (const turn of turns) {
     const wrap = document.createElement("div");
     wrap.className = "turn " + turn.role;
-    const who = document.createElement("span");
+    const who = document.createElement("div");
     who.className = "who";
     who.textContent = turn.role === "user" ? "tu" : "nox";
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.textContent = turn.text;
     wrap.append(who, bubble);
-    log.append(wrap);
+    logEl.append(wrap);
   }
-  log.scrollTop = log.scrollHeight;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(value) {
+  if (value === status) return;
+  status = value;
+  document.body.dataset.status = value;
+  statusText.textContent = value;
 }
 
 async function refresh() {
   try {
     const state = await api("/api/state");
-    statusEl.textContent = state.status;
-    statusEl.dataset.status = state.status;
+    setStatus(state.status);
     voiceBtn.setAttribute("aria-pressed", String(state.voice));
     voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
     render(state.turns);
   } catch (error) {
-    statusEl.textContent = "sem ligação";
-    statusEl.dataset.status = "parado";
+    setStatus("sem ligação");
   }
+}
+
+async function refreshLevels() {
+  try {
+    const data = await api("/api/levels");
+    if (Array.isArray(data.levels) && data.levels.length === BANDS) {
+      target = data.levels;
+    }
+    setStatus(data.status);
+  } catch (error) {
+    /* a animação continua com o último valor */
+  }
+  setTimeout(refreshLevels, 90);
 }
 
 async function refreshMemory() {
@@ -230,10 +405,10 @@ async function refreshMemory() {
     memCount.textContent = data.facts.length;
     memList.innerHTML = "";
     if (!data.facts.length) {
-      const empty = document.createElement("li");
-      empty.textContent = "Ainda não sei nada. Diz «chamo-me …» ou «lembra-te que …».";
-      empty.style.color = "var(--muted)";
-      memList.append(empty);
+      const item = document.createElement("li");
+      item.style.color = "var(--muted)";
+      item.textContent = "Ainda não sei nada. Diz «chamo-me …» ou «lembra-te que …».";
+      memList.append(item);
       return;
     }
     for (const fact of data.facts) {
@@ -257,12 +432,116 @@ async function refreshMemory() {
       memList.append(item);
     }
   } catch (error) {
-    console.error(error);
+    /* silencioso: a memória não é crítica para a conversa */
   }
 }
 
-document.getElementById("composer").addEventListener("submit", async (event) => {
+/* ---------- reactor ---------- */
+function resize() {
+  const ratio = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+  canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+function ring(cx, cy, radius, width, alpha, dash, rotation) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  ctx.setLineDash(dash);
+  ctx.lineWidth = width;
+  ctx.strokeStyle = "rgba(34, 211, 238, " + alpha + ")";
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw() {
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = Math.min(w, h) * 0.5;
+  const base = radius * 0.60;
+  phase += 0.006;
+
+  const glow = ctx.createRadialGradient(cx, cy, base * 0.2, cx, cy, radius);
+  glow.addColorStop(0, "rgba(34, 211, 238, 0.12)");
+  glow.addColorStop(0.55, "rgba(34, 211, 238, 0.04)");
+  glow.addColorStop(1, "rgba(4, 7, 13, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ring(cx, cy, base * 1.30, 1, 0.10, [2, 10], phase * 0.35);
+  ring(cx, cy, base * 1.16, 1, 0.16, [30, 8], -phase * 0.5);
+  ring(cx, cy, base * 0.88, 1, 0.14, [], 0);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (let i = 0; i < 72; i += 1) {
+    const angle = (i / 72) * Math.PI * 2;
+    const inner = base * 1.16;
+    const outer = inner + (i % 6 === 0 ? 9 : 4);
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(34, 211, 238, " + (i % 6 === 0 ? 0.16 : 0.06) + ")";
+    ctx.lineWidth = 1;
+    ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+    ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const idle = 0.045 + 0.03 * Math.sin(phase * 2.2);
+  const speaking = target.some((value) => value > 0.02);
+
+  for (let i = 0; i < BANDS; i += 1) {
+    // Espelhado no eixo vertical: meia volta mostra o espectro, a outra metade
+    // repete-o. É o que dá o desenho simétrico em vez de um gráfico torto.
+    const band = i < BANDS / 2 ? i : BANDS - 1 - i;
+    const value = speaking
+      ? current[band]
+      : idle * (0.6 + 0.4 * Math.sin(phase * 1.6 + band * 0.42));
+    const angle = (i / BANDS) * Math.PI * 2 - Math.PI / 2;
+    const inner = base * 1.02;
+    const length = 5 + value * base * 0.62;
+    const x1 = cx + Math.cos(angle) * inner;
+    const y1 = cy + Math.sin(angle) * inner;
+    const x2 = cx + Math.cos(angle) * (inner + length);
+    const y2 = cy + Math.sin(angle) * (inner + length);
+
+    ctx.beginPath();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(34, 211, 238, " + (0.06 + value * 0.22) + ")";
+    ctx.lineWidth = 7;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(165, 243, 252, " + (0.35 + value * 0.65) + ")";
+    ctx.lineWidth = 2;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < BANDS; i += 1) {
+    current[i] += (target[i] - current[i]) * 0.28;
+  }
+  requestAnimationFrame(draw);
+}
+
+document.getElementById("form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const input = document.getElementById("text");
   const text = input.value.trim();
   if (!text) return;
   input.value = "";
@@ -276,6 +555,7 @@ document.getElementById("composer").addEventListener("submit", async (event) => 
     console.error(error);
   }
   refresh();
+  refreshMemory();
 });
 
 voiceBtn.addEventListener("click", async () => {
@@ -288,15 +568,12 @@ voiceBtn.addEventListener("click", async () => {
   refresh();
 });
 
-document.getElementById("clear").addEventListener("click", () => {
-  rendered = -1;
-  refresh();
-});
-
-metaEl.textContent = "local · pt-PT";
+resize();
+draw();
 refresh();
 refreshMemory();
-setInterval(refresh, 800);
+refreshLevels();
+setInterval(refresh, 900);
 setInterval(refreshMemory, 2500);
 </script>
 </body>

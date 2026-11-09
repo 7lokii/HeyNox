@@ -27,6 +27,7 @@ class NoxState:
         self._turns: list[Turn] = []
         self._status = "parado"
         self._voice = False
+        self._levels: list[float] = []
         self._limit = limit
 
     def add_turn(self, role: str, text: str) -> None:
@@ -35,6 +36,10 @@ class NoxState:
         with self._lock:
             self._turns.append(Turn(role=role, text=text, at=time.time()))
             del self._turns[: -self._limit]
+
+    def set_levels(self, levels: list[float]) -> None:
+        with self._lock:
+            self._levels = levels
 
     def set_status(self, status: str) -> None:
         with self._lock:
@@ -56,5 +61,6 @@ class NoxState:
             return {
                 "status": self._status,
                 "voice": self._voice,
+                "levels": self._levels,
                 "turns": [asdict(turn) for turn in self._turns],
             }

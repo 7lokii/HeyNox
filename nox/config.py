@@ -161,6 +161,9 @@ class WakeConfig(BaseModel):
     model: str = "vosk-model-small-pt-0.3"
     # Segundos à espera do pedido depois de ouvir a wake word.
     timeout_s: float = Field(default=8.0, gt=0)
+    # Depois de responder, o Nox continua a ouvir sem exigir a palavra outra
+    # vez — uma réplica não deve obrigar a dizer "Hey Nox" de novo.
+    follow_up_s: float = Field(default=6.0, ge=0.0, le=60.0)
 
 
 class Config(BaseModel):

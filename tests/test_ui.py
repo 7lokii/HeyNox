@@ -16,7 +16,9 @@ from nox.ui.state import NoxState
 @pytest.fixture
 def server(tmp_path):
     store = MemoryStore(tmp_path / "nox.db")
-    app = NoxApp(Config(), agent=Agent(EchoLlm(), memory=store))
+    # Sem voz nos testes: sintetizar chamaria a rede e atrasaria a suite.
+    config = Config.model_validate({"nox": {"voice_enabled": False}})
+    app = NoxApp(config, agent=Agent(EchoLlm(), memory=store))
     httpd, port = build_server(app, port=0)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
