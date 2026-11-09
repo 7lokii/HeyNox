@@ -72,6 +72,49 @@
   }
   .turn.user .bubble { background: var(--user); }
   .empty { margin: auto; color: var(--muted); text-align: center; font-size: 13px; }
+  #memory {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  #memory summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    list-style: none;
+  }
+  #memory summary::-webkit-details-marker { display: none; }
+  #memcount {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #eceef1;
+    color: var(--muted);
+    font-size: 11px;
+    text-align: center;
+  }
+  #memlist {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    max-height: 170px;
+    overflow-y: auto;
+  }
+  #memlist li { display: flex; gap: 9px; align-items: baseline; font-size: 13px; }
+  #memlist .kind {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    min-width: 76px;
+  }
+  #memlist button { padding: 2px 8px; font-size: 11px; margin-left: auto; }
   form { display: flex; gap: 8px; }
   input[type="text"] {
     flex: 1;
@@ -111,6 +154,11 @@
 
   <div id="log"><div class="empty">Ainda não há conversa. Escreve em baixo ou carrega em Ouvir.</div></div>
 
+  <details id="memory">
+    <summary>Memória <span id="memcount">0</span></summary>
+    <ul id="memlist"></ul>
+  </details>
+
   <form id="composer">
     <input id="text" type="text" autocomplete="off" placeholder="Escreve ao Nox…" autofocus>
     <button class="primary" type="submit">Enviar</button>
@@ -129,6 +177,8 @@ const statusEl = document.getElementById("status");
 const voiceBtn = document.getElementById("voice");
 const metaEl = document.getElementById("meta");
 const input = document.getElementById("text");
+const memList = document.getElementById("memlist");
+const memCount = document.getElementById("memcount");
 let rendered = -1;
 
 async function api(path, options) {
@@ -174,6 +224,43 @@ async function refresh() {
   }
 }
 
+async function refreshMemory() {
+  try {
+    const data = await api("/api/memory");
+    memCount.textContent = data.facts.length;
+    memList.innerHTML = "";
+    if (!data.facts.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "Ainda não sei nada. Diz «chamo-me …» ou «lembra-te que …».";
+      empty.style.color = "var(--muted)";
+      memList.append(empty);
+      return;
+    }
+    for (const fact of data.facts) {
+      const item = document.createElement("li");
+      const kind = document.createElement("span");
+      kind.className = "kind";
+      kind.textContent = fact.kind;
+      const text = document.createElement("span");
+      text.textContent = fact.text;
+      const forget = document.createElement("button");
+      forget.textContent = "esquecer";
+      forget.addEventListener("click", async () => {
+        await api("/api/memory/forget", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pattern: fact.text })
+        });
+        refreshMemory();
+      });
+      item.append(kind, text, forget);
+      memList.append(item);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 document.getElementById("composer").addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = input.value.trim();
@@ -208,7 +295,9 @@ document.getElementById("clear").addEventListener("click", () => {
 
 metaEl.textContent = "local · pt-PT";
 refresh();
+refreshMemory();
 setInterval(refresh, 800);
+setInterval(refreshMemory, 2500);
 </script>
 </body>
 </html>

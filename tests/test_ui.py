@@ -8,13 +8,15 @@ import pytest
 from nox.brain.agent import Agent
 from nox.brain.llm import EchoLlm
 from nox.config import Config
+from nox.memory.store import MemoryStore
 from nox.ui.server import NoxApp, build_server
 from nox.ui.state import NoxState
 
 
 @pytest.fixture
-def server():
-    app = NoxApp(Config(), agent=Agent(EchoLlm()))
+def server(tmp_path):
+    store = MemoryStore(tmp_path / "nox.db")
+    app = NoxApp(Config(), agent=Agent(EchoLlm(), memory=store))
     httpd, port = build_server(app, port=0)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -24,6 +26,8 @@ def server():
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+        store.close()
+        store.close()
 
 
 def get_json(url: str) -> dict:
@@ -106,3 +110,16 @@ def test_state_endpoint_reflects_the_conversation(server) -> None:
 
     assert len(state["turns"]) == 2
     assert state["voice"] is False
+
+
+def test_memory_endpoint_lists_and_forgets(server) -> None:
+    base, app = server
+    assert app.agent.memory is not None
+    app.agent.memory.add_fact("nome", "O utilizador chama-se Rui.")
+
+    facts = get_json(base + "/api/memory")["facts"]
+    assert [fact["text"] for fact in facts] == ["O utilizador chama-se Rui."]
+
+    removed = post_json(base + "/api/memory/forget", {"pattern": "Rui"})["removed"]
+    assert removed == 1
+    assert get_json(base + "/api/memory")["facts"] == []

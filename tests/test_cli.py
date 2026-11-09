@@ -83,3 +83,30 @@ def test_text_session_exits_on_sair(monkeypatch: pytest.MonkeyPatch, capsys) -> 
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     assert main(["--text"]) == 0
     assert "Nox: (eco) olá" in capsys.readouterr().out
+
+
+def test_memory_commands_use_the_configured_database(tmp_path: Path, capsys) -> None:
+    database = tmp_path / "nox.db"
+    path = tmp_path / "config.yaml"
+    path.write_text(f"memory:\n  sqlite_path: '{database}'\n", encoding="utf-8")
+
+    assert main(["--memory", "--config", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "0 factos, 0 turnos" in out
+    assert database.is_file()
+
+
+def test_memory_reset_empties_the_database(tmp_path: Path, capsys) -> None:
+    database = tmp_path / "nox.db"
+    path = tmp_path / "config.yaml"
+    path.write_text(f"memory:\n  sqlite_path: '{database}'\n", encoding="utf-8")
+
+    from nox.memory.store import MemoryStore
+
+    store = MemoryStore(database)
+    store.add_fact("nome", "O utilizador chama-se Rui.")
+    store.add_turn("local", "user", "olá")
+    store.close()
+
+    assert main(["--memory-reset", "--config", str(path)]) == 0
+    assert "apagados 1 factos e 1 turnos" in capsys.readouterr().out

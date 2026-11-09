@@ -16,7 +16,13 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] Interrupção da fala (barge-in), opcional.
   - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).
-- [ ] **Fase 2 — Memória.**
+- [x] **Fase 2 — Memória.** SQLite + FTS5, ver `docs/memory.md`.
+  - [x] Memória de conversa (retomada entre sessões).
+  - [x] Factos duradouros (nome, preferências, notas) por regras.
+  - [x] Recall por palavra (FTS5) injetado no system prompt.
+  - [x] Comandos: "o que sabes sobre mim", "esquece X", "esquece tudo".
+  - [x] Exportar/importar JSON e `--memory-reset`.
+  - [ ] Memória semântica (Chroma) — adiada, ver `docs/memory.md`.
 - [ ] **Fase 3 — Ferramentas seguras.**
 - [ ] **Fase 4 — GitHub.**
 - [ ] **Fase 5 — Automação avançada.**

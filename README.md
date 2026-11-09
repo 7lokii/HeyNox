@@ -25,7 +25,7 @@ Projeto em desenvolvimento. Fase 0 (fundações) concluída: estrutura,
 configuração validada, CLI de verificação de ambiente, testes e CI.
 O instalador Windows também já está pronto.
 
-A Fase 1 está quase fechada: os contratos do pipeline, o modo texto, o STT/TTS
+A Fase 1 está fechada: os contratos do pipeline, o modo texto, o STT/TTS
 locais e o loop de voz completo já funcionam. Falta a wake word "Hey Nox" e a
 interrupção da fala.
 
@@ -43,6 +43,11 @@ nox --devices                # lista os microfones disponíveis
 nox --say "que horas são?"   # uma resposta e sai
 nox --speak "Bom dia."       # sintetiza para WAV
 nox --transcribe audio.wav   # transcreve um WAV
+
+nox --memory                 # o que o Nox sabe sobre ti
+nox --forget Rui             # esquece o que contiver "Rui"
+nox --memory-reset           # apaga factos e histórico
+nox --memory-export a.json   # exporta / --memory-import para importar
 ```
 
 Perguntas simples — horas, data, agradecimentos — são respondidas localmente,

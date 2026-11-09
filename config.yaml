@@ -59,9 +59,11 @@ tts:
   speed: 1.0
 
 memory:
+  enabled: true
   sqlite_path: "data/nox.db"
-  vector_store: "chroma"
+  vector_store: "none"
   embedding_provider: "local"
+  history_turns: 12
 
 github:
   default_repo: "7lokii/HeyNox"

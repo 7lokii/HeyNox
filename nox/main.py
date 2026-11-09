@@ -86,6 +86,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
     )
     parser.add_argument("--ui", action="store_true", help="Abre a interface web local")
+    parser.add_argument("--memory", action="store_true", help="Mostra o que o Nox sabe e sai")
+    parser.add_argument(
+        "--forget", metavar="TEXTO", default=None, help="Esquece os factos que contenham o texto"
+    )
+    parser.add_argument(
+        "--memory-export", metavar="JSON", type=Path, default=None, help="Exporta a memória"
+    )
+    parser.add_argument(
+        "--memory-import", metavar="JSON", type=Path, default=None, help="Importa a memória"
+    )
+    parser.add_argument(
+        "--memory-reset", action="store_true", help="Apaga factos e histórico de conversa"
+    )
     parser.add_argument("--say", metavar="FRASE", default=None, help="Responde a uma frase e sai")
     parser.add_argument(
         "--speak", metavar="TEXTO", default=None, help="Sintetiza a frase para WAV e sai"
@@ -147,6 +160,8 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         from nox.ui.server import serve
 
         return serve(config, out=out)
+    if args.memory or args.forget or args.memory_export or args.memory_import or args.memory_reset:
+        return _memory_command(config, args, out)
     if args.text:
         return _text_session(config, out)
     out(f"{config.nox.name} pronto. Usa --text para conversar ou --check para diagnóstico.")
@@ -183,6 +198,35 @@ def _transcribe(config: Config, path: Path, out: Callable[[str], None]) -> int:
         out(f"Erro: {exc}")
         return 2
     out(text or "(nada percetível)")
+    return 0
+
+
+def _memory_command(config: Config, args: argparse.Namespace, out: Callable[[str], None]) -> int:
+    from nox.memory.store import MemoryStore, resolve_memory_path
+
+    store = MemoryStore(resolve_memory_path(config))
+    try:
+        if args.memory_reset:
+            facts = store.clear_facts()
+            turns = store.clear_turns()
+            out(f"apagados {facts} factos e {turns} turnos")
+        if args.forget:
+            removed = store.forget(args.forget)
+            out(f"{removed} factos esquecidos" if removed else "não tinha nada sobre isso")
+        if args.memory_import:
+            turns, facts = store.load_from(args.memory_import)
+            out(f"importados {turns} turnos e {facts} factos")
+        if args.memory_export:
+            path = store.save_to(args.memory_export)
+            out(f"memória exportada para {path}")
+        if args.memory:
+            facts = store.facts(limit=50)
+            out(f"memória: {resolve_memory_path(config)}")
+            out(f"{len(facts)} factos, {store.count_turns()} turnos guardados")
+            for fact in facts:
+                out(f"  [{fact.kind}] {fact.text}")
+    finally:
+        store.close()
     return 0
 
 

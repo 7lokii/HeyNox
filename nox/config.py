@@ -120,8 +120,12 @@ class TtsConfig(BaseModel):
 
 class MemoryConfig(BaseModel):
     sqlite_path: Path = Path("data/nox.db")
-    vector_store: Literal["chroma", "qdrant", "lancedb", "none"] = "chroma"
+    # O FTS5 do SQLite cobre a pesquisa por palavra; Chroma fica para quando a
+    # pesquisa semântica justificar o peso das dependências.
+    vector_store: Literal["chroma", "qdrant", "lancedb", "none"] = "none"
     embedding_provider: str = "local"
+    enabled: bool = True
+    history_turns: int = Field(default=12, ge=0, le=100)
 
 
 class GithubConfig(BaseModel):

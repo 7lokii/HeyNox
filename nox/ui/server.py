@@ -59,6 +59,19 @@ class NoxApp:
         self.state.add_turn("assistant", answer)
         return answer
 
+    def memory_facts(self) -> list[dict[str, Any]]:
+        if self.agent.memory is None:
+            return []
+        return [
+            {"id": fact.id, "kind": fact.kind, "text": fact.text}
+            for fact in self.agent.memory.facts(limit=50)
+        ]
+
+    def forget(self, pattern: str) -> int:
+        if self.agent.memory is None or not pattern.strip():
+            return 0
+        return self.agent.memory.forget(pattern)
+
     def set_voice(self, running: bool) -> None:
         if running:
             self.start_voice()
@@ -104,6 +117,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_html()
         elif self.path == "/api/state":
             self._send_json(self.app.state.snapshot())
+        elif self.path == "/api/memory":
+            self._send_json({"facts": self.app.memory_facts()})
         else:
             self.send_error(404)
 
@@ -118,6 +133,9 @@ class Handler(BaseHTTPRequestHandler):
             running = bool(self._body().get("on"))
             self.app.set_voice(running)
             self._send_json({"voice": running})
+        elif self.path == "/api/memory/forget":
+            pattern = str(self._body().get("pattern", "")).strip()
+            self._send_json({"removed": self.app.forget(pattern)})
         else:
             self.send_error(404)
 
