@@ -285,7 +285,10 @@ def build_llm(config: Config) -> LlmClient:
     if not settings.model.strip():
         raise LlmError("llm.model não está definido no config.yaml")
 
-    api_key = os.environ.get(settings.api_key_env, "").strip()
+    # Fornecedor local (Ollama e afins): sem `api_key_env`, o cliente exige um
+    # cabeçalho de autorização mas ninguém o valida do outro lado.
+    key_env = settings.api_key_env.strip()
+    api_key = "local" if not key_env else os.environ.get(key_env, "").strip()
     if not api_key:
         raise LlmError(
             f"falta a chave do modelo: define {settings.api_key_env} no .env "

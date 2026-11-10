@@ -88,13 +88,16 @@ def provider_by_id(identifier: str) -> Provider | None:
 
 def provider_for(base_url: str, api_format: str) -> str:
     """Descobre o preset que corresponde à configuração em uso."""
+    target = _normalize_url(base_url)
     for provider in PROVIDERS:
-        if (
-            provider.base_url.rstrip("/") == base_url.rstrip("/")
-            and provider.api_format == api_format
-        ):
+        if _normalize_url(provider.base_url) == target and provider.api_format == api_format:
             return provider.id
     return "custom"
+
+
+def _normalize_url(value: str) -> str:
+    """`localhost` e `127.0.0.1` são a mesma máquina; sem isto o preset não casava."""
+    return value.strip().rstrip("/").replace("//localhost", "//127.0.0.1").lower()
 
 
 def mask(value: str) -> str:
@@ -178,7 +181,9 @@ class SettingsStore:
         config = self.effective_config()
         if not self._needs_key(config.llm.base_url, config.llm.api_format):
             return True
-        name = config.llm.api_key_env or MODEL_KEY
+        if not config.llm.api_key_env.strip():
+            return True
+        name = config.llm.api_key_env
         value = self.read_env().get(name) or os.environ.get(name, "")
         return bool(value.strip())
 
@@ -250,7 +255,9 @@ class SettingsStore:
             llm_section["model"] = model
         if provider is not None:
             llm_section["default_provider"] = provider.id
-            llm_section["api_key_env"] = provider.key_env
+            # Um fornecedor local não tem chave: deixar o `api_key_env` apontado
+            # fazia o `build_llm` exigir uma chave que não existe.
+            llm_section["api_key_env"] = provider.key_env if provider.needs_key else ""
 
         if "full_access" in payload:
             document.setdefault("tools", {})["full_access"] = bool(payload["full_access"])

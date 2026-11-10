@@ -224,10 +224,40 @@ def test_works_when_the_bundled_config_is_not_where_the_exe_sits(store, tmp_path
     """No pacote o config.yaml vive em `_internal`; pedir o caminho errado rebentava."""
     from nox.ui.settings import SettingsStore
 
-    packed = SettingsStore(root=tmp_path / "app", config_path=tmp_path / "nao-existe" / "config.yaml")
+    missing = tmp_path / "nao-existe" / "config.yaml"
+    packed = SettingsStore(root=tmp_path / "app", config_path=missing)
 
     values = packed.values()
     packed.save({"name": "Nox"})
 
     assert values["name"]
     assert packed.config_path.is_file()
+
+
+def test_localhost_e_127_0_0_1_sao_o_mesmo_fornecedor() -> None:
+    from nox.ui.settings import provider_for
+
+    assert provider_for("http://localhost:11434/v1", "openai") == "ollama"
+    assert provider_for("http://127.0.0.1:11434/v1", "openai") == "ollama"
+
+
+def test_ollama_nao_pede_chave_nem_a_exige(store) -> None:
+    """O preset local não tem chave: pedir uma deixava o setup num ciclo."""
+    store.save(
+        {
+            "provider": "ollama",
+            "model": "llama3.2",
+            "base_url": "http://localhost:11434/v1",
+            "name": "Loki",
+        }
+    )
+
+    config = store.effective_config()
+
+    assert store.has_model_key() is True
+    assert config.llm.api_key_env == ""
+
+    from nox.brain.llm import build_llm
+
+    client = build_llm(config)
+    assert client is not None
