@@ -14,6 +14,7 @@ está em `docs/releases.md`.
 | `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo: voz (torch, faster-whisper, piper, vosk, edge-tts), browser (Playwright), controlo do PC (pyautogui, mss, OCR winrt) e bandeja (pystray) |
 | `nox.exe` | `dist\nox\` | sim | Núcleo e CLI para diagnóstico (`nox.exe --check`) |
 | `HeyNox-Setup.exe` | `dist\` | — | Instalador Inno Setup com atalhos, desinstalador e arranque opcional |
+| `HeyNox-<versao>-windows-x64-portable.zip` | `dist\` | — | A pasta `HeyNox/` comprimida, para extrair e correr sem instalar |
 
 Os modelos (Whisper, Piper, Vosk) **não** vão no instalador; são descarregados
 na primeira utilização para `%LOCALAPPDATA%\HeyNox`.
@@ -38,11 +39,22 @@ Pré-requisitos:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File installer\build.ps1
-powershell -ExecutionPolicy Bypass -File installer\build.ps1 -SkipInstaller   # só os .exe
+powershell -ExecutionPolicy Bypass -File installer\build.ps1 -SkipInstaller   # sem o setup, mas com o portátil
 ```
 
+Três formas de abrir o Nox no Windows, todas com a mesma janela:
+
+1. `nox --desktop`, com o projeto instalado em Python;
+2. `HeyNox-Setup.exe`, seguido do atalho do menu Iniciar;
+3. `HeyNox-<versao>-windows-x64-portable.zip`, extraído, a correr
+   `HeyNox\HeyNox.exe`.
+
+O zip do portátil guarda a pasta `HeyNox/` dentro, o mesmo layout do CI
+(`tar -a -cf ... -C dist HeyNox`), para os dois caminhos darem o mesmo
+resultado. Os dados ficam em `%LOCALAPPDATA%\HeyNox` nos dois casos.
+
 O script cria o venv com `uv` mas instala os extras com **pip**:
-`pip install -e ".[voice,browser,desktop,tray]" pyinstaller`. O `uv` falhava a
+`pip install -e ".[voice,browser,desktop,tray,shell]" pyinstaller`. O `uv` falhava a
 compilar sdists antigos (`pygetwindow`, `pytweening`) porque a limpeza da cache
 de build colide com o guard de deleções em massa desta máquina.
 

@@ -34,6 +34,27 @@ A interface está em TypeScript (`ui/`) e corre dentro de uma janela nativa
 sobre o WebView2 do Windows. O motor é Python e não mudou. Ver
 [`docs/interface.md`](docs/interface.md).
 
+## Abrir o Nox (Windows)
+
+Três formas, as três abrem a mesma janela:
+
+| Forma | Como | Quando |
+|---|---|---|
+| Comando | `nox --desktop` | tens o projeto instalado em Python; é o caminho de desenvolvimento |
+| Instalador | `HeyNox-Setup.exe`, depois o atalho do menu Iniciar | uso normal, com desinstalador e atalhos |
+| Portátil | extrair `HeyNox-<versao>-windows-x64-portable.zip` e correr `HeyNox\HeyNox.exe` | sem instalar nada, por exemplo numa pen |
+
+Os dois artefactos saem do mesmo build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installeruild.ps1
+# dist\HeyNox-Setup.exe
+# dist\HeyNox-<versao>-windows-x64-portable.zip
+```
+
+O portátil guarda os dados em `%LOCALAPPDATA%\HeyNox`, igual ao instalado.
+Apagar a pasta não apaga a memória; para isso existe `nox --memory-reset`.
+
 ## Uso
 
 ```bash

@@ -89,7 +89,7 @@ $Py = Join-Path $BuildVenv "Scripts\python.exe"
 # O uv falha a compilar sdists antigos (pygetwindow/pytweening) por causa da
 # limpeza da cache de build; o pip instala-os sem problema.
 & uv pip install -q --python $Py pip
-$Extras = "voice,browser,desktop,tray"
+$Extras = "voice,browser,desktop,tray,shell"
 if ($Silero) {
     $Extras = "$Extras,silero"
     $env:HEYNOX_WITH_SILERO = "1"
@@ -127,9 +127,27 @@ if ($LASTEXITCODE -ne 0) { throw "nox.exe compilado não passou no --check" }
 & (Join-Path $Root "dist\HeyNox\HeyNox.exe") --check
 if ($LASTEXITCODE -ne 0) { throw "HeyNox.exe compilado não passou no --check" }
 
+Write-Step "Gerar o pacote portátil"
+# Mesmo layout do CI: o zip contém a pasta HeyNox/ pronta a extrair e correr.
+$Portable = Join-Path $DistRoot "HeyNox-$ResolvedVersion-windows-x64-portable.zip"
+if (Test-Path $Portable) { Remove-Item $Portable -Force }
+# ZipFile em vez de tar: o `tar` que aparece primeiro no PATH desta máquina é o
+# do Git, que trata "E:\..." como um host remoto e falha a ligar.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory(
+    (Join-Path $DistRoot "HeyNox"),
+    $Portable,
+    [System.IO.Compression.CompressionLevel]::Fastest,
+    $true
+)
+if (-not (Test-Path $Portable)) { throw "O zip portátil não foi criado em $Portable" }
+
 if ($SkipInstaller) {
     Write-Host ""
-    Write-Host "Executáveis em dist\. Instalador ignorado (-SkipInstaller)." -ForegroundColor Green
+    Write-Host ("Executáveis e portátil prontos:" + [Environment]::NewLine +
+        "  {0}" + [Environment]::NewLine +
+        "  {1}" + [Environment]::NewLine +
+        "Instalador ignorado (-SkipInstaller)." -f (Join-Path $DistRoot "HeyNox\HeyNox.exe"), $Portable) -ForegroundColor Green
     exit 0
 }
 
@@ -143,5 +161,9 @@ $Setup = Join-Path $Root "dist\HeyNox-Setup.exe"
 if (-not (Test-Path $Setup)) { throw "O instalador não foi criado em $Setup" }
 
 $SizeMb = [math]::Round((Get-Item $Setup).Length / 1MB, 1)
+$PortableMb = [math]::Round((Get-Item $Portable).Length / 1MB, 1)
 Write-Host ""
-Write-Host ("Concluído: {0} ({1} MB)" -f $Setup, $SizeMb) -ForegroundColor Green
+Write-Host "Concluído. Três formas de abrir o Nox:" -ForegroundColor Green
+Write-Host ("  1. comando      nox --desktop")
+Write-Host ("  2. setup        {0} ({1} MB)" -f $Setup, $SizeMb)
+Write-Host ("  3. portátil     {0} ({1} MB), extrair e correr HeyNox\HeyNox.exe" -f $Portable, $PortableMb)
