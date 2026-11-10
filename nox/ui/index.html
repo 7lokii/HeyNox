@@ -539,9 +539,17 @@ function renderApprovals(items) {
 async function refresh() {
   try {
     const state = await api("/api/state");
-    setStatus(state.status);
-    voiceBtn.setAttribute("aria-pressed", String(state.voice));
-    voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
+    if (state.voice_error && !state.voice) {
+      setStatus("erro na voz");
+      voiceBtn.title = state.voice_error;
+      voiceBtn.setAttribute("aria-pressed", "false");
+      voiceBtn.textContent = "Ouvir";
+    } else {
+      setStatus(state.status);
+      voiceBtn.title = "";
+      voiceBtn.setAttribute("aria-pressed", String(state.voice));
+      voiceBtn.textContent = state.voice ? "Parar" : "Ouvir";
+    }
     render(state.turns);
     renderApprovals(state.approvals || []);
     setEmergency(Boolean(state.emergency));

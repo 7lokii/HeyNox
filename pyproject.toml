@@ -36,6 +36,7 @@ desktop = [
     "winrt-Windows.Storage.Streams; sys_platform == 'win32'",
     "winrt-Windows.Foundation; sys_platform == 'win32'",
 ]
+tray = ["pystray>=0.19"]
 voice = [
     "heynox[audio,wake,vad,stt,tts,edge]",
 ]
@@ -44,6 +45,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "pyright>=1.1.360",
+    "pystray>=0.19",
 ]
 
 [project.scripts]

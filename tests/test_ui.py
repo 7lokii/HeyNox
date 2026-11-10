@@ -2,6 +2,7 @@ import json
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import pytest
@@ -190,3 +191,44 @@ def test_emergency_endpoint_toggles_the_brake(server) -> None:
         assert get_json(base + "/api/state")["emergency"] is False
     finally:
         EMERGENCY.clear()
+
+
+def test_existing_instance_is_none_when_nothing_listens(tmp_path, monkeypatch) -> None:
+    from nox.ui import server as ui
+
+    monkeypatch.setattr(ui, "user_data_dir", lambda: tmp_path)
+    (tmp_path / "ui.port").write_text("1", encoding="utf-8")
+    assert ui.existing_instance() is None
+
+
+def test_existing_instance_finds_the_running_ui(server, tmp_path, monkeypatch) -> None:
+    base, _ = server
+    from nox.ui import server as ui
+
+    port = urllib.parse.urlparse(base).port
+    monkeypatch.setattr(ui, "user_data_dir", lambda: tmp_path)
+    (tmp_path / "ui.port").write_text(str(port), encoding="utf-8")
+
+    assert ui.existing_instance() == base
+
+
+def test_state_endpoint_reports_voice_errors(server) -> None:
+    base, app = server
+    app._voice_error = "faltam dependências de voz"
+    assert get_json(base + "/api/state")["voice_error"] == "faltam dependências de voz"
+
+
+def test_tray_requires_pystray(monkeypatch) -> None:
+    from nox.ui import tray
+
+    def unavailable(name: str):
+        raise ImportError(f"{name} em falta")
+
+    monkeypatch.setattr(tray, "require", unavailable)
+    with pytest.raises(ImportError):
+        tray.Tray(
+            "http://127.0.0.1:8765/",
+            on_open=lambda: None,
+            on_toggle_voice=lambda _on: None,
+            on_quit=lambda: None,
+        )

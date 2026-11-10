@@ -2,14 +2,17 @@
 
 Só stdlib: `ThreadingHTTPServer` e um ficheiro HTML. Ouve em 127.0.0.1 — não
 há autenticação porque não há rede: quem chega ao porto já está na máquina.
+Com `tray=True` (o `.exe`), o ícone da bandeja manda no ciclo de vida.
 """
 
 from __future__ import annotations
 
 import json
 import threading
+import urllib.request
 import webbrowser
 from collections.abc import Callable
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -18,7 +21,7 @@ from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
-from nox.paths import bundle_dir
+from nox.paths import bundle_dir, user_data_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.ui.state import NoxState
 from nox.voice import run_voice
@@ -57,6 +60,7 @@ class NoxApp:
         self._thread: threading.Thread | None = None
         self._synth = None
         self._speaker = None
+        self._voice_error = ""
 
     def say(self, text: str) -> str:
         return self._respond(text, label=None)
@@ -123,7 +127,9 @@ class NoxApp:
         if self._thread is not None and self._thread.is_alive():
             return
         self._stop.clear()
+        self._voice_error = ""
         self.state.set_voice(True)
+        self.state.set_status("a arrancar")
         self._thread = threading.Thread(target=self._voice_loop, daemon=True)
         self._thread.start()
 
@@ -144,9 +150,14 @@ class NoxApp:
                 stop_event=self._stop,
             )
         except NoxError as exc:
+            self._voice_error = str(exc)
+            self.logs.append(f"voz: {exc}")
             self.state.add_turn("assistant", f"Erro: {exc}")
         finally:
             self.state.set_voice(False)
+
+    def voice_error(self) -> str:
+        return self._voice_error
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -163,6 +174,7 @@ class Handler(BaseHTTPRequestHandler):
             snapshot = self.app.state.snapshot()
             snapshot["approvals"] = self.app.approvals.pending()
             snapshot["emergency"] = EMERGENCY.active
+            snapshot["voice_error"] = self.app.voice_error()
             self._send_json(snapshot)
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
@@ -253,17 +265,44 @@ def build_server(app: NoxApp, port: int = DEFAULT_PORT) -> tuple[ThreadingHTTPSe
     raise NoxError(f"nenhum porto livre entre {port} e {MAX_PORT}")
 
 
+def existing_instance() -> str | None:
+    """URL de uma interface já a correr nesta máquina, se responder.
+
+    O `.exe` é associado ao atalho: um segundo clique não pode subir outro
+    servidor (o segundo perderia o registo num porto de 8766 em diante e o
+    primeiro ficaria sem forma de ser encontrado).
+    """
+    try:
+        with urllib.request.urlopen(  # noqa: S310 — URL fixo em 127.0.0.1
+            f"{_state_url()}/api/state", timeout=0.6
+        ) as response:
+            json.loads(response.read() or b"{}")
+            return _state_url()
+    except (OSError, ValueError):
+        return None
+
+
+def _state_url() -> str:
+    try:
+        port = int(user_data_dir().joinpath("ui.port").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        port = DEFAULT_PORT
+    return f"http://127.0.0.1:{port}"
+
+
 def serve(
     config: Config,
     *,
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
+    tray: bool = False,
     out: Callable[[str], None] = print,
 ) -> int:
     app = NoxApp(config)
     server, bound = build_server(app, port)
     url = f"http://127.0.0.1:{bound}/"
     out(f"Nox UI em {url}")
+    _claim_port(bound)
     scheduler: RoutineScheduler | None = None
     if config.automation.enabled:
         scheduler = RoutineScheduler(
@@ -275,14 +314,61 @@ def serve(
         scheduler.start()
     if open_browser:
         webbrowser.open(url)
+
+    icon = None
+    if tray:
+        try:
+            from nox.ui.tray import Tray
+
+            icon = Tray(
+                url,
+                on_open=lambda: _open_browser(url),
+                on_toggle_voice=app.set_voice,
+                # O `pystray` só sai do `run()` pelo `on_quit`; o HTTP é
+                # parado a seguir, no `finally`.
+                on_quit=lambda: None,
+                voice_on=app.state.snapshot()["voice"],
+            )
+        except ImportError as exc:
+            out(f"aviso: sem ícone na bandeja ({exc})")
+            icon = None
+
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
     try:
-        server.serve_forever()
+        if icon is not None:
+            icon.run()
+        else:
+            while thread.is_alive():
+                thread.join(0.5)
     except KeyboardInterrupt:
         out("a fechar")
     finally:
+        if icon is not None:
+            icon.stop()
         if scheduler is not None:
             scheduler.stop()
         app.stop_voice()
         app.approvals.cancel_all()
+        server.shutdown()
+        thread.join(timeout=3)
         server.server_close()
+        _release_port()
     return 0
+
+
+def _open_browser(url: str) -> None:
+    webbrowser.open(url)
+
+
+def _claim_port(port: int) -> None:
+    # Sem o porto guardado, um segundo arranque não encontra esta instância e
+    # sobe outra em 8766, com a primeira órfã.
+    with suppress(OSError):
+        user_data_dir().mkdir(parents=True, exist_ok=True)
+        user_data_dir().joinpath("ui.port").write_text(str(port), encoding="utf-8")
+
+
+def _release_port() -> None:
+    with suppress(OSError):
+        user_data_dir().joinpath("ui.port").unlink(missing_ok=True)

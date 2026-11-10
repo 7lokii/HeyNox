@@ -37,6 +37,7 @@ a = Analysis(
     datas=datas + [
         ('{project_root}/config.yaml', '.'),
         ('{project_root}/nox/ui/index.html', 'nox/ui'),
+        ('{project_root}/installer/icon.ico', '.'),
     ],
     hiddenimports=hiddenimports,
     hookspath=['{project_root}/installer/hooks'],
@@ -76,6 +77,7 @@ VOICE_PACKAGES = """[
     'mss',
     'PIL',
     'winrt',
+    'pystray',
 ]"""
 
 # Módulos que o collect_submodules pode não apanhar por serem namespace packages.

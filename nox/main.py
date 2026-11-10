@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import traceback
+import webbrowser
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime
@@ -172,9 +173,13 @@ def main(argv: list[str] | None = None) -> int:
         sink(f"Erro de configuração: {exc}")
         return 2
     except Exception:
+        message = traceback.format_exc()
+        _append_log(message)
         if attached:
             raise
-        _append_log(traceback.format_exc())
+        # Sem consola, o processo morreria em silêncio e o utilizador ficaria a
+        # olhar para um browser que nunca abre.
+        _report_fatal(message)
         return 1
 
 
@@ -200,9 +205,15 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
     if args.devices:
         return _devices(config, out)
     if args.ui:
-        from nox.ui.server import serve
+        from nox.ui.server import existing_instance, serve
 
-        return serve(config, out=out)
+        running = existing_instance()
+        if running is not None:
+            out(f"já está a correr em {running}")
+            if not has_console():
+                webbrowser.open(running)
+            return 0
+        return serve(config, out=out, tray=not has_console())
     if args.enroll or args.enroll_files or args.voiceprint or args.forget_voice:
         return _voiceprint_command(config, args, out)
     if args.test_stt is not None:
@@ -468,6 +479,21 @@ def _emit(message: str) -> None:
 
 def log_path() -> Path:
     return user_data_dir() / "logs" / "nox.log"
+
+
+def _report_fatal(message: str) -> None:
+    last = message.strip().splitlines()[-1]
+    alert(f"O Nox não conseguiu arrancar.\n\n{last}\n\nLog: {log_path()}")
+
+
+def alert(text: str) -> None:
+    """Caixa de erro nativa: sem consola não há outro sítio para a mostrar."""
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(0, text, "HeyNox", 0x10)
+    except (AttributeError, OSError):
+        return
 
 
 def _append_log(message: str) -> None:

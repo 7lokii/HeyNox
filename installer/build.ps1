@@ -84,7 +84,7 @@ $Py = Join-Path $BuildVenv "Scripts\python.exe"
 # O uv falha a compilar sdists antigos (pygetwindow/pytweening) por causa da
 # limpeza da cache de build; o pip instala-os sem problema.
 & uv pip install -q --python $Py pip
-& $Py -m pip install -q -e ".[voice,browser,desktop]" pyinstaller
+& $Py -m pip install -q -e ".[voice,browser,desktop,tray]" pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Falha a instalar dependências de build" }
 
 Write-Step "Verificar dependências de voz"

@@ -49,6 +49,8 @@ def test_windowed_mode_logs_unexpected_errors(
 ) -> None:
     monkeypatch.setattr("nox.main.user_data_dir", lambda: tmp_path)
     monkeypatch.setattr("nox.main.has_console", lambda: False)
+    alerts: list[str] = []
+    monkeypatch.setattr("nox.main.alert", alerts.append)
 
     def boom(*_args, **_kwargs):
         raise RuntimeError("falha simulada")
@@ -57,6 +59,7 @@ def test_windowed_mode_logs_unexpected_errors(
     assert main(["--check"]) == 1
     log = (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
     assert "RuntimeError: falha simulada" in log
+    assert "falha simulada" in alerts[0]
 
 
 def test_say_answers_local_question(capsys) -> None:
@@ -110,3 +113,20 @@ def test_memory_reset_empties_the_database(tmp_path: Path, capsys) -> None:
 
     assert main(["--memory-reset", "--config", str(path)]) == 0
     assert "apagados 1 factos e 1 turnos" in capsys.readouterr().out
+
+
+def test_second_launch_reopens_the_running_ui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.setattr("nox.main.user_data_dir", lambda: tmp_path)
+    monkeypatch.setattr("nox.main.has_console", lambda: False)
+    monkeypatch.setattr("nox.main.load_environment", lambda *_a, **_k: None)
+    opened: list[str] = []
+    monkeypatch.setattr("nox.main.webbrowser.open", opened.append)
+    # `_run` importa `existing_instance` e `serve` do módulo do servidor.
+    monkeypatch.setattr("nox.ui.server.existing_instance", lambda: "http://127.0.0.1:8765/")
+    monkeypatch.setattr("nox.ui.server.serve", lambda *_a, **_k: "subiu outro servidor")
+
+    assert main(["--ui"]) == 0
+    assert opened == ["http://127.0.0.1:8765/"]
+    assert "já está a correr" in (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
