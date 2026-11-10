@@ -82,6 +82,40 @@ O `HeyNox.exe` respeita os argumentos: sem nenhum abre a interface; com
 Para testar as ferramentas de desktop/browser dentro do executável é preciso
 uma chave de modelo: `%LOCALAPPDATA%\HeyNox\.env` (o instalador não a copia).
 
+### A versão portátil (Windows, a que está em uso)
+
+O zip `HeyNox-<versao>-windows-x64-portable.zip` não instala nada: extrai-se e
+corre-se. Verificado em 2026-11-10 a partir de uma pasta limpa fora do projeto.
+
+```powershell
+# extrair (dá uma pasta HeyNox\)
+tar -xf dist\HeyNox-0.0.1-windows-x64-portable.zip -C C:\HeyNox
+
+# correr
+C:\HeyNox\HeyNox.exe
+```
+
+Regras que valem a pena saber:
+
+- **Não escreve nada ao lado do `.exe`.** Nem `data\`, nem `config.yaml`, nem
+  logs. A pasta extraída fica só com `HeyNox.exe` e `_internal\`, por isso dá
+  para correr de uma pen ou de uma pasta só de leitura.
+- **Os dados ficam em `%LOCALAPPDATA%\HeyNox`**: memória (`data\nox.db`),
+  modelos, rotinas, log e o `ui.port`. É a mesma pasta que a versão instalada
+  usa, portanto as duas partilham memória e chave.
+- **A chave do modelo não vai no zip.** Sem
+  `%LOCALAPPDATA%\HeyNox\.env` (ou `NOX_LLM_API_KEY` no ambiente) o Nox só
+  responde ao que é local: horas, data, agradecimentos. Avisa no arranque.
+- **Atualizar** é extrair o zip novo por cima. Os dados não estão lá, logo
+  nada se perde; ficam só ficheiros antigos em `_internal\` se a estrutura
+  mudar, e nesse caso o mais limpo é apagar a pasta e extrair de novo.
+- **Segunda instância:** com a app já aberta, outro `HeyNox.exe` encontra o
+  porto em `%LOCALAPPDATA%\HeyNox\ui.port` e sai em vez de abrir um segundo
+  motor.
+
+O `nox.exe` (CLI de diagnóstico) não vai no zip: está em `dist\nox\`, e é
+incluído pelo instalador.
+
 ### Instalação silenciosa (para testar)
 
 ```powershell

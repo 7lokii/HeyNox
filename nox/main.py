@@ -80,9 +80,14 @@ def _check(config: Config) -> list[str]:
             )
         elif sys.platform == "win32" and not available("winrt.windows.media.ocr"):
             warnings.append("OCR indisponível: falta o winrt (pip install -e .[desktop])")
-    data_dir = config.memory.sqlite_path.parent
-    if not data_dir.exists():
-        warnings.append(f"Diretório de dados ainda não existe: {data_dir}")
+    # A mesma regra do `MemoryStore`: um caminho relativo vive nos dados do
+    # utilizador, não ao lado do .exe. Sem isto o `--check` do pacote avisava
+    # que "data" não existia, apontando para um sítio onde nada é escrito.
+    sqlite_path = config.memory.sqlite_path
+    if not sqlite_path.is_absolute():
+        sqlite_path = user_data_dir() / sqlite_path
+    if not sqlite_path.parent.exists():
+        warnings.append(f"Diretório de dados ainda não existe: {sqlite_path.parent}")
     return warnings
 
 
