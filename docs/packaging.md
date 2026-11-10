@@ -116,6 +116,22 @@ Regras que valem a pena saber:
 O `nox.exe` (CLI de diagnóstico) não vai no zip: está em `dist\nox\`, e é
 incluído pelo instalador.
 
+### Atualizar sem reinstalar
+
+O `installer/build.ps1` escreve os `sha256` dos artefactos em
+`releases/latest.json`. A app lê esse manifesto, compara a versão com
+`nox/__init__.py:__version__` e, na versão portátil, aplica a atualização
+sozinha: descarrega o zip para `%LOCALAPPDATA%\HeyNox\update`, confere o
+`sha256`, extrai e deixa um `apply.cmd` que espera pela saída da app, faz
+`robocopy /MIR` para a pasta atual e volta a abrir.
+
+Duas regras que o código impõe e que não devem ser afrouxadas:
+
+1. **Sem `sha256` no manifesto, não aplica.** Um zip trocado a caminho passaria
+   a ser executado.
+2. **Só aplica em pasta gravável.** Em `Program Files` a app mostra a versão
+   nova e o caminho do instalador, não tenta escrever.
+
 ### Instalação silenciosa (para testar)
 
 ```powershell

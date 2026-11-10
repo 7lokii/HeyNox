@@ -91,6 +91,13 @@ O HUD não conhece Python: fala HTTP com o motor local.
 | `/api/memory/forget` | POST | Esquecer o que contenha o texto |
 | `/api/approvals` | POST | Aprovar ou recusar um pedido |
 | `/api/emergency` | POST | Travar/retomar o controlo do PC |
+| `/api/settings` | GET | Presets, valores, chaves mascaradas, caminhos, versão |
+| `/api/settings` | POST | Gravar `.env` e `config.yaml` e passar a usá-los |
+| `/api/settings/test` | POST | Pedido mínimo ao fornecedor para validar a chave |
+| `/api/devices` | GET | Microfones visíveis |
+| `/api/update` | GET | Último resultado da verificação de versão |
+| `/api/update/check` | POST | Verificar agora, sem esperar o intervalo |
+| `/api/update/apply` | POST | Descarregar, conferir o `sha256` e trocar a pasta |
 
 O estado vem por polling (900 ms o estado, 2500 ms a memória, 90 ms o
 espectro). O servidor é stdlib e não tem websockets.
@@ -113,3 +120,37 @@ instalado e não acrescenta um segundo motor de render.
 
 O HUD em `ui/` é o mesmo nos dois caminhos: se o Rust e o SDK aparecerem, a
 troca é a shell, não a interface.
+
+## Configuração dentro da app
+
+Primeiro arranque: `GET /api/state` traz `setup_required: true` enquanto não
+houver chave para o fornecedor configurado. O HUD não aparece; aparece o ecrã de
+configuração (`ui/src/screens/Setup.tsx`), com fornecedor, chave, modelo,
+microfone e palavra de ativação. O botão de concluir só liga com uma chave, ou
+com um fornecedor local que não precise dela (Ollama).
+
+O que fica gravado, e onde (`nox/ui/settings.py`):
+
+| Ficheiro | Conteúdo |
+|---|---|
+| `%LOCALAPPDATA%\HeyNox\.env` | chaves, uma linha por chave, nada mais |
+| `%LOCALAPPDATA%\HeyNox\config.yaml` | cópia do `config.yaml` embutido com as alterações por cima |
+
+A cópia é o que impede o ecrã de apagar o que não mostra: secções como `memory`,
+`github`, `automation` e `stt` sobrevivem a cada gravação.
+
+As chaves nunca voltam ao HUD. `GET /api/settings` devolve `{"set": true,
+"preview": "...c123"}`: o sufixo serve para reconhecer a chave, o resto não sai
+do processo. O teste de chave também nunca escreve a chave em log.
+
+## Acesso total
+
+`tools.full_access` liga-se nas definições e aplica-se sem reiniciar: o
+`ApprovalBroker` devolve `True` de imediato e escreve uma linha
+`aprovação:auto:<ação>` no `logs/audit.jsonl`. Ainda assim há dois limites: a
+paragem de emergência continua a travar o controlo do PC, e nada disto contorna
+o `Sandbox` de caminhos.
+
+Também vale fora da interface: sem `full_access`, um comando fora da lista era
+recusado em `nox --voice` por não haver quem aprovasse. Com o interruptor
+ligado, o `build_agent` cria o broker sozinho.

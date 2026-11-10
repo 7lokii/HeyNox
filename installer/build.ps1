@@ -142,6 +142,29 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 )
 if (-not (Test-Path $Portable)) { throw "O zip portátil não foi criado em $Portable" }
 
+Write-Step "Assinar os artefactos no manifesto das releases"
+# O auto-update recusa aplicar sem sha256: um zip trocado no caminho passava a
+# ser executado. As chaves do manifesto são os nomes dos ficheiros.
+function Get-Sha256([string] $Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $hash = [System.Security.Cryptography.SHA256]::Create()
+        try { return ([System.BitConverter]::ToString($hash.ComputeHash($stream)) -replace '-', '').ToLower() }
+        finally { $hash.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
+$Checksums = [ordered]@{}
+$Checksums[(Split-Path $Portable -Leaf)] = Get-Sha256 $Portable
+$ManifestPath = Join-Path $Root "releases\latest.json"
+if (Test-Path $ManifestPath) {
+    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+    $manifest.version = $ResolvedVersion
+    $manifest | Add-Member -NotePropertyName sha256 -NotePropertyValue ([pscustomobject]$Checksums) -Force
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content $ManifestPath -Encoding utf8
+    Write-Host ("manifesto atualizado: {0}" -f $ManifestPath)
+}
+
 if ($SkipInstaller) {
     Write-Host ""
     Write-Host ("Executáveis e portátil prontos:" + [Environment]::NewLine +
@@ -167,3 +190,10 @@ Write-Host "Concluído. Três formas de abrir o Nox:" -ForegroundColor Green
 Write-Host ("  1. comando      nox --desktop")
 Write-Host ("  2. setup        {0} ({1} MB)" -f $Setup, $SizeMb)
 Write-Host ("  3. portátil     {0} ({1} MB), extrair e correr HeyNox\HeyNox.exe" -f $Portable, $PortableMb)
+
+if (Test-Path $ManifestPath) {
+    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+    $manifest.sha256 | Add-Member -NotePropertyName (Split-Path $Setup -Leaf) -NotePropertyValue (Get-Sha256 $Setup) -Force
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content $ManifestPath -Encoding utf8
+    Write-Host "setup tambem assinado no manifesto"
+}

@@ -9,7 +9,9 @@ import { ConversationLog } from "./components/ConversationLog";
 import { Approvals } from "./components/Approvals";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { Composer } from "./components/Composer";
-import type { Approval, Fact, Turn } from "./types";
+import { Settings } from "./screens/Settings";
+import { Setup } from "./screens/Setup";
+import type { Approval, Fact, SettingsPayload, Turn, UpdateState } from "./types";
 
 const STATE_MS = 900;
 const MEMORY_MS = 2500;
@@ -22,6 +24,15 @@ export function App() {
   const [voice, setVoice] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [emergency, setEmergency] = useState(false);
+  const [fullAccess, setFullAccess] = useState(false);
+  const [setup, setSetup] = useState<SettingsPayload | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [update, setUpdate] = useState<UpdateState>({
+    available: false,
+    latest: "",
+    current: "",
+    can_apply: false,
+  });
 
   const refresh = useCallback(async () => {
     try {
@@ -30,6 +41,17 @@ export function App() {
       setVoice(state.voice);
       setTurns(state.turns);
       setApprovals(state.approvals ?? []);
+      setFullAccess(Boolean(state.full_access));
+      setUpdate(state.update ?? { available: false, latest: "", current: "", can_apply: false });
+      if (state.setup_required) {
+        // Primeiro arranque: sem chave não há HUD, há configuração. O
+        // `current ?? payload` evita recarregar o formulário a cada polling
+        // e apagar o que o utilizador já escreveu.
+        void api
+          .settings()
+          .then((payload) => setSetup((current) => current ?? payload))
+          .catch(() => undefined);
+      }
       if (state.voice_error && !state.voice) {
         setStatus("erro na voz");
         setVoiceError(state.voice_error);
@@ -81,13 +103,37 @@ export function App() {
     };
   }, [refresh, refreshMemory]);
 
+  if (setup) {
+    return (
+      <Setup
+        payload={setup}
+        onReady={() => {
+          setSetup(null);
+          void refresh();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <TopBar
         status={status}
         emergency={emergency}
+        fullAccess={fullAccess}
         onToggleEmergency={() => void toggleEmergency()}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
+      {update.available && (
+        <div className="update-bar">
+          <span>
+            Versão {update.latest} disponível. Estás na {update.current}.
+          </span>
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            Ver
+          </button>
+        </div>
+      )}
       <main className="stage">
         <Spectrum onStatus={setStatus} />
         <aside className="side">
@@ -97,6 +143,15 @@ export function App() {
           <MemoryPanel facts={facts} onChanged={() => void refreshMemory()} />
         </aside>
       </main>
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          onSaved={() => {
+            void refresh();
+          }}
+          onUpdateApplied={() => setSettingsOpen(false)}
+        />
+      )}
       <Composer
         voice={voice}
         voiceError={voiceError}

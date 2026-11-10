@@ -24,7 +24,9 @@ from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
 from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
+from nox.ui import settings as settings_ui
 from nox.ui import static as hud
+from nox.ui import update as updater
 from nox.ui.state import NoxState
 from nox.voice import run_voice
 
@@ -46,10 +48,16 @@ class NoxApp:
         state: NoxState | None = None,
         agent: Agent | None = None,
         approvals: ApprovalBroker | None = None,
+        settings: settings_ui.SettingsStore | None = None,
     ) -> None:
         self.config = config
         self.state = state or NoxState()
-        self.approvals = approvals or ApprovalBroker(timeout=config.tools.approval_timeout_s)
+        # Injeta-se nos testes: o padrão escreve no diretório real do utilizador.
+        self.settings = settings or settings_ui.SettingsStore()
+        self.approvals = approvals or ApprovalBroker(
+            timeout=config.tools.approval_timeout_s,
+            full_access=config.tools.full_access,
+        )
         self.routines = RoutineStore()
         self.agent = agent or build_agent(config, approvals=self.approvals)
         self.logs: list[str] = []
@@ -58,6 +66,16 @@ class NoxApp:
         self._synth = None
         self._speaker = None
         self._voice_error = ""
+        self._update_lock = threading.Lock()
+        self._update: dict[str, Any] = {
+            "ok": False,
+            "current": updater.__version__,
+            "latest": "",
+            "available": False,
+            "release": None,
+            "error": "",
+            "checked_at": 0.0,
+        }
 
     def say(self, text: str) -> str:
         return self._respond(text, label=None)
@@ -156,6 +174,92 @@ class NoxApp:
     def voice_error(self) -> str:
         return self._voice_error
 
+    # ---------------------- configuração na interface ----------------------
+
+    def setup_required(self) -> bool:
+        """Primeiro arranque: sem chave de modelo, a app pede a configuração."""
+        return not self.settings.has_model_key()
+
+    def settings_payload(self) -> dict[str, Any]:
+        return {
+            "providers": [provider.as_dict() for provider in settings_ui.PROVIDERS],
+            "values": self.settings.values(),
+            "secrets": self.settings.secrets_status(),
+            "setup_required": self.setup_required(),
+            "version": updater.__version__,
+            "paths": {
+                "data": str(self.settings.root),
+                "config": str(self.settings.config_path),
+                "env": str(self.settings.env_path),
+            },
+        }
+
+    def apply_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Grava e passa a usar o que ficou gravado, sem reiniciar a app."""
+        result = self.settings.save(payload)
+        was_voice = bool(self.state.snapshot()["voice"])
+        if was_voice:
+            self.stop_voice()
+        self.config = settings_ui.load_config(self.settings.config_path)
+        self.approvals.set_full_access(self.config.tools.full_access)
+        self.agent = build_agent(self.config, approvals=self.approvals)
+        self._synth = None
+        self._speaker = None
+        result["setup_required"] = self.setup_required()
+        if was_voice and self.config.nox.voice_enabled:
+            threading.Thread(target=self.start_voice, daemon=True).start()
+        return result
+
+    # ------------------------------- update -------------------------------
+
+    def update_state(self) -> dict[str, Any]:
+        with self._update_lock:
+            return dict(self._update)
+
+    def check_update(self, *, force: bool = False) -> dict[str, Any]:
+        """Pergunta ao manifesto. Em segundo plano, o pior caso é "sem novidades"."""
+        config = self.config.update
+        with self._update_lock:
+            last = float(self._update.get("checked_at", 0.0))
+        if not force and not config.enabled:
+            return self.update_state()
+        if not force and last and (time.time() - last) < config.check_hours * 3600:
+            return self.update_state()
+        try:
+            result = updater.check(config.manifest_url)
+        except Exception as exc:  # noqa: BLE001 — a verificação nunca derruba a app
+            result = {
+                "ok": False,
+                "current": updater.__version__,
+                "latest": "",
+                "available": False,
+                "release": None,
+                "error": str(exc),
+            }
+        result["checked_at"] = time.time()
+        result["can_apply"] = updater.can_apply()
+        with self._update_lock:
+            self._update = result
+        return dict(result)
+
+    def apply_update(self) -> dict[str, Any]:
+        """Prepara a troca de ficheiros e deixa o chamador fechar a app."""
+        state = self.update_state()
+        release = state.get("release") or {}
+        if not state.get("available") or not release:
+            return {"ok": False, "error": "Não há versão nova verificada."}
+        if not self.config.update.allow_apply or not updater.can_apply():
+            return {
+                "ok": False,
+                "error": "Esta instalação não se atualiza sozinha. Usa o instalador novo.",
+            }
+        try:
+            script = updater.apply(updater.Release(**release))
+        except Exception as exc:  # noqa: BLE001 — rede, zip, disco: tudo cai aqui
+            return {"ok": False, "error": str(exc)}
+        threading.Timer(0.8, updater.launch_and_exit, args=(script,)).start()
+        return {"ok": True, "script": str(script)}
+
 
 class Handler(BaseHTTPRequestHandler):
     app: NoxApp
@@ -172,7 +276,24 @@ class Handler(BaseHTTPRequestHandler):
             snapshot["approvals"] = self.app.approvals.pending()
             snapshot["emergency"] = EMERGENCY.active
             snapshot["voice_error"] = self.app.voice_error()
+            snapshot["setup_required"] = self.app.setup_required()
+            snapshot["full_access"] = self.app.approvals.full_access
+            update_state = self.app.update_state()
+            snapshot["update"] = {
+                "available": update_state.get("available", False),
+                "latest": update_state.get("latest", ""),
+                "current": update_state.get("current", ""),
+                "can_apply": update_state.get("can_apply", False),
+            }
             self._send_json(snapshot)
+        elif self.path == "/api/settings":
+            self._send_json(self.app.settings_payload())
+        elif self.path == "/api/devices":
+            self._send_json(
+                {"devices": self._devices(), "selected": self.app.config.audio.input_device}
+            )
+        elif self.path == "/api/update":
+            self._send_json(self.app.update_state())
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
             self._send_json(
@@ -220,8 +341,26 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 EMERGENCY.clear()
             self._send_json({"emergency": EMERGENCY.active})
+        elif self.path == "/api/settings":
+            self._send_json(self.app.apply_settings(self._body()))
+        elif self.path == "/api/settings/test":
+            ok, message = self.app.settings.test_key(self._body())
+            self._send_json({"ok": ok, "message": message})
+        elif self.path == "/api/update/check":
+            self._send_json(self.app.check_update(force=True))
+        elif self.path == "/api/update/apply":
+            self._send_json(self.app.apply_update())
         else:
             self.send_error(404)
+
+    def _devices(self) -> list[dict[str, Any]]:
+        """Microfones visíveis, sem deixar a interface rebentar sem PortAudio."""
+        try:
+            from nox.audio.devices import input_devices
+
+            return [{"index": index, "name": name} for index, name in input_devices()]
+        except Exception:  # noqa: BLE001 — sem áudio a lista fica vazia
+            return []
 
     def _body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
@@ -328,6 +467,9 @@ def serve(
         webbrowser.open(url)
 
     icon = None
+    if config.update.enabled:
+        # Verificar atualizações não pode atrasar a janela: vai em segundo plano.
+        threading.Thread(target=app.check_update, kwargs={"force": True}, daemon=True).start()
     if tray:
         try:
             from nox.ui.tray import Tray

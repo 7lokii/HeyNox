@@ -17,6 +17,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from nox.safety.audit import AuditEntry, AuditLog
+
 MAX_DETAIL_CHARS = 4000
 
 
@@ -45,17 +47,43 @@ class Approval:
 class ApprovalBroker:
     """Fila de pedidos à espera de decisão. Thread-safe."""
 
-    def __init__(self, *, timeout: float = 45.0) -> None:
+    def __init__(self, *, timeout: float = 45.0, full_access: bool = False) -> None:
         self._lock = threading.Lock()
         self._pending: dict[str, Approval] = {}
         self._timeout = timeout
+        self._full_access = full_access
+        self._audit = AuditLog()
 
     @property
     def timeout(self) -> float:
         return self._timeout
 
+    @property
+    def full_access(self) -> bool:
+        return self._full_access
+
+    def set_full_access(self, value: bool) -> None:
+        """Ligado ou desligado em execução, sem reiniciar a app."""
+        self._full_access = bool(value)
+
     def request(self, action: str, summary: str, detail: str = "") -> bool:
-        """Bloqueia até haver decisão. Devolve False no tempo esgotado."""
+        """Bloqueia até haver decisão. Devolve False no tempo esgotado.
+
+        Com acesso total, devolve True de imediato. Mesmo assim fica registado:
+        sem essa linha não haveria forma de saber o que foi feito sem perguntar.
+        """
+        if self._full_access:
+            self._audit.record(
+                AuditEntry(
+                    tool=f"aprovação:auto:{action}",
+                    arguments={"summary": summary, "detail": detail[:MAX_DETAIL_CHARS]},
+                    ok=True,
+                    duration_ms=0,
+                    detail="acesso total",
+                )
+            )
+            return True
+
         approval = Approval(
             id=uuid.uuid4().hex[:12],
             action=action,

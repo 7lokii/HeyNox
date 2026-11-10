@@ -135,6 +135,25 @@ cp .env.example .env         # Windows: copy .env.example .env
 nox --check
 ```
 
+Na app (`.exe`), não há ficheiros para editar: o primeiro arranque abre um ecrã
+de configuração dentro da própria janela, onde se escolhe o fornecedor do
+modelo, se cola a chave, se testa e se escolhe o microfone. Fica gravado em
+`%LOCALAPPDATA%\HeyNox`. Depois, a engrenagem no topo abre as mesmas opções e
+mais três coisas: **acesso total**, **atualizações** e onde estão os dados.
+
+## Acesso total e atualizações
+
+**Acesso total** (Definições → Acesso total) desliga os pedidos de aprovação:
+o Nox passa a escrever ficheiros, correr comandos e mexer no rato sem
+perguntar. Tudo o que faz nesse modo fica no `logs/audit.jsonl`, e o botão
+**Parar** do topo continua a bloquear o controlo do PC. Desligado por omissão.
+
+**Atualizações** vêm de `releases/latest.json`. A app verifica no arranque (e a
+pedido), compara versões e, na versão portátil, descarrega o zip novo, confere
+o `sha256` do manifesto e troca a pasta quando a app fecha. Sem `sha256` no
+manifesto, nada é aplicado. Instalações em `Program Files` não se trocam
+sozinhas: mostram a versão nova e o caminho do instalador.
+
 ## Instalador Windows
 
 O build gera `dist\HeyNox-Setup.exe` (Inno Setup) com `HeyNox.exe`, `nox.exe` e

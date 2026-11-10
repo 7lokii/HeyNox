@@ -302,6 +302,11 @@ def build_agent(
     approvals: ApprovalBroker | None = None,
 ) -> Agent:
     """Agente a partir da config. Sem chave, degrada para respostas locais."""
+    if approvals is None and config.tools.full_access:
+        # Acesso total também vale fora da interface: sem broker, escrever um
+        # ficheiro e correr um comando ficavam recusados por falta de quem
+        # aprovasse. O registo de auditoria continua a ser escrito.
+        approvals = ApprovalBroker(timeout=config.tools.approval_timeout_s, full_access=True)
     try:
         llm = build_llm(config)
     except LlmError as exc:

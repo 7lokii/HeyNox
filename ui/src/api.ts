@@ -1,7 +1,15 @@
 /** Cliente do backend local do Nox. Sem autenticação: o servidor só ouve em
  *  127.0.0.1 (ver `nox/ui/server.py`). */
 
-import type { LevelsPayload, MemoryPayload, NoxState } from "./types";
+import type {
+  Device,
+  LevelsPayload,
+  MemoryPayload,
+  NoxState,
+  SettingsDraft,
+  SettingsPayload,
+  UpdateState,
+} from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
@@ -31,4 +39,15 @@ export const api = {
     request<{ decided: boolean }>("/api/approvals", post({ id, approved })),
   emergency: (on: boolean) =>
     request<{ emergency: boolean }>("/api/emergency", post({ on })),
+  settings: () => request<SettingsPayload>("/api/settings"),
+  saveSettings: (draft: SettingsDraft) =>
+    request<{ setup_required: boolean; values: SettingsPayload["values"] }>(
+      "/api/settings",
+      post(draft),
+    ),
+  testKey: (draft: SettingsDraft) =>
+    request<{ ok: boolean; message: string }>("/api/settings/test", post(draft)),
+  devices: () => request<{ devices: Device[]; selected: string }>("/api/devices"),
+  checkUpdate: () => request<UpdateState & { release: unknown; error: string }>("/api/update/check", post({})),
+  applyUpdate: () => request<{ ok: boolean; error?: string }>("/api/update/apply", post({})),
 };

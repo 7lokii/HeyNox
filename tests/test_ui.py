@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 import urllib.error
@@ -12,7 +13,19 @@ from nox.brain.llm import EchoLlm
 from nox.config import Config
 from nox.memory.store import MemoryStore
 from nox.ui.server import NoxApp, build_server
+from nox.ui.settings import SettingsStore
 from nox.ui.state import NoxState
+
+
+@pytest.fixture(autouse=True)
+def _sem_chaves_no_ambiente():
+    """As definições escrevem em os.environ: cada teste começa sem chaves."""
+    names = ("NOX_LLM_API_KEY", "GROQ_API_KEY")
+    for name in names:
+        os.environ.pop(name, None)
+    yield
+    for name in names:
+        os.environ.pop(name, None)
 
 
 @pytest.fixture
@@ -20,7 +33,9 @@ def server(tmp_path):
     store = MemoryStore(tmp_path / "nox.db")
     # Sem voz nos testes: sintetizar chamaria a rede e atrasaria a suite.
     config = Config.model_validate({"nox": {"voice_enabled": False}})
-    app = NoxApp(config, agent=Agent(EchoLlm(), memory=store))
+    # Diretório de definições próprio: os testes não tocam no real.
+    settings = SettingsStore(root=tmp_path / "app")
+    app = NoxApp(config, agent=Agent(EchoLlm(), memory=store), settings=settings)
     httpd, port = build_server(app, port=0)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -250,3 +265,60 @@ def test_tray_requires_pystray(monkeypatch) -> None:
             on_toggle_voice=lambda _on: None,
             on_quit=lambda: None,
         )
+
+
+def test_fresh_install_asks_for_setup(server) -> None:
+    url, _ = server
+
+    state = get_json(f"{url}/api/state")
+    payload = get_json(f"{url}/api/settings")
+
+    assert state["setup_required"] is True
+    assert payload["setup_required"] is True
+    assert len(payload["providers"]) >= 5
+    assert payload["secrets"]["NOX_LLM_API_KEY"]["set"] is False
+
+
+def test_saving_settings_writes_the_files_and_closes_the_setup(server, tmp_path) -> None:
+    url, app = server
+
+    result = post_json(
+        f"{url}/api/settings",
+        {"api_key": "chave-do-teste-4321", "name": "Nox", "provider": "selora"},
+    )
+
+    assert result["setup_required"] is False
+    assert app.settings.env_path.is_file()
+    assert app.settings.config_path.is_file()
+    assert get_json(f"{url}/api/state")["setup_required"] is False
+
+
+def test_settings_endpoint_never_returns_the_key(server) -> None:
+    url, _ = server
+    post_json(f"{url}/api/settings", {"api_key": "segredo-que-nao-sai-9f9f"})
+
+    payload = get_json(f"{url}/api/settings")
+
+    assert "segredo-que-nao-sai-9f9f" not in json.dumps(payload)
+    assert payload["secrets"]["NOX_LLM_API_KEY"]["preview"] == "...9f9f"
+
+
+def test_full_access_switch_reaches_the_broker(server) -> None:
+    url, app = server
+    assert get_json(f"{url}/api/state")["full_access"] is False
+
+    post_json(f"{url}/api/settings", {"full_access": True})
+
+    assert app.approvals.full_access is True
+    assert get_json(f"{url}/api/state")["full_access"] is True
+
+
+def test_devices_endpoint_survives_without_audio(server, monkeypatch) -> None:
+    url, _ = server
+
+    def boom():
+        raise RuntimeError("sem PortAudio")
+
+    monkeypatch.setattr("nox.audio.devices.input_devices", boom)
+
+    assert get_json(f"{url}/api/devices")["devices"] == []

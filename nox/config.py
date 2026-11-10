@@ -259,6 +259,21 @@ class ToolsConfig(BaseModel):
     approval_timeout_s: float = Field(default=45.0, gt=0)
     # Escrever ficheiros exige aprovação. Desligar só se confiares no modelo.
     confirm_writes: bool = True
+    # Acesso total: nenhuma ferramenta pede aprovação. Ligado à mão no ecrã de
+    # definições, com aviso. Tudo o que passa por aqui fica no audit.jsonl, e a
+    # paragem de emergência continua a bloquear o controlo do PC.
+    full_access: bool = False
+
+
+class UpdateConfig(BaseModel):
+    """Auto-atualização a partir do manifesto das releases."""
+
+    enabled: bool = True
+    check_hours: float = Field(default=6.0, gt=0)
+    # Manifesto público. Sem rede ou 404, a app segue sem novidades.
+    manifest_url: str = "https://raw.githubusercontent.com/7lokii/HeyNox/main/releases/latest.json"
+    # Aplicar sozinho exige uma pasta gravável: só o portátil cumpre isto.
+    allow_apply: bool = True
 
 
 class Config(BaseModel):
@@ -269,6 +284,7 @@ class Config(BaseModel):
     llm: LlmConfig = Field(default_factory=LlmConfig)
     automation: AutomationConfig = Field(default_factory=AutomationConfig)
     desktop: DesktopConfig = Field(default_factory=DesktopConfig)
+    update: UpdateConfig = Field(default_factory=UpdateConfig)
     mcp: McpConfig = Field(default_factory=McpConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)

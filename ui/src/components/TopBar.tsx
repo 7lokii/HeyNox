@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 interface Props {
   status: string;
   emergency: boolean;
+  fullAccess: boolean;
   onToggleEmergency: () => void;
+  onOpenSettings: () => void;
 }
 
 function useClock(): string {
@@ -19,7 +21,7 @@ function useClock(): string {
   return time;
 }
 
-export function TopBar({ status, emergency, onToggleEmergency }: Props) {
+export function TopBar({ status, emergency, fullAccess, onToggleEmergency, onOpenSettings }: Props) {
   const time = useClock();
   return (
     <header className="topbar">
@@ -36,6 +38,20 @@ export function TopBar({ status, emergency, onToggleEmergency }: Props) {
       >
         {emergency ? "Retomar" : "Parar"}
       </button>
+      <button
+        type="button"
+        className="gear"
+        onClick={onOpenSettings}
+        title="Definições"
+        aria-label="Definições"
+      >
+        ⚙
+      </button>
+      {fullAccess && (
+        <span className="gear-badge" title="Acesso total: nada pede aprovação">
+          acesso total
+        </span>
+      )}
       <div className="status">
         <i />
         <span>{status}</span>
