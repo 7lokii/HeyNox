@@ -125,7 +125,6 @@ class VoiceLoop:
                 self.segmenter.reset()
                 self.out(f"{self.name}> (pode falar)")
                 self._status("a ouvir")
-                self._status("a ouvir")
             return Step.IDLE
 
         if self._armed and time.monotonic() - self._armed_at >= self.wake_timeout_s:
@@ -394,6 +393,7 @@ def run_voice(
             barge_in_threshold=config.audio.barge_in_threshold,
             on_turn=on_turn,
             on_status=on_status,
+            on_input=on_input,
             stop_event=stop_event,
             block_frames=round(config.audio.sample_rate * config.audio.block_ms / 1000),
         )

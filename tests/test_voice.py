@@ -304,3 +304,51 @@ def test_each_turn_is_published_once() -> None:
 
     assert loop.handle(block(200, 2000)) is True
     assert turns == [("user", "olá"), ("assistant", "(eco) olá")]
+
+
+def test_run_voice_entrega_os_dois_espectros(monkeypatch) -> None:
+    """Regressão: o anel do microfone ficou morto em toda a app.
+
+    O `run_voice` recebia `on_input` e nunca o passava ao `VoiceLoop`, por isso
+    o medidor do microfone nem era criado: o HUD ficava sem o anel verde
+    enquanto se falava. O da voz funcionava porque vai pelo `SoundDeviceSpeaker`,
+    que é outro caminho.
+    """
+    from nox import voice as module
+    from nox.config import load_config
+
+    captured: dict[str, object] = {}
+
+    class FakeLoop:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def run(self) -> int:
+            return 0
+
+    def on_frame(levels: list[float]) -> None:
+        return None
+
+    def on_input(levels: list[float]) -> None:
+        return None
+
+    def make_speaker(*, on_frame: object = None) -> object:
+        captured["speaker_on_frame"] = on_frame
+        return object()
+
+    monkeypatch.setattr(module, "VoiceLoop", FakeLoop)
+    monkeypatch.setattr(module, "build_source", lambda config, input_file: FakeSource([]))
+    monkeypatch.setattr(module, "build_wake", lambda config, progress=None: None)
+    monkeypatch.setattr(module, "build_segmenter", lambda config: None)
+    monkeypatch.setattr(module, "build_transcriber", lambda config: None)
+    monkeypatch.setattr(module, "build_synthesizer", lambda config, progress=None: None)
+    monkeypatch.setattr(module, "build_agent", lambda config, voice=False: None)
+    monkeypatch.setattr(module, "SoundDeviceSpeaker", make_speaker)
+
+    turns = module.run_voice(
+        load_config(), out=lambda line: None, on_frame=on_frame, on_input=on_input
+    )
+
+    assert turns == 0
+    assert captured["on_input"] is on_input
+    assert captured["speaker_on_frame"] is on_frame
