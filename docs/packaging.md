@@ -1,7 +1,11 @@
 # Empacotamento e distribuição
 
-Alvo atual: **Windows x64**. O código já separa caminhos por plataforma
-(`nox/paths.py`), mas Linux e macOS ainda não têm build validado.
+Alvo: **Windows x64** compilado e testado; **macOS** (arm64 e x64) e **Linux**
+(x64) compilados no CI. O código separa caminhos por plataforma em
+`nox/paths.py` e o controlo do PC degrada onde não há `winrt`.
+
+O empacotamento por sistema vive em `installer/<sistema>/` e a matriz completa
+está em `docs/releases.md`.
 
 ## O que o instalador entrega
 
@@ -109,9 +113,14 @@ o processo sem forma de ser reaberto ou fechado.
 
 ## Notas
 
-- Tamanho medido: `dist\HeyNox` ~1,1 GB, `dist\nox` ~578 MB, instalador
-  ~340 MB (dominado por `torch`, que só serve ao Silero VAD).
+- Tamanho medido em Windows, build sem torch: `dist\HeyNox` 676 MB,
+  `dist\nox` 578 MB, setup 240 MB, portable `.zip` 277 MB. Antes, com o torch
+  empacotado, eram 1,1 GB e 339 MB.
+- O `torch` saiu do `.spec`: só o Silero VAD o usava e o VAD por omissão é o
+  `webrtcvad`. Volta com `build.ps1 -Silero` ou `HEYNOX_WITH_SILERO=1`.
+- Ainda no pacote e a pesar: `playwright` 103 MB, `av` 63 MB, `ctranslate2`
+  62 MB, `vosk` 52 MB, `scipy` 50 MB, `transformers` 47 MB. O `scipy` e o
+  `transformers` entram por arrasto de dependências e são o próximo alvo.
 - Assinatura de código (Authenticode) ainda não configurada; o SmartScreen vai
-  mostrar aviso até haver certificado.
-- Linux/macOS: gerar o mesmo `.spec` noutra plataforma e alterar
-  `build.ps1` para `build.sh`. Ainda não testado.
+  mostrar aviso até haver certificado. No macOS, o `.app` é assinado ad-hoc,
+  o que não substitui Developer ID nem notarização.

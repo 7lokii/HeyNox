@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "date": "2026-11-10",
+  "platforms": {
+    "windows-x64": {
+      "setup": "0.0.1/windows/HeyNox-0.0.1-windows-x64-setup.exe",
+      "portable": "0.0.1/windows/HeyNox-0.0.1-windows-x64-portable.zip"
+    },
+    "macos-arm64": { "setup": null, "portable": null },
+    "macos-x64": { "setup": null, "portable": null },
+    "linux-x64": { "setup": null, "portable": null }
+  },
+  "note": "macOS e Linux saem do workflow release.yml; ainda nao compilados."
+}

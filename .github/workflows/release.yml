@@ -1,0 +1,178 @@
+name: release
+
+# Compila o HeyNox nos tres sistemas e publica setup + portable por plataforma.
+# PyInstaller e Tauri nao fazem cross-compile: cada artefacto nasce no seu runner.
+#
+# Versao: empurra uma tag v0.1.0, ou corre manualmente com a versao a mao.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versao sem o v, ex.: 0.0.1"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            v="${{ inputs.version }}"
+          else
+            v="${GITHUB_REF_NAME#v}"
+          fi
+          if [ -z "$v" ]; then
+            echo "versao vazia" >&2
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "HeyNox $v"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            extras: "voice,browser,desktop,tray"
+          - os: macos-13
+            platform: macos-x64
+            extras: "voice,browser,tray"
+          - os: macos-14
+            platform: macos-arm64
+            extras: "voice,browser,tray"
+          - os: ubuntu-22.04
+            platform: linux-x64
+            extras: "voice,browser"
+    runs-on: ${{ matrix.os }}
+    env:
+      HEYNOX_VERSION: ${{ needs.version.outputs.version }}
+      # O Silero VAD, unico consumidor de torch, fica fora do pacote.
+      HEYNOX_WITH_SILERO: "0"
+      # appimagetool corre como AppImage; sem FUSE no runner extrai-se e corre.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Dependencias de sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libportaudio2 libsndfile1 xdotool
+
+      - name: Instalar Python e dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[${{ matrix.extras }}]" pyinstaller pillow
+
+      - name: Diagnostico do nucleo
+        run: python -m nox.main --check
+
+      - name: Gerar .spec e compilar
+        run: |
+          python -m installer.pyinstaller
+          pyinstaller --noconfirm --clean --distpath dist --workpath build installer/HeyNox.spec
+          # O installer.iss inclui o nox.exe como CLI de diagnostico.
+          pyinstaller --noconfirm --clean --distpath dist --workpath build installer/nox.spec
+          test -d "dist/HeyNox" || { echo "dist/HeyNox ausente" >&2; exit 1; }
+          test -f "dist/nox/nox.exe" -o -f "dist/nox/nox" || { echo "dist/nox ausente" >&2; exit 1; }
+
+      - name: Empacotar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $v = $env:HEYNOX_VERSION
+          $out = "releases/$v/windows"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          choco install innosetup --no-progress -y
+          $env:HEYNOX_BUILD_VERSION = $v
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "installer\installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou" }
+
+          Move-Item "dist\HeyNox-Setup.exe" "$out\HeyNox-$v-windows-x64-setup.exe" -Force
+          tar -a -cf "$out\HeyNox-$v-windows-x64-portable.zip" -C dist HeyNox
+          if ($LASTEXITCODE -ne 0) { throw "zip portable falhou" }
+
+          # Prova que o binario compilado corre.
+          & "dist\nox\nox.exe" --check
+          if ($LASTEXITCODE -ne 0) { throw "nox.exe nao passou no --check" }
+          & "dist\HeyNox\HeyNox.exe" --check
+          if ($LASTEXITCODE -ne 0) { throw "HeyNox.exe nao passou no --check" }
+
+      - name: Empacotar (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          arch="arm64"
+          [ "${{ matrix.platform }}" = "macos-x64" ] && arch="x64"
+          bash installer/macos/build.sh "$HEYNOX_VERSION" "$arch"
+          # O binario compilado tem de responder ao diagnostico.
+          dist/HeyNox.app/Contents/MacOS/HeyNox --check
+
+      - name: Empacotar (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          bash installer/linux/build.sh "$HEYNOX_VERSION" x86_64
+          ./dist/HeyNox/HeyNox --check
+      - name: Checksums
+        run: |
+          cd "releases/$HEYNOX_VERSION"
+          sha256sum */* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Guardar artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: heynox-${{ matrix.platform }}
+          path: releases/${{ needs.version.outputs.version }}/**
+          if-no-files-found: error
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: heynox-*
+          merge-multiple: true
+
+      - name: Juntar e conferir
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          test -d "artifacts/$v" || { echo "artefactos em falta" >&2; exit 1; }
+          cd "artifacts/$v"
+          sha256sum */* > SHA256SUMS
+          echo "== ficheiros =="; find . -type f | sort
+          echo "== checksums =="; cat SHA256SUMS
+
+      - name: Publicar no GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          notes="Build automatico da versao $v nos tres sistemas."
+          gh release create "v$v" $(find "artifacts/$v" -type f) \
+            --title "HeyNox $v" --notes "$notes" \
+            || gh release upload "v$v" $(find "artifacts/$v" -type f) --clobber

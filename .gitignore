@@ -43,3 +43,8 @@ mypy.ini
 # Artefactos soltos na raiz (builds de terceiros, zips de modelos)
 /*.zip
 /*.7z
+
+# Releases locais: binarios fora do git, a distribuicao publica e o GitHub Releases
+releases/**
+!releases/README.md
+!releases/latest.json

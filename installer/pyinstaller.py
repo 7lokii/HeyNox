@@ -8,6 +8,7 @@ em vez de listar ficheiros à mão: assim acompanham actualizações de dependê
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -66,7 +67,6 @@ VOICE_PACKAGES = """[
     'sounddevice',
     'faster_whisper',
     'ctranslate2',
-    'silero_vad',
     'vosk',
     'piper',
     'edge_tts',
@@ -90,6 +90,13 @@ hiddenimports += [
 ]
 """
 
+# O Silero VAD é o único consumidor de torch no projeto. O VAD por omissão é o
+# webrtcvad (10 KB), por isso o torch sai do pacote e só volta com
+# HEYNOX_WITH_SILERO=1. Vale ~378 MB em todas as plataformas.
+SILERO_PACKAGES = """[
+    'silero_vad',
+]"""
+
 NO_PACKAGES = "[]"
 
 TORCH_BLOCK = """
@@ -111,8 +118,18 @@ if sys.platform == 'win32':
 TORCH_EXCLUDES = "['torch', 'torchaudio']"
 
 
+def with_silero() -> bool:
+    """Liga o Silero VAD (e o torch) ao pacote. Desligado por omissão."""
+    return os.environ.get("HEYNOX_WITH_SILERO", "").strip().lower() not in ("", "0", "false", "no")
+
+
 def build_spec(name: str, script: str, console: bool, with_voice: bool) -> Path:
     icon = PROJECT_ROOT / "installer" / "icon.ico"
+    silero = with_voice and with_silero()
+    if with_voice:
+        packages = VOICE_PACKAGES + (" + " + SILERO_PACKAGES if silero else "")
+    else:
+        packages = NO_PACKAGES
     spec = TEMPLATE.format(
         platform=sys.platform,
         script=script,
@@ -120,10 +137,10 @@ def build_spec(name: str, script: str, console: bool, with_voice: bool) -> Path:
         name=name,
         console=console,
         icon=icon.as_posix() if icon.is_file() else "",
-        excludes="[]" if with_voice else TORCH_EXCLUDES,
-        voice_packages=VOICE_PACKAGES if with_voice else NO_PACKAGES,
+        excludes="[]" if silero else TORCH_EXCLUDES,
+        voice_packages=packages,
         extra_hidden=EXTRA_HIDDEN if with_voice else "",
-        torch_block=TORCH_BLOCK if with_voice else "",
+        torch_block=TORCH_BLOCK if silero else "",
     )
     out = PROJECT_ROOT / "installer" / f"{name}.spec"
     out.write_text(spec, encoding="utf-8")

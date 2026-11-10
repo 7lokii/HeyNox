@@ -13,11 +13,16 @@
 .PARAMETER Version
     Versão do instalador, ex.: 0.1.0. Por defeito lê de nox\__init__.py.
 
+.PARAMETER Silero
+    Inclui o Silero VAD e o torch no pacote (+378 MB). O VAD por omissao e o
+    webrtcvad, por isso o torch fica de fora a menos que este switch seja passado.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File installer\build.ps1
 #>
 param(
     [switch]$SkipInstaller,
+    [switch]$Silero,
     [string]$Version = ""
 )
 
@@ -84,7 +89,14 @@ $Py = Join-Path $BuildVenv "Scripts\python.exe"
 # O uv falha a compilar sdists antigos (pygetwindow/pytweening) por causa da
 # limpeza da cache de build; o pip instala-os sem problema.
 & uv pip install -q --python $Py pip
-& $Py -m pip install -q -e ".[voice,browser,desktop,tray]" pyinstaller
+$Extras = "voice,browser,desktop,tray"
+if ($Silero) {
+    $Extras = "$Extras,silero"
+    $env:HEYNOX_WITH_SILERO = "1"
+} else {
+    Remove-Item Env:HEYNOX_WITH_SILERO -ErrorAction SilentlyContinue
+}
+& $Py -m pip install -q -e ".[$Extras]" pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Falha a instalar dependências de build" }
 
 Write-Step "Verificar dependências de voz"
