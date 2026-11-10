@@ -119,6 +119,6 @@ Regras fixas:
 - Com `github.require_tests: true`, o `push` corre `pytest` primeiro e recusa
   enviar se os testes falharem. Repositórios sem `pyproject.toml`, `pytest.ini`
   ou `tests/` saltam este passo.
-- O PR é a revisão humana: o Nox abre e comenta, mas não faz merge sem o
-  utilizador pedir.
+- O PR é a revisão humana: o Nox abre, vê e comenta; a ferramenta não tem
+  `merge` — o merge é sempre feito pelo utilizador.
 

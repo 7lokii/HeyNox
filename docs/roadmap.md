@@ -4,7 +4,7 @@ Segue o `spec.md` (§12). Estado atual:
 
 - [x] **Fase 0 — Fundações.** Estrutura de pastas, config validado, import lazy dos
   extras, `.env.example`, `.gitignore`, `README.md`, testes, GitHub Actions.
-- [ ] **Fase 1 — Voz básica.** Em curso.
+- [x] **Fase 1 — Voz básica.**
   - [x] Contratos do pipeline + duplos de teste sem hardware.
   - [x] Modo texto (`nox --text`, `nox --say`) com LLM configurável.
   - [x] Respostas locais para horas, data e agradecimentos.
@@ -64,8 +64,25 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Confirmação por ação.
   - [x] Sandbox (allowlist, validação de teclas, limites).
   - [x] Modo de emergência (botão, voz e ferramenta).
+- [x] **Empacotamento e distribuição.** Ver `docs/packaging.md`.
+  - [x] `dist\HeyNox` (agente completo) e `dist\nox` (CLI de diagnóstico).
+  - [x] Instalador Inno Setup `HeyNox-Setup.exe`.
+  - [x] Ícone na bandeja com «Abrir interface», «Ouvir» e «Sair».
+  - [x] Instância única (um segundo arranque reabre o browser).
+  - [ ] Revalidar o loop de ferramentas via LLM dentro do `.exe` (Selora esteve
+    em manutenção durante o build).
+  - [ ] Instalação silenciosa do `Setup.exe` (precisa de UAC interactivo).
+  - [ ] Assinatura Authenticode.
+  - [ ] Build Linux/macOS (`build.sh`).
+- [ ] **Versão 1.0** (`spec.md` §20). Falta sobretudo:
+  - [ ] Memória semântica (Chroma) — adiada, ver `docs/memory.md`.
+  - [ ] Router multi-modelo.
+  - [ ] Telemetria local opcional.
+  - [ ] Interface web completa (o HUD atual cobre conversa, voz, aprovações,
+    memória, rotinas e emergência).
 
 ## Notas
 
 - Repositório remoto `7lokii/HeyNox` ainda não criado nem ligado (decisão: só local).
 - A versão 0.1 do spec (§19) inclui etapas das Fases 1 a 4.
+- Contagem de testes: 331 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).

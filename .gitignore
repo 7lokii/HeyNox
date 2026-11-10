@@ -35,3 +35,11 @@ projects/*
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Servidores de linguagem e caches de ferramentas
+.basedpyright/
+mypy.ini
+
+# Artefactos soltos na raiz (builds de terceiros, zips de modelos)
+/*.zip
+/*.7z

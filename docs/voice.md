@@ -36,8 +36,8 @@ silêncio antes e 1 s depois atravessa o pipeline todo e produz a resposta falad
 
 ```bash
 nox --speak "Bom dia. Eu sou o Nox."          # grava WAV e diz onde
-nox --speak "Bom dia." --out data/bom.wav     # destino à escolha
-nox --transcribe data/bom.wav                 # devolve o texto
+nox --speak "Bom dia." --out bom.wav         # destino à escolha
+nox --transcribe bom.wav                     # devolve o texto
 ```
 
 O `--speak` grava por omissão em `%LOCALAPPDATA%\HeyNox\out\nox.wav`.
@@ -91,7 +91,7 @@ melhora os números, mas triplica o tempo. Uma GPU muda a equação.
 ### Cloud (Groq) — por omissão
 
 `whisper-large-v3-turbo` na Groq, com o mesmo `initial_prompt`. Medido com
-`scripts/bench_stt.py` nas amostras de `data/`:
+`scripts/bench_stt.py` nas amostras de `tests/fixtures/samples/`:
 
 | Amostra | faster-whisper `small` | Groq |
 |---|---|---|

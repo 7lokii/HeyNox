@@ -143,8 +143,15 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 - apps fora da allowlist não abrem;
 - o modo de emergência recusa tudo até ser retomado.
 
+A interface também está coberta (`tests/test_ui.py`): aprovações pelo HTTP,
+botão de emergência, API de memória e o erro da voz a chegar ao HUD.
+
 ## Pendente
 
-- `safety/permissions.py` — níveis por ferramenta (ler / escrever / sistema).
+- Níveis de permissão por ferramenta (ler / escrever / sistema) declarados no
+  `config.yaml`, em vez da tabela fixa da docstring de cada ferramenta.
 - Limite de pedidos por minuto para o modelo não entrar em ciclo.
-- Aprovação para apagar ficheiros (ainda não existe ferramenta de apagar).
+- Bloqueio de rede por lista de destinos: hoje qualquer URL pública pode ser
+  pedida (`web_search`, `fetch_url`, `browser`); só localhost e IPs privados
+  são recusados.
+- Assinatura de código do instalador (Authenticode) — ver `docs/packaging.md`.

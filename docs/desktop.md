@@ -62,6 +62,9 @@ Retomar.
 O modo de emergência não desliga o resto do Nox — a conversa, a memória e as
 outras ferramentas continuam. É um travão do controlo do PC, não do assistente.
 
+Para fechar o Nox (processo incluído), usa **Sair** no ícone da bandeja; o
+botão Parar não termina o programa. Ver `docs/packaging.md`.
+
 ## OCR
 
 Usa `Windows.Media.Ocr`, que já vem com o Windows e reconhece a língua do

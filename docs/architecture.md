@@ -1,22 +1,54 @@
 # Arquitetura
 
 ```text
-Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altifalante
-                                                        |
-                                                        +-> memória, router LLM, ferramentas
+Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Agente -> TTS -> Altifalante
+                                                     |
+                                                     +-> memória (SQLite/FTS5)
+                                                     +-> LLM (config.yaml)
+                                                     +-> ferramentas + aprovações
+
+Browser (HUD) <-> HTTP 127.0.0.1:8765 <-> NoxApp  (texto, voz, rotinas, aprovações)
+                                            ^
+                                            +-> bandeja (pystray) no HeyNox.exe
 ```
 
-## Decisões da Fase 0
+## Mapa das pastas
 
-- **Núcleo sem dependências pesadas.** Em `pyproject.toml`, áudio, wake word, VAD, STT e
-  TTS vivem em extras (`audio`, `wake`, `vad`, `stt`, `tts`, `voice`). `nox.optional`
+| Pasta | Responsabilidade | Doc |
+|---|---|---|
+| `nox/main.py` | CLI `nox`, todos os `--flags` | README, `docs/packaging.md` |
+| `nox/config.py` | `config.yaml` tipado com pydantic | — |
+| `nox/audio/` | Microfone, wake word, VAD, denoise, WAV, espectro, voz | `docs/voice.md` |
+| `nox/speech/` | STT (local + Groq) e TTS (Piper + edge-tts) | `docs/voice.md` |
+| `nox/brain/` | `Agent`, LLM (Anthropic/OpenAI), prompt, mensagens | `docs/voice.md` |
+| `nox/memory/` | SQLite + FTS5, extração de factos | `docs/memory.md` |
+| `nox/tools/` | Uma ferramenta por ficheiro + registo | `docs/tools.md` |
+| `nox/safety/` | Aprovações, sandbox de caminhos, audit log | `docs/security.md` |
+| `nox/integrations/` | `gh` CLI (GitHub) | `docs/tools.md` |
+| `nox/automation/` | Agendador de rotinas | `docs/automation.md` |
+| `nox/mcp/` | Cliente MCP por stdio | `docs/automation.md` |
+| `nox/desktop/` | Janelas, captura, OCR, rato/teclado, emergência | `docs/desktop.md` |
+| `nox/ui/` | Servidor HTTP, HUD (`index.html`), estado, bandeja | `docs/packaging.md` |
+| `nox/skills.py` | Skills em Markdown (projeto e utilizador) | `docs/automation.md` |
+| `installer/` | `.spec` gerados, hooks, Inno Setup, `build.ps1` | `docs/packaging.md` |
+| `scripts/` | Pontos de entrada dos `.exe` e ferramentas de diagnóstico | — |
+| `tests/fixtures/` | Amostras de voz e capturas do HUD (não são dados de execução) | — |
+
+## Decisões transversais
+
+- **Núcleo sem dependências pesadas.** Em `pyproject.toml`, áudio, wake word,
+  VAD, STT, TTS, browser, desktop e bandeja vivem em extras (`audio`, `wake`,
+  `vad`, `stt`, `tts`, `voice`, `browser`, `desktop`, `tray`). `nox.optional`
   faz o import lazy e explica qual extra instalar quando falta um módulo.
 - **Configuração tipada.** `nox/config.py` valida o `config.yaml` com pydantic.
   Erros de configuração dão mensagem clara e código de saída 2, não stack trace.
 - **Segredos fora do código.** `.env` é carregado com `python-dotenv` sem sobrepor
   variáveis já definidas no ambiente; o `.gitignore` bloqueia `.env*`.
 - **Estado de arranque observável.** `nox --check` valida config + ambiente e lista
-  o que falta para o modo voz.
+  o que falta para o modo voz, desktop e OCR.
+- **Dados de execução fora do repo.** Notas, capturas, memória e rotinas vão
+  para `%LOCALAPPDATA%\HeyNox` ou `data/` (ignorado). As amostras que servem
+  os testes e o `bench_stt.py` vivem em `tests/fixtures/samples/`.
 
 ## Decisões da Fase 1
 
@@ -31,9 +63,9 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   silêncio, guarda 300 ms de pré-roll para não cortar a primeira sílaba e
   descarta ruídos com menos de 300 ms.
 - **Respostas locais antes do modelo.** `Agent.local_answer` responde a horas,
-  data e agradecimentos sem rede. Só enunciados com até cinco palavras passam
-  por aqui, para não responder à hora errada a perguntas como "a que horas é o
-  jantar?".
+  data, agradecimentos e às ordens de emergência sem rede. Só enunciados com
+  até cinco palavras passam por aqui, para não responder à hora errada a
+  perguntas como "a que horas é o jantar?".
 - **Sem chave, o Nox não morre.** `UnconfiguredLlm` deixa o arranque e as
   respostas locais a funcionar; o erro só aparece quando o modelo é necessário.
 - **STT e TTS sem PyTorch.** faster-whisper corre em CTranslate2 e o Piper em
@@ -59,86 +91,9 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   somavam 0,7 s ao turno; em paralelo escondem esse tempo.
 - **TTS por frases.** `split_sentences` parte a resposta e a síntese da frase
   seguinte sobrepõe-se à reprodução da atual.
-- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
-  pesquisa semântica custaria dependências e um modelo de embeddings para
-  ganhar pouco numa base de dezenas de factos.
-- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
-  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
-  dito de forma explícita e o resto fica para um extrator semântico.
-- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
-  e o SQLite recusa ligações partilhadas.
-- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
-  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
-  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
-  respira devagar em vez de fingir dados.
 - **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
   durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
-  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
-- **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
-  framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
-  ao porto já está na máquina. O motor corre numa thread e publica estado
-  (`on_turn`/`on_status`) que a página consulta por polling.
-- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
-  pesquisa semântica custaria dependências e um modelo de embeddings para
-  ganhar pouco numa base de dezenas de factos.
-- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
-  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
-  dito de forma explícita e o resto fica para um extrator semântico.
-- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
-  e o SQLite recusa ligações partilhadas.
-- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
-  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
-  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
-  respira devagar em vez de fingir dados.
-- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
-  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
-  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
-- **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
-  framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
-  ao porto já está na máquina. O motor corre numa thread e publica estado
-  (`on_turn`/`on_status`) que a página consulta por polling.
-- **Barge-in com dois sinais.** O VAD e o limiar de energia têm de concordar
-  durante 300 ms; um só dispara com o eco do próprio Nox. A flag está desligada
-  por omissão e o áudio já lido entra no segmentador, para não perder a
-  primeira palavra.
-- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
-  pesquisa semântica custaria dependências e um modelo de embeddings para
-  ganhar pouco numa base de dezenas de factos.
-- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
-  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
-  dito de forma explícita e o resto fica para um extrator semântico.
-- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
-  e o SQLite recusa ligações partilhadas.
-- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
-  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
-  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
-  respira devagar em vez de fingir dados.
-- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
-  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
-  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
-- **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
-  framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
-  ao porto já está na máquina. O motor corre numa thread e publica estado
-  (`on_turn`/`on_status`) que a página consulta por polling.
-- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
-  pesquisa semântica custaria dependências e um modelo de embeddings para
-  ganhar pouco numa base de dezenas de factos.
-- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
-  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
-  dito de forma explícita e o resto fica para um extrator semântico.
-- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
-  e o SQLite recusa ligações partilhadas.
-- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
-  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
-  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
-  respira devagar em vez de fingir dados.
-- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
-  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
-  dizer "Hey Nox" outra vez — ideia tirada do M.I.L.E.S.
-- **Interface em stdlib.** `ThreadingHTTPServer` e uma página estática, sem
-  framework nem build. Ouve em 127.0.0.1: não há autenticação porque quem chega
-  ao porto já está na máquina. O motor corre numa thread e publica estado
-  (`on_turn`/`on_status`) que a página consulta por polling.
+  dizer "Hey Nox" outra vez.
 - **Barge-in com dois sinais.** O VAD e o limiar de energia têm de concordar
   durante 300 ms; um só dispara com o eco do próprio Nox. A flag está desligada
   por omissão e o áudio já lido entra no segmentador, para não perder a
@@ -148,7 +103,51 @@ Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Orquestrador -> TTS -> Altif
   detector procura a palavra ("Nox" sai como "inox"). Só corre quando o VAD
   ouve fala, com 1,5 s de tolerância.
 
-## Próxima fase
+## Decisões da Fase 2 (memória e interface)
 
-Fase 1 liga os módulos `audio/`, `speech/`, `brain/` através de interfaces
-propostas com implementações fake para testes sem hardware.
+- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
+  pesquisa semântica custaria dependências e um modelo de embeddings para
+  ganhar pouco numa base de dezenas de factos.
+- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
+  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
+  dito de forma explícita e o resto fica para um extrator semântico.
+- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
+  e o SQLite recusa ligações partilhadas.
+- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
+  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
+  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
+  respira devagar em vez de fingir dados.
+- **Interface sem framework.** `ThreadingHTTPServer` (stdlib) e uma página
+  estática, sem build. Ouve em `127.0.0.1`: não há autenticação porque quem
+  chega ao porto já está na máquina. O motor corre numa thread e publica
+  estado (`on_turn`/`on_status`) que a página consulta por polling.
+
+## Decisões das Fases 3–6 (ferramentas, automação e PC)
+
+Cada uma está detalhada no respetivo documento; em resumo:
+
+- **Aprovações na interface** (`nox/safety/approvals.py`): a ferramenta bloqueia
+  à espera, a página mostra o resumo/diff, a decisão expira. Ver `docs/security.md`.
+- **Uma ferramenta por ficheiro em `nox/tools/`**, todas a passar pelo mesmo
+  registo e pelos mesmos limites (sandbox de caminhos, audit log). A tabela
+  completa está em `docs/tools.md`.
+- **GitHub pelo `gh` autenticado**, não por API própria: reutiliza as
+  credenciais e as regras do utilizador.
+- **Sub-agentes em `ThreadPoolExecutor`**, com contexto limpo e sem
+  `spawn_agent` (sem recursão). Ver `docs/automation.md`.
+- **MCP por stdio**, com ferramentas expostas como `mcp_<servidor>_<ferramenta>`
+  e desligado por omissão. Ver `docs/automation.md`.
+- **Desktop com allowlist e emergência**: um `EMERGENCY` por processo corta
+  todas as ações (incluindo capturas). Ver `docs/desktop.md`.
+
+## Decisões do empacotamento
+
+- **`HeyNox.exe` windowed** abre a interface; sem consola, avisos e erros vão
+  para `%LOCALAPPDATA%\HeyNox\logs\nox.log` e as exceções fatais para uma caixa
+  nativa.
+- **Bandeja em vez de processo invisível**: o `.exe` não tem janela, por isso o
+  `pystray` dá-lhe «Abrir interface», «Ouvir» e «Sair».
+- **Instância única** pelo `ui.port` guardado, para um segundo clique reabrir o
+  browser em vez de subir outro servidor.
+- **Python 3.11 no build** (combinação validada de torch/ctranslate2/piper/winrt).
+  Ver `docs/packaging.md`.

@@ -7,7 +7,7 @@ Alvo atual: **Windows x64**. O código já separa caminhos por plataforma
 
 | Ficheiro | Pasta | Console | Conteúdo |
 |---|---|---|---|
-| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo: voz (torch, faster-whisper, piper, vosk, edge-tts), browser (Playwright) e controlo do PC (pyautogui, mss, OCR winrt) |
+| `HeyNox.exe` | `dist\HeyNox\` | não | Agente completo: voz (torch, faster-whisper, piper, vosk, edge-tts), browser (Playwright), controlo do PC (pyautogui, mss, OCR winrt) e bandeja (pystray) |
 | `nox.exe` | `dist\nox\` | sim | Núcleo e CLI para diagnóstico (`nox.exe --check`) |
 | `HeyNox-Setup.exe` | `dist\` | — | Instalador Inno Setup com atalhos, desinstalador e arranque opcional |
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File installer\build.ps1 -SkipInstaller   # 
 ```
 
 O script cria o venv com `uv` mas instala os extras com **pip**:
-`pip install -e ".[voice,browser,desktop]" pyinstaller`. O `uv` falhava a
+`pip install -e ".[voice,browser,desktop,tray]" pyinstaller`. O `uv` falhava a
 compilar sdists antigos (`pygetwindow`, `pytweening`) porque a limpeza da cache
 de build colide com o guard de deleções em massa desta máquina.
 
@@ -73,6 +73,7 @@ $T = "$env:TEMP\heynox-test"
 Start-Process dist\HeyNox-Setup.exe -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$T" -Wait
 & "$T\nox.exe" --check        # avisa que faltam deps de voz (esperado: é o núcleo)
 & "$T\HeyNox.exe" --check     # não deve avisar
+# Abrir pelo atalho: ícone na bandeja. «Sair» fecha o processo inteiro.
 & "$T\unins000.exe" /VERYSILENT
 ```
 
@@ -86,6 +87,25 @@ caminho e o setup abre interativo.
 - Um `config.yaml` em `%LOCALAPPDATA%\HeyNox\config.yaml` tem prioridade sobre o
   instalado; o mesmo para `.env`.
 - Sem consola, erros vão para `%LOCALAPPDATA%\HeyNox\logs\nox.log`.
+- Se o arranque falhar por uma exceção, sem consola aparece também uma caixa
+  de erro com a última linha e o caminho do log.
+
+## Bandeja e segunda instância
+
+O `HeyNox.exe` não tem janela própria. Sem bandeja, fechar o browser deixava
+o processo sem forma de ser reaberto ou fechado.
+
+- O ícone `HeyNox` fica na bandeja: duplo clique (ou «Abrir interface») abre
+  o browser; o menu tem «Ouvir» (liga/desliga a voz) e «Sair».
+- O porto aberto é guardado em `%LOCALAPPDATA%\HeyNox\ui.port` e apagado ao
+  sair. Um segundo `HeyNox.exe` encontra esta instância pelo porto, reabre o
+  browser e sai, em vez de subir outro servidor em 8766.
+- A bandeja só existe no modo sem consola (`nox --ui` a partir do terminal
+  fica igual, com Ctrl+C). Precisa do extra `tray` (`pystray` + `Pillow`);
+  se faltar, a UI continua e o aviso vai para o log.
+- `multiprocessing.freeze_support()` no `scripts/heynox_app.py`: sem ele, um
+  processo filho do torch voltava a arrancar a interface em vez de fazer o
+  trabalho pedido.
 
 ## Notas
 

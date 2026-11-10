@@ -1,4 +1,4 @@
-"""Compara a transcrição local com a da cloud nas amostras de `data/`.
+"""Compara a transcrição local com a da cloud nas amostras de `tests/fixtures/samples/`.
 
 Uso:
     python scripts/bench_stt.py              # as duas
@@ -17,11 +17,12 @@ from nox.config import load_config, load_environment
 from nox.models import ModelError
 from nox.speech.stt import build_transcriber
 
+SAMPLES = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "samples"
 DEFAULT_FILES = [
-    "data/pergunta.wav",
-    "data/pergunta2.wav",
-    "data/duas-vezes.wav",
-    "data/wake.wav",
+    SAMPLES / "pergunta.wav",
+    SAMPLES / "pergunta2.wav",
+    SAMPLES / "duas-vezes.wav",
+    SAMPLES / "wake.wav",
 ]
 
 
