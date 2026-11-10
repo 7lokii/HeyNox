@@ -106,6 +106,24 @@ def test_say_rejects_empty_text(server) -> None:
     assert exc.value.code == 400
 
 
+def test_say_with_non_utf8_body_is_a_400_not_a_crash(server) -> None:
+    """Um corpo em cp1252 fechava a ligação com um traceback.
+
+    O servidor local é falado por curl, scripts e clientes antigos. Um pedido
+    mal codificado tem de responder 400 e continuar vivo.
+    """
+    base, app = server
+    request = urllib.request.Request(  # noqa: S310
+        base + "/api/say",
+        data='{"text": "olá"}'.encode("latin-1"),
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(request, timeout=5)  # noqa: S310
+    assert exc.value.code == 400
+    assert app.state.snapshot()["turns"] == []
+
+
 def test_state_endpoint_reflects_the_conversation(server) -> None:
     base, _ = server
     post_json(base + "/api/say", {"text": "olá"})

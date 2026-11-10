@@ -16,7 +16,7 @@ GitHub através de branches, testes e pull requests.
 - GitHub pelo `gh`: clone, branches, commit, testes antes do push, PRs e issues
 - Rotinas agendadas, sub-agentes, skills em Markdown e servidores MCP
 - Controlo do PC: janelas, OCR, rato e teclado, com emergência
-- Interface web local (HUD) e ícone na bandeja
+- Janela própria de desktop (HUD), não um separador do browser, e ícone na bandeja
 - Auditoria de todas as ferramentas em JSONL
 - Instalador Windows com `HeyNox.exe` e `nox.exe`
 
@@ -30,10 +30,15 @@ build Linux/macOS.
 A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
 sozinha para o faster-whisper local.
 
+A interface está em TypeScript (`ui/`) e corre dentro de uma janela nativa
+sobre o WebView2 do Windows. O motor é Python e não mudou. Ver
+[`docs/interface.md`](docs/interface.md).
+
 ## Uso
 
 ```bash
-nox --ui                     # interface web local (o .exe abre isto)
+nox --desktop                # janela própria do HeyNox (é o que o .exe faz)
+nox --ui                     # o mesmo HUD no browser, para diagnóstico
 nox --check                  # configuração e ambiente
 nox --text                   # conversa por texto
 nox --voice                  # conversa por voz: diz "Hey Nox"
@@ -137,9 +142,10 @@ nox/
 ├── automation/    Rotinas agendadas
 ├── mcp/           Cliente MCP (stdio)
 ├── desktop/       Janelas, captura, OCR e controlo do PC
-├── ui/            Servidor local, HUD e ícone da bandeja
+├── ui/            Servidor local, HUD, janela nativa e ícone da bandeja
 └── skills.py      Skills em Markdown
 
+ui/                HUD em TypeScript (Vite + React); compila para ui/dist
 installer/         PyInstaller (.spec gerados, hooks) e Inno Setup
 scripts/           Pontos de entrada dos .exe e bench_stt.py
 tests/             Suite (pytest) e fixtures/ com amostras de voz

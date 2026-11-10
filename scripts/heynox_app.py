@@ -9,7 +9,7 @@ from nox.main import main
 # e abrem outra interface em vez de fazer o trabalho pedido.
 multiprocessing.freeze_support()
 
-# Sem argumentos, abre a interface. Com argumentos (ex.: --check), respeita-os
-# para o executável poder ser diagnosticado como o nox.exe.
-args = sys.argv[1:] or ["--ui"]
+# Sem argumentos, abre a janela do HeyNox. Com argumentos (ex.: --check),
+# respeita-os para o executável poder ser diagnosticado como o nox.exe.
+args = sys.argv[1:] or ["--desktop"]
 raise SystemExit(main(args))

@@ -19,7 +19,9 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] Latência: filler, TTS por frases, silêncio de 500 ms.
   - [x] STT na cloud (Groq) com fallback local automático.
   - [x] Interrupção da fala (barge-in), opcional.
-  - [x] Interface web local (`nox --ui`, aberta pelo `HeyNox.exe`).
+  - [x] HUD em TypeScript (`ui/`, Vite + React) servido pelo motor.
+  - [x] Janela de desktop própria (`nox --desktop`, pywebview + WebView2);
+    `nox --ui` fica como via de diagnóstico no browser.
   - [x] HUD com espectro do áudio real e réplica sem repetir a palavra.
 - [x] **Fase 2 — Memória.** SQLite + FTS5, ver `docs/memory.md`.
   - [x] Memória de conversa (retomada entre sessões).
@@ -68,7 +70,7 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] `dist\HeyNox` (agente completo) e `dist\nox` (CLI de diagnóstico).
   - [x] Instalador Inno Setup `HeyNox-Setup.exe`.
   - [x] Ícone na bandeja com «Abrir interface», «Ouvir» e «Sair».
-  - [x] Instância única (um segundo arranque reabre o browser).
+  - [x] Instância única (um segundo arranque reabre a janela ou o browser).
   - [ ] Revalidar o loop de ferramentas via LLM dentro do `.exe` (Selora esteve
     em manutenção durante o build).
   - [ ] Instalação silenciosa do `Setup.exe` (precisa de UAC interactivo).
@@ -83,6 +85,13 @@ Segue o `spec.md` (§12). Estado atual:
 
 ## Notas
 
+- **Tauri ficou de fora.** O pedido era TypeScript + Tauri. Falta a toolchain
+  Rust e o MSVC + Windows SDK para ligar o binário; as duas ocupam 6 a 8 GB e
+  o `C:` tem 6,1 GB livres. A janela é feita com `pywebview`, que usa o
+  WebView2 já instalado. O HUD em `ui/` é o mesmo nos dois caminhos.
+
 - Repositório remoto `7lokii/HeyNox` ainda não criado nem ligado (decisão: só local).
 - A versão 0.1 do spec (§19) inclui etapas das Fases 1 a 4.
-- Contagem de testes: 331 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
+- Contagem de testes: 341 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
+- Validação da janela: `windows-latest` no CI compila `ui/dist` antes do
+  PyInstaller. Localmente, `nox --desktop` abre a janela e o HUD desenha.

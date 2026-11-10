@@ -99,13 +99,16 @@ caminho e o setup abre interativo.
 O `HeyNox.exe` não tem janela própria. Sem bandeja, fechar o browser deixava
 o processo sem forma de ser reaberto ou fechado.
 
+- O `.exe` abre uma janela própria (`--desktop`, pywebview sobre WebView2), não
+  um separador do browser. O HUD vem de `ui/dist`, compilado pelo Vite antes do
+  PyInstaller; sem esse build o pacote cai no `nox/ui/index.html` legado.
 - O ícone `HeyNox` fica na bandeja: duplo clique (ou «Abrir interface») abre
-  o browser; o menu tem «Ouvir» (liga/desliga a voz) e «Sair».
+  o HUD; o menu tem «Ouvir» (liga/desliga a voz) e «Sair».
 - O porto aberto é guardado em `%LOCALAPPDATA%\HeyNox\ui.port` e apagado ao
   sair. Um segundo `HeyNox.exe` encontra esta instância pelo porto, reabre o
   browser e sai, em vez de subir outro servidor em 8766.
-- A bandeja só existe no modo sem consola (`nox --ui` a partir do terminal
-  fica igual, com Ctrl+C). Precisa do extra `tray` (`pystray` + `Pillow`);
+- A bandeja só existe no modo `--ui` sem consola: em `--desktop` quem manda no
+  ciclo de vida é a janela. Precisa do extra `tray` (`pystray` + `Pillow`);
   se faltar, a UI continua e o aviso vai para o log.
 - `multiprocessing.freeze_support()` no `scripts/heynox_app.py`: sem ele, um
   processo filho do torch voltava a arrancar a interface em vez de fazer o

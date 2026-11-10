@@ -39,7 +39,7 @@ a = Analysis(
         ('{project_root}/config.yaml', '.'),
         ('{project_root}/nox/ui/index.html', 'nox/ui'),
         ('{project_root}/installer/icon.ico', '.'),
-    ],
+    ] + {hud_data},
     hiddenimports=hiddenimports,
     hookspath=['{project_root}/installer/hooks'],
     hooksconfig={{}},
@@ -78,6 +78,7 @@ VOICE_PACKAGES = """[
     'PIL',
     'winrt',
     'pystray',
+    'webview',
 ]"""
 
 # Módulos que o collect_submodules pode não apanhar por serem namespace packages.
@@ -123,6 +124,19 @@ def with_silero() -> bool:
     return os.environ.get("HEYNOX_WITH_SILERO", "").strip().lower() not in ("", "0", "false", "no")
 
 
+def hud_data() -> str:
+    """O HUD compilado (`ui/dist`), se houver.
+
+    Sem `npm run build` o pacote leva só o `index.html` legado e o `.exe` abre
+    o que já abria antes. Ver `nox/ui/static.py`.
+    """
+    dist = PROJECT_ROOT / "ui" / "dist"
+    if not (dist / "index.html").is_file():
+        print("aviso: ui/dist não existe; o pacote fica com o HUD legado")
+        return "[]"
+    return f"[('{dist.as_posix()}', 'ui/dist')]"
+
+
 def build_spec(name: str, script: str, console: bool, with_voice: bool) -> Path:
     icon = PROJECT_ROOT / "installer" / "icon.ico"
     silero = with_voice and with_silero()
@@ -139,6 +153,7 @@ def build_spec(name: str, script: str, console: bool, with_voice: bool) -> Path:
         icon=icon.as_posix() if icon.is_file() else "",
         excludes="[]" if silero else TORCH_EXCLUDES,
         voice_packages=packages,
+        hud_data=hud_data(),
         extra_hidden=EXTRA_HIDDEN if with_voice else "",
         torch_block=TORCH_BLOCK if silero else "",
     )

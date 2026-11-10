@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.request
 import webbrowser
 from collections.abc import Callable
@@ -21,8 +22,9 @@ from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
-from nox.paths import bundle_dir, user_data_dir
+from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
+from nox.ui import static as hud
 from nox.ui.state import NoxState
 from nox.voice import run_voice
 
@@ -31,13 +33,8 @@ MAX_PORT = 8785
 
 
 def html_path() -> Path:
-    for candidate in (
-        Path(__file__).with_name("index.html"),
-        bundle_dir() / "nox" / "ui" / "index.html",
-    ):
-        if candidate.is_file():
-            return candidate
-    raise FileNotFoundError("index.html não encontrado no pacote")
+    """O `index.html` que a raiz serve. Ver `nox/ui/static.py`."""
+    return hud.index_file()
 
 
 class NoxApp:
@@ -169,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 — nome imposto pela stdlib
         if self.path in ("/", "/index.html"):
-            self._send_html()
+            self._send_asset()
         elif self.path == "/api/state":
             snapshot = self.app.state.snapshot()
             snapshot["approvals"] = self.app.approvals.pending()
@@ -188,8 +185,11 @@ class Handler(BaseHTTPRequestHandler):
             )
         elif self.path == "/api/memory":
             self._send_json({"facts": self.app.memory_facts()})
-        else:
+        elif self.path.startswith("/api/"):
             self.send_error(404)
+        else:
+            # Estáticos do HUD compilado: /assets/index-xxx.js, /favicon.svg.
+            self._send_asset()
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/say":
@@ -228,19 +228,29 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(raw or b"{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Corpo que não é UTF-8 (um cliente antigo em cp1252, por exemplo)
+            # respondia com um traceback e fechava a ligação. Um pedido mal
+            # formado é um 400, não uma queda.
             return {}
         return data if isinstance(data, dict) else {}
 
-    def _send_html(self) -> None:
+    def _send_asset(self) -> None:
+        found = hud.resolve(self.path)
+        if found is None:
+            self.send_error(404)
+            return
+        path, content_type = found
         try:
-            content = html_path().read_bytes()
-        except FileNotFoundError as exc:
+            content = path.read_bytes()
+        except OSError as exc:
             self.send_error(500, str(exc))
             return
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
+        # Build local: um ficheiro novo tem de aparecer no recarregar seguinte.
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(content)
 
@@ -296,6 +306,7 @@ def serve(
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
     tray: bool = False,
+    desktop: bool = False,
     out: Callable[[str], None] = print,
 ) -> int:
     app = NoxApp(config)
@@ -312,7 +323,8 @@ def serve(
             on_error=lambda routine, exc: app.logs.append(f"rotina {routine.id} falhou: {exc}"),
         )
         scheduler.start()
-    if open_browser:
+    # Em modo desktop quem mostra o HUD é a janela, não o browser.
+    if open_browser and not desktop:
         webbrowser.open(url)
 
     icon = None
@@ -336,7 +348,9 @@ def serve(
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        if icon is not None:
+        if desktop:
+            _run_desktop(url, out)
+        elif icon is not None:
             icon.run()
         else:
             while thread.is_alive():
@@ -355,6 +369,21 @@ def serve(
         server.server_close()
         _release_port()
     return 0
+
+
+def _run_desktop(url: str, out: Callable[[str], None]) -> None:
+    """Abre a janela nativa. Sem o extra `shell`, cai para o browser.
+
+    Bloqueia até a janela fechar: é o ciclo de vida da app.
+    """
+    from nox.ui import window
+
+    if not window.available():
+        out("aviso: sem janela nativa (falta o extra `shell`); abro no browser")
+        webbrowser.open(url)
+        while True:
+            time.sleep(0.5)
+    window.open_window(url)
 
 
 def _open_browser(url: str) -> None:

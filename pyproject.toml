@@ -37,6 +37,7 @@ desktop = [
     "winrt-Windows.Foundation; sys_platform == 'win32'",
 ]
 tray = ["pystray>=0.19"]
+shell = ["pywebview>=5.0"]
 voice = [
     "heynox[audio,wake,vad,stt,tts,edge]",
 ]

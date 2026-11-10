@@ -49,7 +49,7 @@ jobs:
         include:
           - os: windows-latest
             platform: windows-x64
-            extras: "voice,browser,desktop,tray"
+            extras: "voice,browser,desktop,tray,shell"
           - os: macos-13
             platform: macos-x64
             extras: "voice,browser,tray"
@@ -78,6 +78,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libportaudio2 libsndfile1 xdotool
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      # O HUD em TypeScript tem de ser compilado antes do PyInstaller, que
+      # embute `ui/dist`. Sem isto o pacote sai com o HUD legado.
+      - name: Compilar o HUD
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+          test -f dist/index.html || { echo "ui/dist ausente" >&2; exit 1; }
 
       - name: Instalar Python e dependencias
         run: |

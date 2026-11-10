@@ -1,0 +1,140 @@
+/* Tokens, topo e palco do reactor.
+   O visual é o mesmo do HUD original (`nox/ui/index.html`). Mudar aqui é
+   mudar a cara do Nox: os valores estão afinados. */
+
+:root {
+  --bg: #04070d;
+  --panel: rgba(9, 20, 31, 0.72);
+  --line: rgba(34, 211, 238, 0.16);
+  --line-strong: rgba(34, 211, 238, 0.38);
+  --cyan: #22d3ee;
+  --ink: #d9f6ff;
+  --muted: #5b8497;
+  --accent: var(--cyan);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(14, 116, 144, 0.18), transparent 60%),
+    radial-gradient(900px 600px at 80% 110%, rgba(34, 211, 238, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  font: 14px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+body[data-status="a falar"] { --accent: #67e8f9; }
+body[data-status="a pensar"] { --accent: #a5b4fc; }
+body[data-status="a ouvir"] { --accent: #34d399; }
+body[data-status="a aguardar palavra"] { --accent: #c084fc; }
+
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 18px 22px 16px;
+  gap: 14px;
+}
+
+/* ---------- topo ---------- */
+.topbar { display: flex; align-items: center; gap: 18px; }
+
+.brand {
+  font-size: 15px;
+  letter-spacing: 0.42em;
+  font-weight: 600;
+  color: var(--accent);
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+}
+.brand .mark { opacity: .55; margin-right: 8px; }
+
+.clock {
+  font-family: Consolas, "SF Mono", monospace;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.14em;
+}
+
+.status {
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-family: Consolas, "SF Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.status i {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+.emergency {
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 1px solid rgba(248, 113, 113, .55);
+  border-radius: 999px;
+  background: transparent;
+  color: #f87171;
+  font-family: Consolas, "SF Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.emergency:hover { background: rgba(248, 113, 113, .12); }
+.emergency[aria-pressed="true"] {
+  background: rgba(248, 113, 113, .2);
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+/* ---------- palco ---------- */
+.stage {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 400px);
+  gap: 18px;
+  min-height: 0;
+}
+
+.reactor { position: relative; min-height: 0; }
+.reactor canvas { width: 100%; height: 100%; display: block; }
+
+.core {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.core-title {
+  font-size: clamp(30px, 5vw, 54px);
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  padding-left: 0.34em;
+  color: #eafcff;
+  text-shadow: 0 0 26px rgba(34, 211, 238, .55), 0 0 70px rgba(34, 211, 238, .22);
+}
+.core-sub {
+  margin-top: 10px;
+  font-family: Consolas, "SF Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  color: var(--muted);
+  text-transform: uppercase;
+}

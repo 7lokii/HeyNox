@@ -103,7 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--devices", action="store_true", help="Lista os microfones disponíveis e sai"
     )
-    parser.add_argument("--ui", action="store_true", help="Abre a interface web local")
+    parser.add_argument("--ui", action="store_true", help="Abre a interface local no browser")
+    parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="Abre o HeyNox numa janela própria (app desktop)",
+    )
     parser.add_argument("--routines", action="store_true", help="Lista as rotinas e sai")
     parser.add_argument("--memory", action="store_true", help="Mostra o que o Nox sabe e sai")
     parser.add_argument(
@@ -204,16 +209,23 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return run_voice(config, out=out, input_file=args.input, use_wake=not args.no_wake)
     if args.devices:
         return _devices(config, out)
-    if args.ui:
+    if args.desktop or args.ui:
         from nox.ui.server import existing_instance, serve
 
         running = existing_instance()
         if running is not None:
+            # Segundo arranque: a app já está viva, não se sobe outro motor.
             out(f"já está a correr em {running}")
-            if not has_console():
+            if args.ui:
                 webbrowser.open(running)
             return 0
-        return serve(config, out=out, tray=not has_console())
+        return serve(
+            config,
+            out=out,
+            desktop=args.desktop,
+            open_browser=args.ui,
+            tray=not args.desktop and not has_console(),
+        )
     if args.enroll or args.enroll_files or args.voiceprint or args.forget_voice:
         return _voiceprint_command(config, args, out)
     if args.test_stt is not None:
