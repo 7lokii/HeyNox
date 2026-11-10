@@ -218,3 +218,16 @@ def test_test_key_sends_the_anthropic_headers(store) -> None:
 
     assert seen.get("x-api-key") == "k"
     assert seen.get("anthropic-version")
+
+
+def test_works_when_the_bundled_config_is_not_where_the_exe_sits(store, tmp_path) -> None:
+    """No pacote o config.yaml vive em `_internal`; pedir o caminho errado rebentava."""
+    from nox.ui.settings import SettingsStore
+
+    packed = SettingsStore(root=tmp_path / "app", config_path=tmp_path / "nao-existe" / "config.yaml")
+
+    values = packed.values()
+    packed.save({"name": "Nox"})
+
+    assert values["name"]
+    assert packed.config_path.is_file()

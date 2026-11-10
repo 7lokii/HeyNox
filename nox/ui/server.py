@@ -342,16 +342,26 @@ class Handler(BaseHTTPRequestHandler):
                 EMERGENCY.clear()
             self._send_json({"emergency": EMERGENCY.active})
         elif self.path == "/api/settings":
-            self._send_json(self.app.apply_settings(self._body()))
+            self._safe_json(lambda: self.app.apply_settings(self._body()))
         elif self.path == "/api/settings/test":
-            ok, message = self.app.settings.test_key(self._body())
-            self._send_json({"ok": ok, "message": message})
+            self._safe_json(lambda: self._test_key())
         elif self.path == "/api/update/check":
-            self._send_json(self.app.check_update(force=True))
+            self._safe_json(lambda: self.app.check_update(force=True))
         elif self.path == "/api/update/apply":
-            self._send_json(self.app.apply_update())
+            self._safe_json(self.app.apply_update)
         else:
             self.send_error(404)
+
+    def _test_key(self) -> dict[str, Any]:
+        ok, message = self.app.settings.test_key(self._body())
+        return {"ok": ok, "message": message}
+
+    def _safe_json(self, producer: Callable[[], dict[str, Any]]) -> None:
+        """Uma leitura falhada tem de virar um 500 em JSON, não uma resposta vazia."""
+        try:
+            self._send_json(producer())
+        except Exception as exc:  # noqa: BLE001 — a interface não pode ficar sem resposta
+            self._send_json({"error": str(exc)}, status=500)
 
     def _devices(self) -> list[dict[str, Any]]:
         """Microfones visíveis, sem deixar a interface rebentar sem PortAudio."""

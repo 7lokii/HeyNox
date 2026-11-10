@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from nox.config import DEFAULT_CONFIG_PATH, load_config, load_environment
+from nox.config import DEFAULT_CONFIG_PATH, load_config, load_environment, resolve_config_path
 from nox.paths import user_data_dir
 
 # Sem estas, o Nox responde só ao que é local.
@@ -139,9 +139,20 @@ class SettingsStore:
             status[name] = {"set": bool(value.strip()), "preview": mask(value)}
         return status
 
+    def source_path(self) -> Path:
+        """O `config.yaml` que serve de base, exista ele onde existir.
+
+        No pacote, `install_dir()/config.yaml` não existe: o ficheiro viaja em
+        `_internal`. Pedir um caminho que não existe rebentava o pedido HTTP.
+        """
+        for candidate in (self.config_path, self.config_source):
+            if candidate.is_file():
+                return candidate
+        return resolve_config_path(None)
+
     def effective_config(self):
         """A config que o Nox está mesmo a usar, com o utilizador à frente."""
-        return load_config(self.config_path if self.config_path.is_file() else self.config_source)
+        return load_config(self.source_path())
 
     def values(self) -> dict[str, Any]:
         config = self.effective_config()
@@ -180,7 +191,7 @@ class SettingsStore:
 
     def _base_document(self) -> dict[str, Any]:
         """Parte do config.yaml em uso, para não perder o que não se mostra."""
-        source = self.config_path if self.config_path.is_file() else self.config_source
+        source = self.source_path()
         raw = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
         if not isinstance(raw, dict):
             raise ValueError(f"{source} não tem um mapa YAML no topo")
