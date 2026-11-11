@@ -1,19 +1,19 @@
 {
-  "version": "0.0.1",
-  "date": "2026-11-11",
-  "tag": "v0.0.1",
-  "platforms": {
-    "windows-x64": {
-      "setup": "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-Setup.exe",
-      "portable": "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-0.0.1-windows-x64-portable.zip"
-    },
-    "macos-arm64": null,
-    "macos-x64": null,
-    "linux-x64": null
-  },
-  "sha256": {
-    "HeyNox-0.0.1-windows-x64-portable.zip": "c25d5a747faf82b52824802b6f36fa9534dad16260cb906243a4daee15587ff6",
-    "HeyNox-Setup.exe": "9e131803d747831eab497d858e835ff2c4991129b92fcfa5ca0af7ee97a021de"
-  },
-  "notes": ""
+    "version":  "0.0.1",
+    "date":  "2026-11-11",
+    "tag":  "v0.0.1",
+    "platforms":  {
+                      "windows-x64":  {
+                                          "setup":  "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-Setup.exe",
+                                          "portable":  "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-0.0.1-windows-x64-portable.zip"
+                                      },
+                      "macos-arm64":  null,
+                      "macos-x64":  null,
+                      "linux-x64":  null
+                  },
+    "sha256":  {
+                   "HeyNox-0.0.1-windows-x64-portable.zip":  "aa321fff7f988682366ed0f277ade7b403eb2e634fd7356a22ecc2420e063dfd",
+                   "HeyNox-Setup.exe":  "36e115e6329ec9747b548d97c22dca4d9c21617c116e91dbed18941cc2e81e26"
+               },
+    "notes":  ""
 }
