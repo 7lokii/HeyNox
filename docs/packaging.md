@@ -125,6 +125,15 @@ sozinha: descarrega o zip para `%LOCALAPPDATA%\HeyNox\update`, confere o
 `sha256`, extrai e deixa um `apply.cmd` que espera pela saída da app, faz
 `robocopy /MIR` para a pasta atual e volta a abrir.
 
+O que um release pronto tem de levar, pela ordem certa:
+
+1. `installer/build.ps1` gera os artefactos e reescreve `releases/latest.json`
+   com os `sha256` dos dois ficheiros e os endereços dos assets da tag.
+2. Publicar a tag `vX.Y.Z` no GitHub com `HeyNox-Setup.exe` e
+   `HeyNox-0.0.1-windows-x64-portable.zip` anexados com esses nomes exatos
+   (o manifesto aponta para os nomes, não para caminhos).
+3. Subir o `releases/latest.json` para `main`: é o endereço que a app consulta.
+
 Duas regras que o código impõe e que não devem ser afrouxadas:
 
 1. **Sem `sha256` no manifesto, não aplica.** Um zip trocado a caminho passaria

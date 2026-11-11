@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from nox.ui import update as updater
+from nox.ui.update import check, fetch_manifest
 
 
 def make_zip(path: Path, *, exe: str = "HeyNox/HeyNox.exe") -> bytes:
@@ -210,3 +211,72 @@ def test_can_apply_needs_a_writable_folder(tmp_path) -> None:
     assert updater.writable(tmp_path) is True
     if updater.sys.platform.startswith("win"):
         assert updater.can_apply(tmp_path) is True
+
+
+def test_manifesto_com_bom_do_powershell_e_lido() -> None:
+    """`Set-Content -Encoding utf8` no PowerShell 5.1 escreve BOM e o json recusa."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    body = json.dumps(
+        {
+            "version": "0.0.2",
+            "platforms": {"windows-x64": {"portable": "HeyNox-0.0.2.zip"}},
+            "sha256": {"HeyNox-0.0.2.zip": "a" * 64},
+        }
+    ).encode()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"\xef\xbb\xbf" + body)
+
+        def log_message(self, *args) -> None:
+            return
+
+    httpd = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        manifest = fetch_manifest(f"http://127.0.0.1:{httpd.server_port}/latest.json")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert manifest["version"] == "0.0.2"
+
+
+def test_caminho_relativo_no_manifesto_resolve_contra_o_manifesto() -> None:
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    body = json.dumps(
+        {
+            "version": "0.0.2",
+            "platforms": {"windows-x64": {"portable": "0.0.2/HeyNox-0.0.2.zip"}},
+            "sha256": {"HeyNox-0.0.2.zip": "b" * 64},
+        }
+    ).encode()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args) -> None:
+            return
+
+    httpd = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        result = check(f"http://127.0.0.1:{httpd.server_port}/latest.json")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+    assert result["ok"] is True
+    assert result["release"]["url"].endswith("/0.0.2/HeyNox-0.0.2.zip")

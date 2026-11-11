@@ -95,7 +95,8 @@ def fetch_manifest(url: str, *, timeout: float = MANIFEST_TIMEOUT) -> dict[str, 
     _require_http(url)
     request = _request(url, headers={"accept": "application/json"})
     with _open(request, timeout) as response:
-        raw = response.read(200_000).decode("utf-8", errors="replace")
+        raw = response.read(200_000).decode("utf-8-sig", errors="replace")
+    # `utf-8-sig` come o BOM que o PowerShell escreve; o json.loads não come.
     data = json.loads(raw)
     if not isinstance(data, dict):
         raise ValueError("o manifesto não é um objeto JSON")

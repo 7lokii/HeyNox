@@ -1,27 +1,19 @@
-﻿{
-    "version":  "0.0.1",
-    "date":  "2026-11-10",
-    "platforms":  {
-                      "windows-x64":  {
-                                          "setup":  "0.0.1/windows/HeyNox-0.0.1-windows-x64-setup.exe",
-                                          "portable":  "0.0.1/windows/HeyNox-0.0.1-windows-x64-portable.zip"
-                                      },
-                      "macos-arm64":  {
-                                          "setup":  null,
-                                          "portable":  null
-                                      },
-                      "macos-x64":  {
-                                        "setup":  null,
-                                        "portable":  null
-                                    },
-                      "linux-x64":  {
-                                        "setup":  null,
-                                        "portable":  null
-                                    }
-                  },
-    "note":  "macOS e Linux saem do workflow release.yml; ainda nao compilados.",
-    "sha256":  {
-                   "HeyNox-0.0.1-windows-x64-portable.zip":  "da82f2010f766216298dfaa7ed84b6d0484d691d003ea187f5a3460617be433c",
-                   "HeyNox-Setup.exe":  "365cf7a7ab59ece1aa8efeab38dcf4eac06cf66b4cfa159817e9184929956534"
-               }
+{
+  "version": "0.0.1",
+  "date": "2026-11-11",
+  "tag": "v0.0.1",
+  "platforms": {
+    "windows-x64": {
+      "setup": "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-Setup.exe",
+      "portable": "https://github.com/7lokii/HeyNox/releases/download/v0.0.1/HeyNox-0.0.1-windows-x64-portable.zip"
+    },
+    "macos-arm64": null,
+    "macos-x64": null,
+    "linux-x64": null
+  },
+  "sha256": {
+    "HeyNox-0.0.1-windows-x64-portable.zip": "c25d5a747faf82b52824802b6f36fa9534dad16260cb906243a4daee15587ff6",
+    "HeyNox-Setup.exe": "9e131803d747831eab497d858e835ff2c4991129b92fcfa5ca0af7ee97a021de"
+  },
+  "notes": ""
 }

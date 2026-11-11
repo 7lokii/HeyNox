@@ -154,18 +154,40 @@ function Get-Sha256([string] $Path) {
     } finally { $stream.Dispose() }
 }
 
+$ManifestPath = Join-Path $Root "releases\latest.json"
 $Checksums = [ordered]@{}
 $Checksums[(Split-Path $Portable -Leaf)] = Get-Sha256 $Portable
-$ManifestPath = Join-Path $Root "releases\latest.json"
-if (Test-Path $ManifestPath) {
-    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
-    $manifest.version = $ResolvedVersion
-    $manifest | Add-Member -NotePropertyName sha256 -NotePropertyValue ([pscustomobject]$Checksums) -Force
-    $manifest | ConvertTo-Json -Depth 8 | Set-Content $ManifestPath -Encoding utf8
-    Write-Host ("manifesto atualizado: {0}" -f $ManifestPath)
-}
 
+# Os enderecos apontam para os assets da release do GitHub: e' de onde um .exe
+# instalado consegue descarregar 300 MB sem passarem pelo git.
+function Write-Manifest([string] $SetupPath) {
+    $tag = "v$ResolvedVersion"
+    $base = "https://github.com/7lokii/HeyNox/releases/download/$tag"
+    $platforms = [ordered]@{
+        'windows-x64' = [ordered]@{
+            setup    = if ($SetupPath) { "$base/$(Split-Path $SetupPath -Leaf)" } else { $null }
+            portable = "$base/$(Split-Path $Portable -Leaf)"
+        }
+        'macos-arm64' = $null
+        'macos-x64'   = $null
+        'linux-x64'   = $null
+    }
+    $manifest = [ordered]@{
+        version   = $ResolvedVersion
+        date      = (Get-Date -Format 'yyyy-MM-dd')
+        tag       = $tag
+        platforms = $platforms
+        sha256    = $Checksums
+        notes     = ''
+    }
+    $json = $manifest | ConvertTo-Json -Depth 8
+    # WriteAllText sem BOM: `Set-Content -Encoding utf8` no PowerShell 5.1 escreve
+    # bytes de assinatura e o json.loads da app recusa o ficheiro.
+    [System.IO.File]::WriteAllText($ManifestPath, $json, [System.Text.UTF8Encoding]::new($false))
+    Write-Host ("manifesto escrito: {0}" -f $ManifestPath)
+}
 if ($SkipInstaller) {
+    Write-Manifest $null
     Write-Host ""
     Write-Host ("Executáveis e portátil prontos:" + [Environment]::NewLine +
         "  {0}" + [Environment]::NewLine +
@@ -191,9 +213,6 @@ Write-Host ("  1. comando      nox --desktop")
 Write-Host ("  2. setup        {0} ({1} MB)" -f $Setup, $SizeMb)
 Write-Host ("  3. portátil     {0} ({1} MB), extrair e correr HeyNox\HeyNox.exe" -f $Portable, $PortableMb)
 
-if (Test-Path $ManifestPath) {
-    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
-    $manifest.sha256 | Add-Member -NotePropertyName (Split-Path $Setup -Leaf) -NotePropertyValue (Get-Sha256 $Setup) -Force
-    $manifest | ConvertTo-Json -Depth 8 | Set-Content $ManifestPath -Encoding utf8
-    Write-Host "setup tambem assinado no manifesto"
-}
+$Checksums[(Split-Path $Setup -Leaf)] = Get-Sha256 $Setup
+Write-Manifest $Setup
+Write-Host "manifesto com o setup e o portatil assinados"

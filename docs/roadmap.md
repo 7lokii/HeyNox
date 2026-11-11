@@ -92,6 +92,6 @@ Segue o `spec.md` (§12). Estado atual:
 
 - Repositório remoto `7lokii/HeyNox` ainda não criado nem ligado (decisão: só local).
 - A versão 0.1 do spec (§19) inclui etapas das Fases 1 a 4.
-- Contagem de testes: 379 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
+- Contagem de testes: 385 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
 - Validação da janela: `windows-latest` no CI compila `ui/dist` antes do
   PyInstaller. Localmente, `nox --desktop` abre a janela e o HUD desenha.
