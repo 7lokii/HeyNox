@@ -198,6 +198,7 @@ class NoxApp:
         """Grava e passa a usar o que ficou gravado, sem reiniciar a app."""
         result = self.settings.save(payload)
         was_voice = bool(self.state.snapshot()["voice"])
+        old_manifest = self.config.update.manifest_url
         if was_voice:
             self.stop_voice()
         self.config = settings_ui.load_config(self.settings.config_path)
@@ -206,6 +207,10 @@ class NoxApp:
         self._synth = None
         self._speaker = None
         result["setup_required"] = self.setup_required()
+        if self.config.update.enabled and self.config.update.manifest_url != old_manifest:
+            # Manifesto novo, resultado antigo: sem isto a interface mostra uma
+            # versão que já não é a do sítio que passou a ser consultado.
+            threading.Thread(target=self.check_update, kwargs={"force": True}, daemon=True).start()
         if was_voice and self.config.nox.voice_enabled:
             threading.Thread(target=self.start_voice, daemon=True).start()
         return result

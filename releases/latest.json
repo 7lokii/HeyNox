@@ -21,7 +21,7 @@
                   },
     "note":  "macOS e Linux saem do workflow release.yml; ainda nao compilados.",
     "sha256":  {
-                   "HeyNox-0.0.1-windows-x64-portable.zip":  "69271cdeed4c7922e690a761f5554558be923e4b407bd2f07d26fd5615b56b4e",
-                   "HeyNox-Setup.exe":  "81086d1d81df5896e596bc32dd8d937c0776f9f91b8b8c040e5c72c708e313f8"
+                   "HeyNox-0.0.1-windows-x64-portable.zip":  "da82f2010f766216298dfaa7ed84b6d0484d691d003ea187f5a3460617be433c",
+                   "HeyNox-Setup.exe":  "365cf7a7ab59ece1aa8efeab38dcf4eac06cf66b4cfa159817e9184929956534"
                }
 }

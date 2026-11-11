@@ -214,23 +214,28 @@ def stage(archive: Path, workdir: Path) -> Path:
     raise ValueError("o zip não tem a pasta da aplicação")
 
 
-APPLY_SCRIPT = """@echo off
+CRLF = chr(13) + chr(10)
+
+APPLY_SCRIPT = r"""@echo off
 setlocal
 set TARGET={target}
 set STAGE={stage}
+set LOG={log}
+echo [%date% %time%] apply a espera do PID {pid} >> "%LOG%"
 :wait
 tasklist /fi "PID eq {pid}" 2>nul | find "{pid}" >nul
 if not errorlevel 1 (
   timeout /t 1 /nobreak >nul
   goto wait
 )
-robocopy "%STAGE%" "%TARGET%" /MIR /NFL /NDL /NJH /NJS >nul
+echo [%date% %time%] a copiar %STAGE% para %TARGET% >> "%LOG%"
+robocopy "%STAGE%" "%TARGET%" /MIR /NFL /NDL /NJH /NJS /LOG+:"%LOG%"
 if errorlevel 8 (
-  echo A copia falhou. A versao antiga fica como estava.
-  pause
+  echo [%date% %time%] a copia falhou. A versao antiga fica como estava. >> "%LOG%"
   exit /b 1
 )
-start "" "%TARGET%\\HeyNox.exe"
+echo [%date% %time%] copia feita, a abrir a app >> "%LOG%"
+start "" "%TARGET%\HeyNox.exe"
 del "%~f0"
 """
 
@@ -244,28 +249,35 @@ def apply(release: Release, *, target: Path | None = None, workdir: Path | None 
     target = target or install_dir()
     workdir = workdir or (user_data_dir() / "update")
     workdir.mkdir(parents=True, exist_ok=True)
+    log = workdir / "apply.log"
     archive = download(release, workdir / f"HeyNox-{release.version}.zip")
     staged = stage(archive, workdir)
     script = workdir / "apply.cmd"
-    script.write_text(
-        APPLY_SCRIPT.format(target=target, stage=staged, pid=os.getpid()).replace("\n", "\r\n"),
-        encoding="utf-8",
-    )
+    filled = APPLY_SCRIPT.format(target=target, stage=staged, pid=os.getpid(), log=log)
+    script.write_text(filled.replace(chr(10), CRLF), encoding="utf-8")
     return script
 
 
 def launch_and_exit(script: Path) -> None:
     """Arranca o `.cmd` destacado e sai, para o script poder trocar os ficheiros."""
+    # CREATE_NO_WINDOW, não DETACHED_PROCESS: sai de uma app empacotada, sem
+    # consola nenhuma, e um `cmd` sem consola morre antes de correr o script.
     flags = 0
     if sys.platform.startswith("win"):
-        flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
             subprocess, "CREATE_NEW_PROCESS_GROUP", 0
         )
-    subprocess.Popen(  # noqa: S603 — o script é escrito por nós, em dados do utilizador
-        [os.environ.get("COMSPEC", "cmd.exe"), "/c", str(script)],
-        close_fds=True,
-        creationflags=flags,
-        cwd=str(script.parent),
-    )
-    time.sleep(0.4)
+    log = script.parent / "launch.log"
+    try:
+        subprocess.Popen(  # noqa: S603 — o script é escrito por nós, em dados do utilizador
+            [os.environ.get("COMSPEC", "cmd.exe"), "/c", str(script)],
+            close_fds=True,
+            creationflags=flags,
+            cwd=str(script.parent),
+        )
+        log.write_text(f"lancado {script}" + chr(10), encoding="utf-8")
+    except OSError as exc:
+        log.write_text(f"nao consegui lancar {script}: {exc}" + chr(10), encoding="utf-8")
+        return
+    time.sleep(0.6)
     os._exit(0)

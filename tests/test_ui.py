@@ -322,3 +322,29 @@ def test_devices_endpoint_survives_without_audio(server, monkeypatch) -> None:
     monkeypatch.setattr("nox.audio.devices.input_devices", boom)
 
     assert get_json(f"{url}/api/devices")["devices"] == []
+
+
+def test_manifesto_novo_limpa_o_resultado_antigo(server) -> None:
+    """Trocar o endereço do manifesto não pode deixar à vista a versão do antigo."""
+    import time
+
+    base, _ = server
+    post_json(
+        base + "/api/settings",
+        {
+            "provider": "ollama",
+            "model": "llama3.2",
+            "base_url": "http://127.0.0.1:11434/v1",
+            "update_enabled": True,
+            "update_manifest_url": "http://127.0.0.1:9/latest.json",
+        },
+    )
+
+    for _ in range(50):
+        if get_json(base + "/api/update").get("ok") is not None:
+            break
+        time.sleep(0.1)
+
+    update = get_json(base + "/api/update")
+    assert update["available"] is False
+    assert update["latest"] in ("", "0.0.1")
