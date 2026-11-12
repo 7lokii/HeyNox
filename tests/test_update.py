@@ -280,3 +280,42 @@ def test_caminho_relativo_no_manifesto_resolve_contra_o_manifesto() -> None:
 
     assert result["ok"] is True
     assert result["release"]["url"].endswith("/0.0.2/HeyNox-0.0.2.zip")
+
+
+def test_descarga_usa_o_timeout_longo(tmp_path, monkeypatch) -> None:
+    """300 MB numa ligação lenta passam dos 60 s por bloco que estavam fixos."""
+    vistos: list[float] = []
+
+    class Resposta:
+        def __init__(self, payload: bytes) -> None:
+            self._payload = payload
+            self._done = False
+
+        def read(self, size: int = -1) -> bytes:
+            if self._done:
+                return b""
+            self._done = True
+            return self._payload
+
+        def __enter__(self) -> Resposta:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    def abrir(target, timeout):
+        vistos.append(timeout)
+        return Resposta(b"conteudo")
+
+    monkeypatch.setattr(updater, "_open", abrir)
+
+    release = updater.Release(
+        version="9.9.9",
+        url="https://exemplo.invalido/pacote.zip",
+        sha256=hashlib.sha256(b"conteudo").hexdigest(),
+        notes="",
+    )
+    destino = updater.download(release, tmp_path / "pacote.zip")
+
+    assert destino.read_bytes() == b"conteudo"
+    assert vistos == [updater.DOWNLOAD_TIMEOUT]

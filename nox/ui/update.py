@@ -31,6 +31,8 @@ from nox import __version__
 from nox.paths import install_dir, user_data_dir
 
 MANIFEST_TIMEOUT = 12.0
+# 300 MB numa ligação lenta passam dos 60 s por bloco que estavam aqui.
+DOWNLOAD_TIMEOUT = 300.0
 
 
 @dataclass(frozen=True)
@@ -177,7 +179,7 @@ def download(release: Release, destination: Path) -> Path:
     digest = hashlib.sha256()
     _require_http(release.url)
     with (
-        _open(release.url, 60) as response,
+        _open(release.url, DOWNLOAD_TIMEOUT) as response,
         partial.open("wb") as handle,
     ):
         while True:
