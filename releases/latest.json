@@ -1,6 +1,6 @@
 {
     "version":  "0.0.1",
-    "date":  "2026-11-11",
+    "date":  "2026-11-12",
     "tag":  "v0.0.1",
     "platforms":  {
                       "windows-x64":  {
@@ -12,8 +12,8 @@
                       "linux-x64":  null
                   },
     "sha256":  {
-                   "HeyNox-0.0.1-windows-x64-portable.zip":  "aa321fff7f988682366ed0f277ade7b403eb2e634fd7356a22ecc2420e063dfd",
-                   "HeyNox-Setup.exe":  "36e115e6329ec9747b548d97c22dca4d9c21617c116e91dbed18941cc2e81e26"
+                   "HeyNox-0.0.1-windows-x64-portable.zip":  "c100ad1e3b3ec6b6448f2f691a80c1e5f687b99c8d750e8fae6b498b4c58f2ab",
+                   "HeyNox-Setup.exe":  "bedd7e1619a4e716043e183cef98fdd80a12e4fedff98be6cfdad772e2b1bbe6"
                },
     "notes":  ""
 }
