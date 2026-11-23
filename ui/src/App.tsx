@@ -12,6 +12,7 @@ import { WhatsAppPanel } from "./components/WhatsAppPanel";
 import { Composer } from "./components/Composer";
 import { Settings } from "./screens/Settings";
 import { Setup } from "./screens/Setup";
+import { useVoice } from "./voice";
 import type {
   Approval,
   Fact,
@@ -24,11 +25,13 @@ const STATE_MS = 900;
 const MEMORY_MS = 2500;
 
 export function App() {
-  const [status, setStatus] = useState("parado");
+  const [serverStatus, setServerStatus] = useState("parado");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [facts, setFacts] = useState<Fact[]>([]);
-  const [voice, setVoice] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("parado");
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [emergency, setEmergency] = useState(false);
   const [fullAccess, setFullAccess] = useState(false);
@@ -41,7 +44,6 @@ export function App() {
     try {
       const state = await api.state();
       setEmergency(Boolean(state.emergency));
-      setVoice(state.voice);
       setTurns(state.turns);
       setApprovals(state.approvals ?? []);
       setFullAccess(Boolean(state.full_access));
@@ -54,15 +56,9 @@ export function App() {
           .then((payload) => setSetup((current) => current ?? payload))
           .catch(() => undefined);
       }
-      if (state.voice_error && !state.voice) {
-        setStatus("erro na voz");
-        setVoiceError(state.voice_error);
-      } else {
-        setStatus(state.status);
-        setVoiceError("");
-      }
+      setServerStatus(state.status);
     } catch {
-      setStatus("sem ligação");
+      setServerStatus("sem ligação");
     }
   }, []);
 
@@ -74,6 +70,22 @@ export function App() {
       // Silencioso: a memória não é crítica para a conversa.
     }
   }, []);
+
+  useVoice({
+    active: voiceOn,
+    onStatus: setVoiceStatus,
+    onSpeaking: setVoiceSpeaking,
+    onTurn: () => {
+      void refresh();
+      void refreshMemory();
+    },
+    onError: setVoiceError,
+    onStop: () => {
+      setVoiceOn(false);
+      setVoiceStatus("parado");
+      setVoiceSpeaking(false);
+    },
+  });
 
   const refreshWhatsApp = useCallback(async () => {
     try {
@@ -137,6 +149,8 @@ export function App() {
     await refresh();
   }, [emergency, refresh]);
 
+  const status = voiceOn ? voiceStatus : serverStatus;
+
   useEffect(() => {
     document.body.dataset.status = status;
   }, [status]);
@@ -182,7 +196,11 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <main className="stage">
-        <Spectrum onStatus={setStatus} />
+        <Spectrum
+          onStatus={setServerStatus}
+          speaking={voiceSpeaking}
+          clientVoice={voiceOn}
+        />
         <aside className="side">
           <div className="panel-head">Conversa</div>
           <ConversationLog turns={turns} />
@@ -207,14 +225,16 @@ export function App() {
         />
       )}
       <Composer
-        voice={voice}
+        voice={voiceOn}
         voiceError={voiceError}
         onSent={() => {
           void refresh();
           void refreshMemory();
         }}
         onVoice={(on) => {
-          setVoice(on);
+          setVoiceError("");
+          setVoiceStatus(on ? "a ouvir" : "parado");
+          setVoiceOn(on);
           void refresh();
         }}
       />

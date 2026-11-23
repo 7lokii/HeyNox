@@ -43,9 +43,9 @@ if [ ! -x "$destino/.venv/bin/python" ]; then
   python3 -m venv "$destino/.venv"
 fi
 "$destino/.venv/bin/python" -m pip install --upgrade pip setuptools wheel >/dev/null
-# O extra WhatsApp mantém a integração que já existia; a voz e o desktop ficam
-# desligados na configuração do serviço.
-"$destino/.venv/bin/pip" install --no-cache-dir -e "$destino[whatsapp]"
+# WhatsApp e edge-tts. A voz do microfone do servidor fica desligada (o
+# hardware não tem placa de som); o edge é para o HUD remoto devolver MP3.
+"$destino/.venv/bin/pip" install --no-cache-dir -e "$destino[whatsapp,edge]"
 
 install -m 0644 "$raiz/deploy/heynox.service" "/etc/systemd/system/$servico"
 chown -R root:root "$destino"

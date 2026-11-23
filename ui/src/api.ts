@@ -8,6 +8,7 @@ import type {
   NoxState,
   SettingsDraft,
   SettingsPayload,
+  VoiceTurn,
   WhatsAppState,
 } from "./types";
 
@@ -39,6 +40,13 @@ export const api = {
   memory: () => request<MemoryPayload>("api/memory"),
   say: (text: string) => request<{ answer: string }>("api/say", post({ text })),
   voice: (on: boolean) => request<{ voice: boolean }>("api/voice", post({ on })),
+  // PCM 16 bits mono a 16 kHz. O servidor transcreve e devolve o MP3.
+  voiceTurn: (audio: ArrayBuffer) =>
+    request<VoiceTurn>("api/voice/turn?rate=16000", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: audio,
+    }),
   forget: (pattern: string) =>
     request<{ removed: number }>("api/memory/forget", post({ pattern })),
   decide: (id: string, approved: boolean) =>

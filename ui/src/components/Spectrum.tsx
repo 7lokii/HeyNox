@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "../api";
+import { subscribeVoiceInput } from "../voice";
 
 const BANDS = 48;
 const POLL_MS = 90;
@@ -16,10 +17,16 @@ const TICKS = 72;
 interface Props {
   /** O HUD mostra o estado vindo daqui e de `/api/state`. */
   onStatus: (status: string) => void;
+  /** O Nox está a falar no dispositivo que abriu o HUD. */
+  speaking?: boolean;
+  /** A voz é a do microfone local, não a do serviço. */
+  clientVoice?: boolean;
 }
 
-export function Spectrum({ onStatus }: Props) {
+export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const speakingRef = useRef(speaking);
+  const clientVoiceRef = useRef(clientVoice);
   const target = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const current = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const inputTarget = useRef<number[]>(new Array<number>(BANDS).fill(0));
@@ -29,6 +36,14 @@ export function Spectrum({ onStatus }: Props) {
   useEffect(() => {
     onStatusRef.current = onStatus;
   }, [onStatus]);
+
+  useEffect(() => {
+    speakingRef.current = speaking;
+  }, [speaking]);
+
+  useEffect(() => {
+    clientVoiceRef.current = clientVoice;
+  }, [clientVoice]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -117,18 +132,18 @@ export function Spectrum({ onStatus }: Props) {
       const base = radius * 0.6;
       phase += 0.006;
 
-      const speaking = target.current.some((value) => value > 0.02);
+      const aFalar = speakingRef.current || target.current.some((value) => value > 0.02);
       const listening = inputTarget.current.some((value) => value > 0.02);
       const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
-      const voice = speaking
+      const voice = aFalar
         ? { halo: "251, 75, 92", core: "255, 205, 211" }
         : listening
           ? mic
           : { halo: "34, 211, 238", core: "165, 243, 252" };
 
       const glow = ctx.createRadialGradient(cx, cy, base * 0.2, cx, cy, radius);
-      glow.addColorStop(0, `rgba(${voice.halo}, ${speaking ? 0.22 : 0.12})`);
-      glow.addColorStop(0.55, `rgba(${voice.halo}, ${speaking ? 0.08 : 0.04})`);
+      glow.addColorStop(0, `rgba(${voice.halo}, ${aFalar ? 0.22 : 0.12})`);
+      glow.addColorStop(0.55, `rgba(${voice.halo}, ${aFalar ? 0.08 : 0.04})`);
       glow.addColorStop(1, "rgba(4, 7, 13, 0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
@@ -160,8 +175,10 @@ export function Spectrum({ onStatus }: Props) {
       // repete-o. É o que dá o desenho simétrico em vez de um gráfico torto.
       for (let i = 0; i < BANDS; i += 1) {
         const band = i < BANDS / 2 ? i : BANDS - 1 - i;
-        const value = speaking
-          ? current.current[band]
+        const value = aFalar
+          ? current.current[band] > 0.01
+            ? current.current[band]
+            : 0.12 + 0.08 * Math.abs(Math.sin(phase * 1.7 + band * 0.5))
           : idle * (0.6 + 0.4 * Math.sin(phase * 1.6 + band * 0.42));
         const angle = (i / BANDS) * Math.PI * 2 - Math.PI / 2;
         const inner = base * 1.02;
@@ -173,7 +190,7 @@ export function Spectrum({ onStatus }: Props) {
           inner,
           inner + length,
           voice.halo,
-          0.06 + value * (speaking ? 0.32 : 0.22),
+          0.06 + value * (aFalar ? 0.32 : 0.22),
           7,
           voice.core,
           0.35 + value * 0.65,
@@ -219,7 +236,7 @@ export function Spectrum({ onStatus }: Props) {
         if (Array.isArray(data.levels) && data.levels.length === BANDS) {
           target.current = data.levels;
         }
-        if (Array.isArray(data.input) && data.input.length === BANDS) {
+        if (!clientVoiceRef.current && Array.isArray(data.input) && data.input.length === BANDS) {
           inputTarget.current = data.input;
         }
         onStatusRef.current(data.status);
@@ -233,6 +250,11 @@ export function Spectrum({ onStatus }: Props) {
     window.addEventListener("resize", resize);
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    const unsubscribe = subscribeVoiceInput((levels) => {
+      if (clientVoiceRef.current && levels.length === BANDS) {
+        inputTarget.current = levels;
+      }
+    });
     draw();
     void poll();
 
@@ -241,6 +263,7 @@ export function Spectrum({ onStatus }: Props) {
       cancelAnimationFrame(frame);
       if (timer) clearTimeout(timer);
       observer.disconnect();
+      unsubscribe();
       window.removeEventListener("resize", resize);
     };
   }, []);

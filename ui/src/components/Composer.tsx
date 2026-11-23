@@ -31,18 +31,17 @@ export function Composer({ voice, voiceError, onSent, onVoice }: Props) {
     }
   };
 
-  const toggleVoice = async () => {
-    const next = !voice;
-    try {
-      await api.voice(next);
-    } catch (error) {
-      console.error(error);
-    }
-    onVoice(next);
+  const toggleVoice = () => {
+    onVoice(!voice);
   };
 
   return (
     <footer className="composer">
+      {voiceError ? (
+        <p className="voice-erro" role="status">
+          {voiceError}
+        </p>
+      ) : null}
       <form onSubmit={submit}>
         <input
           type="text"
@@ -61,7 +60,7 @@ export function Composer({ voice, voiceError, onSent, onVoice }: Props) {
         className="voice"
         aria-pressed={voice}
         title={voiceError}
-        onClick={() => void toggleVoice()}
+        onClick={toggleVoice}
       >
         {voice ? "Parar" : "Ouvir"}
       </button>

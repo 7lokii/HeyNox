@@ -69,7 +69,8 @@ O build do Vite usa `base: "./"` e o cliente da API resolve pedidos a partir de
 | `/api/health` | GET | liveness do serviço; usado pelo systemd/scripts |
 | `/api/state` | GET | conversa, voz, níveis, aprovações, emergência |
 | `/api/say` | POST | enviar uma mensagem |
-| `/api/voice` | POST | ligar/desligar a voz (desligada no serviço) |
+| `/api/voice` | POST | ligar/desligar a voz do serviço (CLI; o HUD já não usa) |
+| `/api/voice/turn` | POST | PCM 16 bits do microfone do HUD; devolve texto, resposta e MP3 |
 | `/api/levels` | GET | espectro de saída e entrada |
 | `/api/devices` | GET | microfones visíveis |
 | `/api/settings` | GET/POST | configuração e segredos mascarados |
@@ -82,6 +83,15 @@ O build do Vite usa `base: "./"` e o cliente da API resolve pedidos a partir de
 
 Os antigos `/api/update*` já não existem. Não há atualização automática dentro
 da app: a release é publicada pelo desktop com `scripts/publicar-release.ps1`.
+
+O HUD não usa `/api/voice`: o homelab não tem placa de som, por isso a voz é
+capturada no dispositivo que abriu a página. O botão **Ouvir** abre o microfone
+do browser/WebView, deteta o fim da frase por energia e envia PCM mono a
+16 kHz para `/api/voice/turn`. O servidor transcreve com o STT configurado,
+passa pelo agente e devolve a resposta em texto e MP3 em base64, que o browser
+toca. O anel fica azul com o espectro do microfone e vermelho enquanto o Nox
+fala. O `Permissions-Policy` do NoxSec tem de permitir `microphone=(self)`, e o
+iframe do painel leva `allow="microphone"`.
 
 ## Ficheiros e dados
 

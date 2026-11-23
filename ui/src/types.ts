@@ -101,6 +101,15 @@ export interface LevelsPayload {
   status: string;
 }
 
+/** Resposta de `POST /api/voice/turn` (áudio do microfone do HUD). */
+export interface VoiceTurn {
+  text: string;
+  answer: string;
+  /** MP3 em base64, ou vazio quando o TTS do servidor falhou. */
+  audio: string;
+  voice_error: string;
+}
+
 export interface Fact {
   id: number;
   kind: string;

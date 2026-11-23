@@ -29,33 +29,50 @@ class EdgeSynthesizer:
     def __init__(self, voice: str = "pt-PT-DuarteNeural", *, speed: float = 1.0) -> None:
         require("edge_tts")
         self._voice = voice
-        # O edge-tts usa percentagens: +20% é 1,2x mais rápido.
-        self._rate = f"{round((speed - 1.0) * 100):+d}%"
+        self._speed = speed
 
     def synthesize(self, text: str) -> Pcm:
         text = text.strip()
         if not text:
             return Pcm(b"")
-        try:
-            mp3 = asyncio.run(self._download(text))
-        except Exception as exc:  # aiohttp e websockets falham de formas variadas
-            raise EdgeError(f"a voz neural falhou: {exc}") from exc
-        return _decode_mp3(mp3)
+        return _decode_mp3(synthesize_mp3(text, self._voice, speed=self._speed))
 
-    async def _download(self, text: str) -> bytes:
-        import edge_tts
 
-        communicate = edge_tts.Communicate(text, self._voice, rate=self._rate)
-        chunks: list[bytes] = []
-        async for event in communicate.stream():
-            if event["type"] != "audio":
-                continue
-            data = event.get("data")
-            if isinstance(data, bytes):
-                chunks.append(data)
-        if not chunks:
-            raise EdgeError("a voz neural não devolveu áudio")
-        return b"".join(chunks)
+def synthesize_mp3(
+    text: str, voice: str = "pt-PT-DuarteNeural", *, speed: float = 1.0
+) -> bytes:
+    """Sintetiza para MP3, sem descodificar.
+
+    O HUD remoto toca o ficheiro no browser; não precisa de PCM nem do PyAV.
+    """
+    text = text.strip()
+    if not text:
+        return b""
+    require("edge_tts")
+    try:
+        return asyncio.run(_download_mp3(text, voice, speed=speed))
+    except EdgeError:
+        raise
+    except Exception as exc:  # aiohttp e websockets falham de formas variadas
+        raise EdgeError(f"a voz neural falhou: {exc}") from exc
+
+
+async def _download_mp3(text: str, voice: str, *, speed: float = 1.0) -> bytes:
+    import edge_tts
+
+    # O edge-tts usa percentagens: +20% é 1,2x mais rápido.
+    rate = f"{round((speed - 1.0) * 100):+d}%"
+    communicate = edge_tts.Communicate(text, voice, rate=rate)
+    chunks: list[bytes] = []
+    async for event in communicate.stream():
+        if event["type"] != "audio":
+            continue
+        data = event.get("data")
+        if isinstance(data, bytes):
+            chunks.append(data)
+    if not chunks:
+        raise EdgeError("a voz neural não devolveu áudio")
+    return b"".join(chunks)
 
 
 def _decode_mp3(data: bytes) -> Pcm:

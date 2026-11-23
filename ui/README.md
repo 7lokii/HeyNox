@@ -31,8 +31,9 @@ NOX_API=http://127.0.0.1:8766 npm run dev
 
 ```
 src/
-  api.ts        Cliente dos 8 endpoints
+  api.ts        Cliente dos endpoints
   types.ts      Contratos do backend (espelham nox/ui/state.py e server.py)
+  voice.ts      Microfone local, VAD e reprodução da resposta
   App.tsx       Polling e composição
   components/   TopBar, Spectrum, ConversationLog, Approvals, MemoryPanel, Composer
   styles/       base.css (tokens, topo, palco) e panels.css (lateral, rodapé)
@@ -43,6 +44,13 @@ de `/api/levels` a cada 90 ms. O Nox fala a vermelho e, enquanto fala, o acento
 do HUD acompanha; o microfone desenha ondas azuis. Em ecrãs estreitos (o WebView
 da APK) o HUD passa a uma coluna compacta: reactor curto, conversa e painéis com
 scroll interno e sem barras de página.
+
+A voz é a do dispositivo, não a do serviço: o homelab não tem placa de som. O
+`voice.ts` abre `getUserMedia`, mede a energia para começar e fechar a frase,
+envia PCM 16 kHz a `/api/voice/turn` e toca o MP3 devolvido. O WebView da APK
+pede a permissão Android pela ponte `NoxSec` quando se toca em **Ouvir**; no
+browser é o pedido normal do Chrome. Sem permissão, o botão volta a Ouvir e a
+mensagem aparece por cima do rodapé.
 
 ## Regras
 

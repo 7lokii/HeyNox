@@ -7,8 +7,10 @@ NoxSec, em `/heynox`. O browser local só é aberto no modo `--ui`.
 
 from __future__ import annotations
 
+import base64
 import json
 import threading
+import urllib.parse
 import urllib.request
 import webbrowser
 from collections.abc import Callable
@@ -37,6 +39,8 @@ from nox.voice import run_voice
 
 DEFAULT_PORT = 8765
 MAX_PORT = 8785
+# Uma frase de 50 s a 16 kHz mono são 1,6 MB; acima disso é abuso, não voz.
+MAX_VOICE_BYTES = 1_600_000
 
 
 def _build_whatsapp_agents(config: Config) -> tuple[Agent, Agent]:
@@ -93,6 +97,8 @@ class NoxApp:
         self._synth = None
         self._speaker = None
         self._voice_error = ""
+        self._transcriber = None
+        self._transcriber_lock = threading.Lock()
 
     def _wire_whatsapp_context(self) -> None:
         """O dono vê o histórico; o convidado só vê a contagem do grupo."""
@@ -202,7 +208,9 @@ class NoxApp:
                 on_input=self.state.set_input_levels,
                 stop_event=self._stop,
             )
-        except NoxError as exc:
+        except (NoxError, ImportError) as exc:
+            # OptionalDependencyError é ImportError: sem esta captura o botão
+            # voltava a "Ouvir" sem explicar porquê.
             self._voice_error = str(exc)
             self.logs.append(f"voz: {exc}")
             self.state.add_turn("assistant", f"Erro: {exc}")
@@ -211,6 +219,46 @@ class NoxApp:
 
     def voice_error(self) -> str:
         return self._voice_error
+
+    def voice_turn(self, audio: bytes, sample_rate: int) -> dict[str, str]:
+        """Turno de voz vindo do microfone do browser/WebView.
+
+        O homelab não tem placa de som: quem ouve é o dispositivo que abriu o
+        HUD. O áudio sobe em PCM 16 bits, é transcrito aqui e a resposta volta
+        em texto e MP3 para o browser tocar.
+        """
+        from nox.audio.types import Pcm
+        from nox.speech.stt import build_transcriber
+
+        with self._transcriber_lock:
+            if self._transcriber is None:
+                self._transcriber = build_transcriber(self.config)
+        text = self._transcriber.transcribe(Pcm(audio), sample_rate)
+        if not text:
+            return {"text": "", "answer": "", "audio": "", "voice_error": ""}
+
+        self.state.add_turn("user", text)
+        try:
+            answer = self.agent.reply(text)
+        except NoxError as exc:
+            answer = f"Erro: {exc}"
+        self.state.add_turn("assistant", answer)
+
+        encoded = ""
+        voice_error = ""
+        if answer and not answer.startswith("Erro:") and self.config.tts.provider == "edge":
+            try:
+                from nox.speech.edge import synthesize_mp3
+
+                mp3 = synthesize_mp3(
+                    answer, self.config.tts.voice, speed=self.config.tts.speed
+                )
+                if mp3:
+                    encoded = base64.b64encode(mp3).decode("ascii")
+            except (NoxError, ImportError, OSError) as exc:
+                # O texto vai na mesma; o HUD cai para a voz do sistema.
+                voice_error = str(exc)
+        return {"text": text, "answer": answer, "audio": encoded, "voice_error": voice_error}
 
     # ---------------------- configuração na interface ----------------------
 
@@ -240,6 +288,8 @@ class NoxApp:
             self.stop_voice()
         self.config = settings_ui.load_config(self.settings.config_path)
         self.approvals.set_full_access(self.config.tools.full_access)
+        with self._transcriber_lock:
+            self._transcriber = None
         self.agent = build_agent(self.config, approvals=self.approvals)
         self.whatsapp_owner_agent, self.whatsapp_guest_agent = _build_whatsapp_agents(self.config)
         self._wire_whatsapp_context()
@@ -297,17 +347,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send_asset()
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path == "/api/say":
+        path = urllib.parse.urlsplit(self.path).path
+        if path == "/api/say":
             text = str(self._body().get("text", "")).strip()
             if not text:
                 self._send_json({"error": "texto vazio"}, status=400)
                 return
             self._send_json({"answer": self.app.say(text)})
-        elif self.path == "/api/voice":
+        elif path == "/api/voice":
             running = bool(self._body().get("on"))
             self.app.set_voice(running)
             self._send_json({"voice": running})
-        elif self.path == "/api/memory/forget":
+        elif path == "/api/voice/turn":
+            self._voice_turn()
+        elif path == "/api/memory/forget":
             pattern = str(self._body().get("pattern", "")).strip()
             self._send_json({"removed": self.app.forget(pattern)})
         elif self.path == "/api/approvals":
@@ -352,6 +405,30 @@ class Handler(BaseHTTPRequestHandler):
             self._safe_json(lambda: self._test_key())
         else:
             self.send_error(404)
+
+    def _voice_turn(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length % 2:
+            self._send_json({"error": "audio invalido"}, status=400)
+            return
+        if length > MAX_VOICE_BYTES:
+            self._send_json({"error": "audio demasiado longo"}, status=413)
+            return
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        try:
+            sample_rate = int(query.get("rate", ["16000"])[0])
+        except ValueError:
+            sample_rate = 16000
+        if not 8000 <= sample_rate <= 48000:
+            self._send_json({"error": "taxa de amostragem invalida"}, status=400)
+            return
+        audio = self.rfile.read(length)
+        try:
+            self._send_json(self.app.voice_turn(audio, sample_rate))
+        except (NoxError, ImportError) as exc:
+            self._send_json({"error": str(exc)}, status=503)
+        except Exception as exc:  # noqa: BLE001 - o HUD tem de receber uma explicação
+            self._send_json({"error": f"a voz falhou: {exc}"}, status=500)
 
     def _test_key(self) -> dict[str, Any]:
         ok, message = self.app.settings.test_key(self._body())

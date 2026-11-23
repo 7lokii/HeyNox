@@ -327,6 +327,22 @@
   border-color: var(--accent);
 }
 .composer .voice { min-width: 120px; }
+.composer { position: relative; }
+.voice-erro {
+  position: absolute;
+  left: 4px;
+  bottom: calc(100% + 6px);
+  max-width: min(460px, calc(100vw - 28px));
+  margin: 0;
+  padding: 5px 9px;
+  border: 1px solid rgba(251, 75, 92, .45);
+  border-radius: 7px;
+  background: rgba(4, 7, 13, .94);
+  color: #ffb4bd;
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+}
 
 @media (max-width: 880px) {
   .stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
