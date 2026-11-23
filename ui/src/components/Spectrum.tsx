@@ -1,9 +1,9 @@
 /** O reactor: o anel de espectro que desenha o áudio real.
  *
- *  Duas fontes. A saída do Nox (ciano, a crescer para fora) vem de
- *  `/api/levels.levels`; o microfone (verde, a crescer para dentro) vem de
- *  `/api/levels.input`. Nada disto é animação de enfeite: se o Nox está calado,
- *  o anel quase pára.
+ *  Duas fontes. A saída do Nox (vermelha enquanto fala, a crescer para fora)
+ *  vem de `/api/levels.levels`; o microfone (azul, a crescer para dentro) vem
+ *  de `/api/levels.input`. Nada disto é animação de enfeite: se o Nox está
+ *  calado, o anel quase pára.
  */
 
 import { useEffect, useRef } from "react";
@@ -58,6 +58,7 @@ export function Spectrum({ onStatus }: Props) {
       alpha: number,
       dash: number[],
       rotation: number,
+      rgb: string,
     ) => {
       ctx.save();
       ctx.translate(cx, cy);
@@ -65,7 +66,7 @@ export function Spectrum({ onStatus }: Props) {
       ctx.beginPath();
       ctx.setLineDash(dash);
       ctx.lineWidth = width;
-      ctx.strokeStyle = `rgba(34, 211, 238, ${alpha})`;
+      ctx.strokeStyle = `rgba(${rgb}, ${alpha})`;
       ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
@@ -116,18 +117,27 @@ export function Spectrum({ onStatus }: Props) {
       const base = radius * 0.6;
       phase += 0.006;
 
+      const speaking = target.current.some((value) => value > 0.02);
+      const listening = inputTarget.current.some((value) => value > 0.02);
+      const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
+      const voice = speaking
+        ? { halo: "251, 75, 92", core: "255, 205, 211" }
+        : listening
+          ? mic
+          : { halo: "34, 211, 238", core: "165, 243, 252" };
+
       const glow = ctx.createRadialGradient(cx, cy, base * 0.2, cx, cy, radius);
-      glow.addColorStop(0, "rgba(34, 211, 238, 0.12)");
-      glow.addColorStop(0.55, "rgba(34, 211, 238, 0.04)");
+      glow.addColorStop(0, `rgba(${voice.halo}, ${speaking ? 0.22 : 0.12})`);
+      glow.addColorStop(0.55, `rgba(${voice.halo}, ${speaking ? 0.08 : 0.04})`);
       glow.addColorStop(1, "rgba(4, 7, 13, 0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      ring(cx, cy, base * 1.3, 1, 0.1, [2, 10], phase * 0.35);
-      ring(cx, cy, base * 1.16, 1, 0.16, [30, 8], -phase * 0.5);
-      ring(cx, cy, base * 0.88, 1, 0.14, [], 0);
+      ring(cx, cy, base * 1.3, 1, 0.1, [2, 10], phase * 0.35, voice.halo);
+      ring(cx, cy, base * 1.16, 1, 0.16, [30, 8], -phase * 0.5, voice.halo);
+      ring(cx, cy, base * 0.88, 1, 0.14, [], 0, voice.halo);
 
       ctx.save();
       ctx.translate(cx, cy);
@@ -136,7 +146,7 @@ export function Spectrum({ onStatus }: Props) {
         const inner = base * 1.16;
         const outer = inner + (i % 6 === 0 ? 9 : 4);
         ctx.beginPath();
-        ctx.strokeStyle = `rgba(34, 211, 238, ${i % 6 === 0 ? 0.16 : 0.06})`;
+        ctx.strokeStyle = `rgba(${voice.halo}, ${i % 6 === 0 ? 0.16 : 0.06})`;
         ctx.lineWidth = 1;
         ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
         ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
@@ -145,8 +155,6 @@ export function Spectrum({ onStatus }: Props) {
       ctx.restore();
 
       const idle = 0.045 + 0.03 * Math.sin(phase * 2.2);
-      const speaking = target.current.some((value) => value > 0.02);
-      const listening = inputTarget.current.some((value) => value > 0.02);
 
       // Espelhado no eixo vertical: meia volta mostra o espectro, a outra metade
       // repete-o. É o que dá o desenho simétrico em vez de um gráfico torto.
@@ -164,17 +172,17 @@ export function Spectrum({ onStatus }: Props) {
           angle,
           inner,
           inner + length,
-          "34, 211, 238",
-          0.06 + value * 0.22,
+          voice.halo,
+          0.06 + value * (speaking ? 0.32 : 0.22),
           7,
-          "165, 243, 252",
+          voice.core,
           0.35 + value * 0.65,
         );
       }
 
-      // Anel interior: o microfone. Verde, a crescer para dentro, para não se
+      // Anel interior: o microfone. Azul, a crescer para dentro, para não se
       // confundir com a voz do Nox.
-      ring(cx, cy, base * 0.8, 1, listening ? 0.22 : 0.08, [], 0);
+      ring(cx, cy, base * 0.8, 1, listening ? 0.32 : 0.12, [], 0, mic.halo);
       for (let i = 0; i < BANDS; i += 1) {
         const band = i < BANDS / 2 ? i : BANDS - 1 - i;
         const value = listening ? inputCurrent.current[band] : 0;
@@ -187,10 +195,10 @@ export function Spectrum({ onStatus }: Props) {
           angle,
           outer,
           outer - (4 + value * base * 0.34),
-          "52, 211, 153",
+          mic.halo,
           0.1 + value * 0.3,
           6,
-          "167, 243, 208",
+          mic.core,
           0.35 + value * 0.65,
         );
       }

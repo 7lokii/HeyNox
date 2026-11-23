@@ -11,31 +11,48 @@
   --ink: #d9f6ff;
   --muted: #5b8497;
   --accent: var(--cyan);
+  --accent-glow: rgba(34, 211, 238, 0.55);
+  --accent-glow-soft: rgba(34, 211, 238, 0.22);
+  --ambient-a: rgba(14, 116, 144, 0.18);
+  --ambient-b: rgba(34, 211, 238, 0.07);
 }
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; }
+html, body, #root { height: 100%; overflow: hidden; }
 
 body {
   margin: 0;
+  overscroll-behavior: none;
   background:
-    radial-gradient(1200px 700px at 50% -10%, rgba(14, 116, 144, 0.18), transparent 60%),
-    radial-gradient(900px 600px at 80% 110%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(1200px 700px at 50% -10%, var(--ambient-a), transparent 60%),
+    radial-gradient(900px 600px at 80% 110%, var(--ambient-b), transparent 60%),
     var(--bg);
   color: var(--ink);
   font: 14px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
   overflow: hidden;
 }
 
-body[data-status="a falar"] { --accent: #67e8f9; }
+body[data-status="a falar"] {
+  --accent: #fb4b5c;
+  --accent-glow: rgba(251, 75, 92, 0.55);
+  --accent-glow-soft: rgba(251, 75, 92, 0.22);
+  --line: rgba(251, 113, 133, 0.20);
+  --line-strong: rgba(251, 113, 133, 0.46);
+  --panel: rgba(30, 10, 17, 0.78);
+  --ambient-a: rgba(159, 18, 57, 0.32);
+  --ambient-b: rgba(244, 63, 94, 0.10);
+}
 body[data-status="a pensar"] { --accent: #a5b4fc; }
 body[data-status="a ouvir"] { --accent: #34d399; }
 body[data-status="a aguardar palavra"] { --accent: #c084fc; }
 
 .app {
   height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: 18px 22px 16px;
   gap: 14px;
 }
@@ -48,7 +65,7 @@ body[data-status="a aguardar palavra"] { --accent: #c084fc; }
   letter-spacing: 0.42em;
   font-weight: 600;
   color: var(--accent);
-  text-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+  text-shadow: 0 0 18px var(--accent-glow);
 }
 .brand .mark { opacity: .55; margin-right: 8px; }
 
@@ -128,7 +145,7 @@ body[data-status="a aguardar palavra"] { --accent: #c084fc; }
   letter-spacing: 0.34em;
   padding-left: 0.34em;
   color: #eafcff;
-  text-shadow: 0 0 26px rgba(34, 211, 238, .55), 0 0 70px rgba(34, 211, 238, .22);
+  text-shadow: 0 0 26px var(--accent-glow), 0 0 70px var(--accent-glow-soft);
 }
 .core-sub {
   margin-top: 10px;

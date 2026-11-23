@@ -211,6 +211,24 @@ button.ghost.close { padding: 4px 10px; }
   font-size: 10px;
 }
 
+/* A configuração também abre dentro do WebView: uma coluna, sem largura
+   mínima que empurre a página para lá do ecrã. */
+@media (max-width: 620px), (max-height: 560px) {
+  .setup { height: 100dvh; padding: 14px 14px 10px; gap: 10px; }
+  .setup-head p { font-size: 12px; }
+  .setup-foot { flex-wrap: wrap; gap: 8px; }
+  .setup-foot .muted { width: 100%; margin-right: 0; }
+  .form .row { gap: 10px; }
+  .form .row > .field { flex-basis: 100%; }
+  .sheet { width: calc(100vw - 16px); max-height: 92dvh; }
+  .sheet-head { padding: 14px 14px 10px; }
+  .sheet-body { padding: 14px; gap: 16px; }
+  .sheet-foot { padding: 12px 14px 0; flex-wrap: wrap; }
+  .sheet-foot button { flex: 1 1 auto; }
+  .paths code { word-break: break-all; }
+  .paths li > span { width: 54px; }
+}
+
 .gear {
   background: transparent;
   border: 1px solid var(--line);

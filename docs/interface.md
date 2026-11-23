@@ -48,6 +48,14 @@ nunca entrega ao WebView o cookie `noxsec_admin_session`.
 A página `lib/ecras/heynox.dart` só é criada na primeira abertura da aba. O
 `WebViewController` bloqueia navegação para outro host.
 
+## Ecrã pequeno e APK
+
+O HUD não tem uma segunda página para o telemóvel: o mesmo build adapta-se. Abaixo
+de 620 px de largura, ou em ecrãs baixos, o palco passa a uma coluna com o reactor
+curto, a conversa e os painéis opcionais. A página usa `100dvh` e mantém
+`overflow: hidden`; só os painéis internos rolam, com as barras escondidas. O
+WebView da APK usa este modo sem precisar de uma versão própria do binário.
+
 ## Caminhos relativos
 
 O build do Vite usa `base: "./"` e o cliente da API resolve pedidos a partir de

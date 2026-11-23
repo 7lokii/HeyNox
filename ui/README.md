@@ -39,7 +39,10 @@ src/
 ```
 
 `components/Spectrum.tsx` desenha o anel em canvas a 60 fps e lê o espectro real
-de `/api/levels` a cada 90 ms. Ciano é a voz do Nox, verde é o microfone.
+de `/api/levels` a cada 90 ms. O Nox fala a vermelho e, enquanto fala, o acento
+do HUD acompanha; o microfone desenha ondas azuis. Em ecrãs estreitos (o WebView
+da APK) o HUD passa a uma coluna compacta: reactor curto, conversa e painéis com
+scroll interno e sem barras de página.
 
 ## Regras
 
