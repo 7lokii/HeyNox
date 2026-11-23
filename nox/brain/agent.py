@@ -111,6 +111,10 @@ class Agent:
     max_steps: int = 4
     # Texto extra para o system prompt (índice de skills, por exemplo).
     extra_system: str = ""
+    # Contexto dinâmico por mensagem (histórico do grupo, por exemplo).
+    context: Callable[[str], str] | None = None
+    # Um canal remoto (WhatsApp) não pode accionar a paragem de emergência do PC.
+    allow_emergency: bool = True
     conversation: Conversation = field(init=False)
     _stop: Event = field(default_factory=Event, repr=False, init=False)
     _base_system: str = field(default="", repr=False, init=False)
@@ -141,7 +145,8 @@ class Agent:
             self._remember("assistant", local)
             return local
 
-        self.conversation.system = self._base_system + self._memory_block(text)
+        dynamic = self.context(text) if self.context is not None else ""
+        self.conversation.system = self._base_system + dynamic + self._memory_block(text)
         try:
             answer = self._reply_with_tools() if self.tools is not None else self._reply_plain()
         except LlmError:
@@ -204,10 +209,10 @@ class Agent:
         if len(normalized.split()) > LOCAL_ANSWER_MAX_WORDS:
             return None
 
-        if any(hint in normalized for hint in _STOP_HINTS):
+        if self.allow_emergency and any(hint in normalized for hint in _STOP_HINTS):
             EMERGENCY.trigger()
             return "Controlo do PC parado."
-        if any(hint in normalized for hint in _RESUME_HINTS):
+        if self.allow_emergency and any(hint in normalized for hint in _RESUME_HINTS):
             EMERGENCY.clear()
             return "Controlo do PC retomado."
 
@@ -300,9 +305,17 @@ def build_agent(
     *,
     voice: bool = False,
     approvals: ApprovalBroker | None = None,
+    with_tools: bool = True,
+    with_memory: bool = True,
+    allow_emergency: bool = True,
+    extra_system: str = "",
 ) -> Agent:
-    """Agente a partir da config. Sem chave, degrada para respostas locais."""
-    if approvals is None and config.tools.full_access:
+    """Agente a partir da config. Sem chave, degrada para respostas locais.
+
+    `with_tools=False` e `with_memory=False` servem o canal WhatsApp: texto de
+    estranhos não chega às ferramentas nem à memória privada do utilizador.
+    """
+    if with_tools and approvals is None and config.tools.full_access:
         # Acesso total também vale fora da interface: sem broker, escrever um
         # ficheiro e correr um comando ficavam recusados por falta de quem
         # aprovasse. O registo de auditoria continua a ser escrito.
@@ -311,11 +324,13 @@ def build_agent(
         llm = build_llm(config)
     except LlmError as exc:
         llm = UnconfiguredLlm(str(exc))
-    memory = MemoryStore(resolve_memory_path(config)) if config.memory.enabled else None
-    skills = load_skills()
+    memory = (
+        MemoryStore(resolve_memory_path(config)) if with_memory and config.memory.enabled else None
+    )
+    skills = load_skills() if with_tools else []
 
     tools = None
-    if config.tools.enabled:
+    if with_tools and config.tools.enabled:
         sandbox = Sandbox(config, root=install_dir())
         base_tools = [
             *build_file_tools(
@@ -360,5 +375,6 @@ def build_agent(
         history_turns=config.memory.history_turns,
         tools=tools,
         max_steps=config.tools.max_steps,
-        extra_system=skill_index(skills),
+        allow_emergency=allow_emergency,
+        extra_system=(skill_index(skills) if with_tools else "") + extra_system,
     )

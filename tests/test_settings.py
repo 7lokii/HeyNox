@@ -96,15 +96,6 @@ def test_save_writes_the_full_access_switch(store) -> None:
     assert document["tools"]["full_access"] is True
 
 
-def test_save_writes_the_update_settings(store) -> None:
-    store.save({"update_manifest_url": "https://exemplo.pt/latest.json", "update_check_hours": 3})
-
-    values = store.values()
-
-    assert values["update_manifest_url"] == "https://exemplo.pt/latest.json"
-    assert values["update_check_hours"] == 3.0
-
-
 def test_clearing_the_key_removes_it(store) -> None:
     store.save({"api_key": "chave-para-apagar"})
     store.save({"clear_api_key": True})

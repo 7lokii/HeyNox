@@ -2,10 +2,13 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // Em desenvolvimento a UI corre no Vite e o motor no Python. O proxy evita CORS
-// e deixa os componentes a falar com os mesmos caminhos `/api/...` do pacote.
+// e deixa os componentes a falar com os mesmos caminhos relativos do pacote.
+// `base: "./"` é obrigatório para o mesmo build funcionar em `/` e em
+// `/heynox/`, onde o NoxSec o serve atrás do proxy autenticado.
 const target = process.env.NOX_API ?? "http://127.0.0.1:8765";
 
 export default defineConfig({
+  base: "./",
   plugins: [react()],
   server: {
     port: 5173,

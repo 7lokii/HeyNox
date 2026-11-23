@@ -80,18 +80,18 @@ Segue o `spec.md` (§12). Estado atual:
   - [ ] Memória semântica (Chroma) — adiada, ver `docs/memory.md`.
   - [ ] Router multi-modelo.
   - [ ] Telemetria local opcional.
-  - [ ] Interface web completa (o HUD atual cobre conversa, voz, aprovações,
-    memória, rotinas e emergência).
+  - [x] Interface web completa (o HUD cobre conversa, voz, aprovações,
+    memória, rotinas e emergência) e vive atrás do proxy autenticado do NoxSec.
 
 ## Notas
 
-- **Tauri ficou de fora.** O pedido era TypeScript + Tauri. Falta a toolchain
-  Rust e o MSVC + Windows SDK para ligar o binário; as duas ocupam 6 a 8 GB e
-  o `C:` tem 6,1 GB livres. A janela é feita com `pywebview`, que usa o
-  WebView2 já instalado. O HUD em `ui/` é o mesmo nos dois caminhos.
+- **A app desktop ficou de fora.** Desde 2026-11-23 o HeyNox é um serviço
+  systemd no PVE, em `127.0.0.1:8765`, e o HUD é usado pelo painel NoxSec e
+  pela APK. O mesmo build de `ui/` serve os dois caminhos; não há janela nativa,
+  bandeja, instalador nem atualização automática.
 
 - Repositório remoto `7lokii/HeyNox` ainda não criado nem ligado (decisão: só local).
 - A versão 0.1 do spec (§19) inclui etapas das Fases 1 a 4.
-- Contagem de testes: 386 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
-- Validação da janela: `windows-latest` no CI compila `ui/dist` antes do
-  PyInstaller. Localmente, `nox --desktop` abre a janela e o HUD desenha.
+- Contagem de testes: 408 (3 saltam sem rede/modelos; ver `NOX_SLOW_TESTS`).
+- O HUD é validado no browser e o build da APK é validado na publicação; já não
+  há empacotamento PyInstaller nem validação de janela Windows.

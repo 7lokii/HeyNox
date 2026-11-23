@@ -1,0 +1,37 @@
+[Unit]
+Description=HeyNox - assistente pessoal (127.0.0.1:8765)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heynox
+Group=heynox
+WorkingDirectory=/opt/heynox
+Environment=HEYNOX_DATA_DIR=/var/lib/heynox
+Environment=NOX_DATA_DIR=/var/lib/heynox
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/heynox/.venv/bin/nox --serve --config /var/lib/heynox/config.yaml
+Restart=always
+RestartSec=3
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/heynox
+ReadOnlyPaths=/opt/heynox
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

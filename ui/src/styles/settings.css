@@ -211,30 +211,6 @@ button.ghost.close { padding: 4px 10px; }
   font-size: 10px;
 }
 
-/* ---------------- faixa de atualização ---------------- */
-
-.update-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid var(--line-strong);
-  background: rgba(34, 211, 238, 0.09);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  margin-top: 4px;
-}
-.update-bar button {
-  font: inherit;
-  font-size: 12px;
-  background: transparent;
-  border: 1px solid var(--line-strong);
-  border-radius: 5px;
-  color: var(--ink);
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
 .gear {
   background: transparent;
   border: 1px solid var(--line);

@@ -110,9 +110,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--ui", action="store_true", help="Abre a interface local no browser")
     parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Corre o serviço HTTP em 127.0.0.1 sem abrir browser nem janela",
+    )
+    parser.add_argument(
         "--desktop",
         action="store_true",
-        help="Abre o HeyNox numa janela própria (app desktop)",
+        help="Abre o HeyNox numa janela própria (removido; mantido só para erro claro)",
     )
     parser.add_argument("--routines", action="store_true", help="Lista as rotinas e sai")
     parser.add_argument("--memory", action="store_true", help="Mostra o que o Nox sabe e sai")
@@ -187,9 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         _append_log(message)
         if attached:
             raise
-        # Sem consola, o processo morreria em silêncio e o utilizador ficaria a
-        # olhar para um browser que nunca abre.
-        _report_fatal(message)
+        # Sem consola, o erro fica no log; o serviço é reiniciado pelo systemd.
         return 1
 
 
@@ -214,23 +217,26 @@ def _run(args: argparse.Namespace, out: Callable[[str], None]) -> int:
         return run_voice(config, out=out, input_file=args.input, use_wake=not args.no_wake)
     if args.devices:
         return _devices(config, out)
-    if args.desktop or args.ui:
+    if args.serve:
+        from nox.ui.server import serve
+
+        # O systemd tem de falhar se o porto estiver ocupado, em vez de escolher
+        # 8766 em silêncio e deixar o proxy do NoxSec a falar com o processo
+        # antigo. O browser só é aberto no modo local `--ui`.
+        return serve(config, out=out, open_browser=False, strict_port=True)
+    if args.desktop:
+        out("Erro: a versão desktop foi removida. Usa o painel NoxSec ou a APK.")
+        return 2
+    if args.ui:
         from nox.ui.server import existing_instance, serve
 
         running = existing_instance()
         if running is not None:
             # Segundo arranque: a app já está viva, não se sobe outro motor.
             out(f"já está a correr em {running}")
-            if args.ui:
-                webbrowser.open(running)
+            webbrowser.open(running)
             return 0
-        return serve(
-            config,
-            out=out,
-            desktop=args.desktop,
-            open_browser=args.ui,
-            tray=not args.desktop and not has_console(),
-        )
+        return serve(config, out=out, open_browser=True)
     if args.enroll or args.enroll_files or args.voiceprint or args.forget_voice:
         return _voiceprint_command(config, args, out)
     if args.test_stt is not None:
@@ -496,21 +502,6 @@ def _emit(message: str) -> None:
 
 def log_path() -> Path:
     return user_data_dir() / "logs" / "nox.log"
-
-
-def _report_fatal(message: str) -> None:
-    last = message.strip().splitlines()[-1]
-    alert(f"O Nox não conseguiu arrancar.\n\n{last}\n\nLog: {log_path()}")
-
-
-def alert(text: str) -> None:
-    """Caixa de erro nativa: sem consola não há outro sítio para a mostrar."""
-    try:
-        import ctypes
-
-        ctypes.windll.user32.MessageBoxW(0, text, "HeyNox", 0x10)
-    except (AttributeError, OSError):
-        return
 
 
 def _append_log(message: str) -> None:

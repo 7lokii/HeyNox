@@ -115,8 +115,8 @@ automation:
   tick_s: 30
 
 desktop:
-  # Controlo do PC. Cada ação pede aprovação na interface.
-  enabled: true
+  # Controlo do PC. Desligado: esta instalação é o serviço do homelab.
+  enabled: false
   confirm_actions: true
   allowed_apps:
     - "notepad.exe"

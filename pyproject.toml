@@ -15,10 +15,11 @@ dependencies = [
     "PyYAML>=6.0",
     "python-dotenv>=1.0",
     "certifi>=2023.0",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
-audio = ["sounddevice>=0.4.6", "numpy>=1.26"]
+audio = ["sounddevice>=0.4.6"]
 wake = ["vosk>=0.3"]
 vad = ["webrtcvad-wheels>=2.0"]
 silero = ["silero-vad>=5.0", "torch>=2.2"]
@@ -26,6 +27,8 @@ stt = ["faster-whisper>=1.0"]
 tts = ["piper-tts>=1.8"]
 edge = ["edge-tts>=7.0"]
 browser = ["playwright>=1.49"]
+# WhatsApp por QR code (dispositivo ligado, protocolo não oficial).
+whatsapp = ["neonize>=0.10"]
 desktop = [
     "pyautogui>=0.9.54",
     "mss>=9.0",
@@ -36,8 +39,6 @@ desktop = [
     "winrt-Windows.Storage.Streams; sys_platform == 'win32'",
     "winrt-Windows.Foundation; sys_platform == 'win32'",
 ]
-tray = ["pystray>=0.19"]
-shell = ["pywebview>=5.0"]
 voice = [
     "heynox[audio,wake,vad,stt,tts,edge]",
 ]
@@ -46,7 +47,6 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "pyright>=1.1.360",
-    "pystray>=0.19",
 ]
 
 [project.scripts]
@@ -72,10 +72,8 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S105", "S106"]
-"installer/pyinstaller.py" = ["S603"]
 
 [tool.pyright]
-include = ["nox", "tests", "installer"]
-exclude = ["installer/*.spec"]
+include = ["nox", "tests"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"

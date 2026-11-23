@@ -1,12 +1,15 @@
+import io
 from typing import Any
 
 import pytest
 
+from nox import __version__
 from nox.brain.llm import (
     AnthropicLlm,
     LlmError,
     OpenAiLlm,
     UnconfiguredLlm,
+    _post_json,
     build_llm,
 )
 from nox.brain.messages import Message
@@ -38,6 +41,28 @@ def test_build_llm_picks_anthropic_format(monkeypatch: pytest.MonkeyPatch) -> No
 def test_build_llm_picks_openai_format(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NOX_LLM_API_KEY", "chave")
     assert isinstance(build_llm(config_with(api_format="openai")), OpenAiLlm)
+
+
+def test_post_json_identifies_heynox(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class Resposta:
+        def __enter__(self) -> io.BytesIO:
+            return io.BytesIO(b'{"ok": true}')
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+    def fake_urlopen(request, timeout):
+        captured["user_agent"] = request.get_header("User-agent")
+        captured["timeout"] = timeout
+        return Resposta()
+
+    monkeypatch.setattr("nox.brain.llm.urllib.request.urlopen", fake_urlopen)
+    data = _post_json("https://exemplo.test/v1", {"x": 1}, {}, 5.0)
+
+    assert data == {"ok": True}
+    assert captured["user_agent"] == f"HeyNox/{__version__}"
 
 
 def test_anthropic_client_parses_text(monkeypatch: pytest.MonkeyPatch) -> None:

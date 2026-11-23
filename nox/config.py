@@ -265,17 +265,6 @@ class ToolsConfig(BaseModel):
     full_access: bool = False
 
 
-class UpdateConfig(BaseModel):
-    """Auto-atualização a partir do manifesto das releases."""
-
-    enabled: bool = True
-    check_hours: float = Field(default=6.0, gt=0)
-    # Manifesto público. Sem rede ou 404, a app segue sem novidades.
-    manifest_url: str = "https://raw.githubusercontent.com/7lokii/HeyNox/main/releases/latest.json"
-    # Aplicar sozinho exige uma pasta gravável: só o portátil cumpre isto.
-    allow_apply: bool = True
-
-
 class Config(BaseModel):
     nox: NoxIdentity = Field(default_factory=NoxIdentity)
     audio: AudioConfig = Field(default_factory=AudioConfig)
@@ -284,7 +273,6 @@ class Config(BaseModel):
     llm: LlmConfig = Field(default_factory=LlmConfig)
     automation: AutomationConfig = Field(default_factory=AutomationConfig)
     desktop: DesktopConfig = Field(default_factory=DesktopConfig)
-    update: UpdateConfig = Field(default_factory=UpdateConfig)
     mcp: McpConfig = Field(default_factory=McpConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)

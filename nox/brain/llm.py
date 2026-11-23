@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from nox import __version__
 from nox.brain.messages import Message
 from nox.config import Config, NoxError
 
@@ -105,8 +106,16 @@ def _post_json(
     url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float
 ) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
+    # O Cloudflare do Groq devolve 1010 a `Python-urllib`; identificar a app
+    # resolve o bloqueio sem depender do user-agent de outra ferramenta.
     request = urllib.request.Request(  # noqa: S310 — só http(s), definido no config
-        url, data=body, headers={**headers, "Content-Type": "application/json"}
+        url,
+        data=body,
+        headers={
+            "User-Agent": f"HeyNox/{__version__}",
+            **headers,
+            "Content-Type": "application/json",
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310

@@ -20,6 +20,8 @@ diz o que está implementado e como se comporta na prática.
 | Testes correm antes do push (`github.require_tests`) | `integrations/github.py` |
 | GitHub via `gh` autenticado, sem tokens em ficheiros ou argumentos | `integrations/github.py` |
 | Rotinas sem permissões extra; ações continuam sujeitas a aprovação | `automation/routines.py` |
+| WhatsApp no grupo escolhido, sem ferramentas, memória ou emergência | `integrations/whatsapp.py` |
+| Respostas do WhatsApp não passam pelo TTS | `ui/server.py` |
 | Sub-agente sem `spawn_agent` (sem cadeias) | `tools/subagent.py` |
 | Click/fill no browser pedem aprovação | `tools/browser.py` |
 | MCP desligado por omissão e só com servidores escolhidos | `mcp/client.py` |
@@ -97,8 +99,10 @@ autenticado, a ferramenta recusa e diz para correr `gh auth login`.
 
 ## Controlo do PC
 
-O `desktop` está desligado no código (`DesktopConfig.enabled = False`). Neste
-projeto está ligado por decisão do utilizador, com `confirm_actions: true`.
+O `desktop` está desligado no código (`DesktopConfig.enabled = False`). No
+serviço do homelab também está desligado em `deploy/config.yaml`; o config local
+pode ligá-lo, com `confirm_actions: true`, mas esta instalação não controla o PC
+do PVE.
 
 - Ler o ecrã (janelas, captura, OCR) não pede aprovação; mexer no rato, no
   teclado ou abrir apps pede, sempre, com coordenadas/texto no pedido.
@@ -112,8 +116,10 @@ projeto está ligado por decisão do utilizador, com `confirm_actions: true`.
 ## Auditoria
 
 Cada chamada — aprovada ou não — fica em
-`%LOCALAPPDATA%\HeyNox\logs\audit.jsonl`, com ferramenta, argumentos, duração e
-resultado (primeiros 200 caracteres). O ficheiro é append-only.
+`/var/lib/heynox/logs/audit.jsonl` no serviço (ou
+`%LOCALAPPDATA%\HeyNox\logs\audit.jsonl` numa execução local), com ferramenta,
+argumentos, duração e resultado (primeiros 200 caracteres). O ficheiro é
+append-only.
 
 ## Testes
 
@@ -146,6 +152,16 @@ resultado (primeiros 200 caracteres). O ficheiro é append-only.
 A interface também está coberta (`tests/test_ui.py`): aprovações pelo HTTP,
 botão de emergência, API de memória e o erro da voz a chegar ao HUD.
 
+## Serviço no homelab
+
+- `heynox.service` ouve só em `127.0.0.1:8765`; o NoxSec é a única entrada.
+- O browser usa a sessão admin; a APK troca um ticket de uso único por um
+  cookie limitado a `/heynox`.
+- O serviço não vê o resto do PVE: `security.allowed_paths` é
+  `/var/lib/heynox`.
+- O unit corre com `ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges` e
+  `ReadWritePaths=/var/lib/heynox`.
+
 ## Pendente
 
 - Níveis de permissão por ferramenta (ler / escrever / sistema) declarados no
@@ -154,4 +170,3 @@ botão de emergência, API de memória e o erro da voz a chegar ao HUD.
 - Bloqueio de rede por lista de destinos: hoje qualquer URL pública pode ser
   pedida (`web_search`, `fetch_url`, `browser`); só localhost e IPs privados
   são recusados.
-- Assinatura de código do instalador (Authenticode) — ver `docs/packaging.md`.

@@ -251,22 +251,6 @@ def test_state_endpoint_reports_voice_errors(server) -> None:
     assert get_json(base + "/api/state")["voice_error"] == "faltam dependências de voz"
 
 
-def test_tray_requires_pystray(monkeypatch) -> None:
-    from nox.ui import tray
-
-    def unavailable(name: str):
-        raise ImportError(f"{name} em falta")
-
-    monkeypatch.setattr(tray, "require", unavailable)
-    with pytest.raises(ImportError):
-        tray.Tray(
-            "http://127.0.0.1:8765/",
-            on_open=lambda: None,
-            on_toggle_voice=lambda _on: None,
-            on_quit=lambda: None,
-        )
-
-
 def test_fresh_install_asks_for_setup(server) -> None:
     url, _ = server
 
@@ -322,29 +306,3 @@ def test_devices_endpoint_survives_without_audio(server, monkeypatch) -> None:
     monkeypatch.setattr("nox.audio.devices.input_devices", boom)
 
     assert get_json(f"{url}/api/devices")["devices"] == []
-
-
-def test_manifesto_novo_limpa_o_resultado_antigo(server) -> None:
-    """Trocar o endereço do manifesto não pode deixar à vista a versão do antigo."""
-    import time
-
-    base, _ = server
-    post_json(
-        base + "/api/settings",
-        {
-            "provider": "ollama",
-            "model": "llama3.2",
-            "base_url": "http://127.0.0.1:11434/v1",
-            "update_enabled": True,
-            "update_manifest_url": "http://127.0.0.1:9/latest.json",
-        },
-    )
-
-    for _ in range(50):
-        if get_json(base + "/api/update").get("ok") is not None:
-            break
-        time.sleep(0.1)
-
-    update = get_json(base + "/api/update")
-    assert update["available"] is False
-    assert update["latest"] in ("", "0.0.1")

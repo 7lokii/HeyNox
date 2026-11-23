@@ -2,6 +2,7 @@
 # Browser: pip install -e ".[browser]" && python -m playwright install chromium
 # Controlo do PC: pip install -e ".[desktop]"
 # Ícone na bandeja (interface sem consola): pip install -e ".[tray]"
+numpy>=1.26
 pydantic>=2.7
 PyYAML>=6.0
 python-dotenv>=1.0

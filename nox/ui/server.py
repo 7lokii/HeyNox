@@ -1,15 +1,14 @@
-"""Interface web local.
+"""Interface web local do HeyNox.
 
-Só stdlib: `ThreadingHTTPServer` e um ficheiro HTML. Ouve em 127.0.0.1 — não
-há autenticação porque não há rede: quem chega ao porto já está na máquina.
-Com `tray=True` (o `.exe`), o ícone da bandeja manda no ciclo de vida.
+Só stdlib: `ThreadingHTTPServer` e o HUD compilado. Ouve em 127.0.0.1 e não
+tem autenticação própria: no homelab o único cliente é o proxy autenticado do
+NoxSec, em `/heynox`. O browser local só é aberto no modo `--ui`.
 """
 
 from __future__ import annotations
 
 import json
 import threading
-import time
 import urllib.request
 import webbrowser
 from collections.abc import Callable
@@ -18,20 +17,41 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from nox import __version__
 from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
+from nox.integrations.whatsapp import (
+    WHATSAPP_GUEST_SYSTEM,
+    WHATSAPP_OWNER_SYSTEM,
+    WHATSAPP_SYSTEM,
+    WhatsAppService,
+)
 from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.ui import settings as settings_ui
 from nox.ui import static as hud
-from nox.ui import update as updater
 from nox.ui.state import NoxState
 from nox.voice import run_voice
 
 DEFAULT_PORT = 8765
 MAX_PORT = 8785
+
+
+def _build_whatsapp_agents(config: Config) -> tuple[Agent, Agent]:
+    """Dois agentes separados: o dono e os convidados não partilham conversa."""
+
+    def build(extra_system: str) -> Agent:
+        return build_agent(
+            config,
+            with_tools=False,
+            with_memory=False,
+            allow_emergency=False,
+            extra_system=WHATSAPP_SYSTEM + extra_system,
+        )
+
+    return build(WHATSAPP_OWNER_SYSTEM), build(WHATSAPP_GUEST_SYSTEM)
 
 
 def html_path() -> Path:
@@ -49,6 +69,7 @@ class NoxApp:
         agent: Agent | None = None,
         approvals: ApprovalBroker | None = None,
         settings: settings_ui.SettingsStore | None = None,
+        whatsapp: WhatsAppService | None = None,
     ) -> None:
         self.config = config
         self.state = state or NoxState()
@@ -60,22 +81,23 @@ class NoxApp:
         )
         self.routines = RoutineStore()
         self.agent = agent or build_agent(config, approvals=self.approvals)
+        # O canal WhatsApp não vê ferramentas nem a memória privada. O dono e
+        # os restantes membros têm agentes separados, para a conversa de um não
+        # servir de contexto ao outro.
+        self.whatsapp_owner_agent, self.whatsapp_guest_agent = _build_whatsapp_agents(config)
         self.logs: list[str] = []
+        self.whatsapp = whatsapp or WhatsAppService(self._whatsapp_reply, log=self.logs.append)
+        self._wire_whatsapp_context()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._synth = None
         self._speaker = None
         self._voice_error = ""
-        self._update_lock = threading.Lock()
-        self._update: dict[str, Any] = {
-            "ok": False,
-            "current": updater.__version__,
-            "latest": "",
-            "available": False,
-            "release": None,
-            "error": "",
-            "checked_at": 0.0,
-        }
+
+    def _wire_whatsapp_context(self) -> None:
+        """O dono vê o histórico; o convidado só vê a contagem do grupo."""
+        self.whatsapp_owner_agent.context = lambda _text: self.whatsapp.context(owner=True)
+        self.whatsapp_guest_agent.context = lambda _text: self.whatsapp.context(owner=False)
 
     def say(self, text: str) -> str:
         return self._respond(text, label=None)
@@ -94,6 +116,22 @@ class NoxApp:
         if self.config.nox.voice_enabled and not answer.startswith("Erro:"):
             threading.Thread(target=self._speak, args=(answer,), daemon=True).start()
         return answer
+
+    def _whatsapp_reply(self, text: str, _sender: str, owner: bool) -> str:
+        """Resposta no grupo: o dono e os convidados usam agentes diferentes."""
+        agent = self.whatsapp_owner_agent if owner else self.whatsapp_guest_agent
+        answer = agent.reply(text)
+        label = "dono" if owner else "convidado"
+        self.state.add_turn("user", f"(WhatsApp {label}) {text}")
+        self.state.add_turn("assistant", answer)
+        return answer
+
+    def whatsapp_payload(self) -> dict[str, Any]:
+        return self.whatsapp.payload()
+
+    def start_whatsapp(self) -> None:
+        """Retoma o modo se estava ligado quando a app fechou."""
+        self.whatsapp.resume()
 
     def _speak(self, text: str) -> None:
         """Fala a resposta sem bloquear o pedido HTTP.
@@ -186,7 +224,7 @@ class NoxApp:
             "values": self.settings.values(),
             "secrets": self.settings.secrets_status(),
             "setup_required": self.setup_required(),
-            "version": updater.__version__,
+            "version": __version__,
             "paths": {
                 "data": str(self.settings.root),
                 "config": str(self.settings.config_path),
@@ -198,73 +236,19 @@ class NoxApp:
         """Grava e passa a usar o que ficou gravado, sem reiniciar a app."""
         result = self.settings.save(payload)
         was_voice = bool(self.state.snapshot()["voice"])
-        old_manifest = self.config.update.manifest_url
         if was_voice:
             self.stop_voice()
         self.config = settings_ui.load_config(self.settings.config_path)
         self.approvals.set_full_access(self.config.tools.full_access)
         self.agent = build_agent(self.config, approvals=self.approvals)
+        self.whatsapp_owner_agent, self.whatsapp_guest_agent = _build_whatsapp_agents(self.config)
+        self._wire_whatsapp_context()
         self._synth = None
         self._speaker = None
         result["setup_required"] = self.setup_required()
-        if self.config.update.enabled and self.config.update.manifest_url != old_manifest:
-            # Manifesto novo, resultado antigo: sem isto a interface mostra uma
-            # versão que já não é a do sítio que passou a ser consultado.
-            threading.Thread(target=self.check_update, kwargs={"force": True}, daemon=True).start()
         if was_voice and self.config.nox.voice_enabled:
             threading.Thread(target=self.start_voice, daemon=True).start()
         return result
-
-    # ------------------------------- update -------------------------------
-
-    def update_state(self) -> dict[str, Any]:
-        with self._update_lock:
-            return dict(self._update)
-
-    def check_update(self, *, force: bool = False) -> dict[str, Any]:
-        """Pergunta ao manifesto. Em segundo plano, o pior caso é "sem novidades"."""
-        config = self.config.update
-        with self._update_lock:
-            last = float(self._update.get("checked_at", 0.0))
-        if not force and not config.enabled:
-            return self.update_state()
-        if not force and last and (time.time() - last) < config.check_hours * 3600:
-            return self.update_state()
-        try:
-            result = updater.check(config.manifest_url)
-        except Exception as exc:  # noqa: BLE001 — a verificação nunca derruba a app
-            result = {
-                "ok": False,
-                "current": updater.__version__,
-                "latest": "",
-                "available": False,
-                "release": None,
-                "error": str(exc),
-            }
-        result["checked_at"] = time.time()
-        result["can_apply"] = updater.can_apply()
-        with self._update_lock:
-            self._update = result
-        return dict(result)
-
-    def apply_update(self) -> dict[str, Any]:
-        """Prepara a troca de ficheiros e deixa o chamador fechar a app."""
-        state = self.update_state()
-        release = state.get("release") or {}
-        if not state.get("available") or not release:
-            return {"ok": False, "error": "Não há versão nova verificada."}
-        if not self.config.update.allow_apply or not updater.can_apply():
-            return {
-                "ok": False,
-                "error": "Esta instalação não se atualiza sozinha. Usa o instalador novo.",
-            }
-        try:
-            script = updater.apply(updater.Release(**release))
-        except Exception as exc:  # noqa: BLE001 — rede, zip, disco: tudo cai aqui
-            return {"ok": False, "error": str(exc)}
-        threading.Timer(0.8, updater.launch_and_exit, args=(script,)).start()
-        return {"ok": True, "script": str(script)}
-
 
 class Handler(BaseHTTPRequestHandler):
     app: NoxApp
@@ -276,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 — nome imposto pela stdlib
         if self.path in ("/", "/index.html"):
             self._send_asset()
+        elif self.path == "/api/health":
+            self._send_json({"ok": True, "service": "heynox"})
         elif self.path == "/api/state":
             snapshot = self.app.state.snapshot()
             snapshot["approvals"] = self.app.approvals.pending()
@@ -283,13 +269,6 @@ class Handler(BaseHTTPRequestHandler):
             snapshot["voice_error"] = self.app.voice_error()
             snapshot["setup_required"] = self.app.setup_required()
             snapshot["full_access"] = self.app.approvals.full_access
-            update_state = self.app.update_state()
-            snapshot["update"] = {
-                "available": update_state.get("available", False),
-                "latest": update_state.get("latest", ""),
-                "current": update_state.get("current", ""),
-                "can_apply": update_state.get("can_apply", False),
-            }
             self._send_json(snapshot)
         elif self.path == "/api/settings":
             self._send_json(self.app.settings_payload())
@@ -297,8 +276,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(
                 {"devices": self._devices(), "selected": self.app.config.audio.input_device}
             )
-        elif self.path == "/api/update":
-            self._send_json(self.app.update_state())
         elif self.path == "/api/levels":
             snapshot = self.app.state.snapshot()
             self._send_json(
@@ -311,6 +288,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         elif self.path == "/api/memory":
             self._send_json({"facts": self.app.memory_facts()})
+        elif self.path == "/api/whatsapp":
+            self._safe_json(self.app.whatsapp_payload)
         elif self.path.startswith("/api/"):
             self.send_error(404)
         else:
@@ -346,14 +325,31 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 EMERGENCY.clear()
             self._send_json({"emergency": EMERGENCY.active})
+        elif self.path == "/api/whatsapp":
+            on = bool(self._body().get("on", False))
+            self._safe_json(lambda: self.app.whatsapp.set_enabled(on))
+        elif self.path == "/api/whatsapp/group":
+            jid = str(self._body().get("jid", "")).strip()
+            try:
+                payload = self.app.whatsapp.select_group(jid)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            self._send_json(payload)
+        elif self.path == "/api/whatsapp/groups":
+            self._safe_json(self.app.whatsapp.refresh_groups)
+        elif self.path == "/api/whatsapp/mode":
+            mode = str(self._body().get("mode", "")).strip()
+            try:
+                payload = self.app.whatsapp.set_mode(mode)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            self._send_json(payload)
         elif self.path == "/api/settings":
             self._safe_json(lambda: self.app.apply_settings(self._body()))
         elif self.path == "/api/settings/test":
             self._safe_json(lambda: self._test_key())
-        elif self.path == "/api/update/check":
-            self._safe_json(lambda: self.app.check_update(force=True))
-        elif self.path == "/api/update/apply":
-            self._safe_json(self.app.apply_update)
         else:
             self.send_error(404)
 
@@ -417,13 +413,18 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def build_server(app: NoxApp, port: int = DEFAULT_PORT) -> tuple[ThreadingHTTPServer, int]:
-    """Sobe o servidor no primeiro porto livre."""
+def build_server(
+    app: NoxApp, port: int = DEFAULT_PORT, *, strict_port: bool = False
+) -> tuple[ThreadingHTTPServer, int]:
+    """Sobe o servidor no primeiro porto livre, ou só no porto pedido."""
     handler = type("BoundHandler", (Handler,), {"app": app})
-    for candidate in range(port, MAX_PORT + 1):
+    candidates = (port,) if strict_port else range(port, MAX_PORT + 1)
+    for candidate in candidates:
         try:
             server = ThreadingHTTPServer(("127.0.0.1", candidate), handler)
-        except OSError:
+        except OSError as exc:
+            if strict_port:
+                raise NoxError(f"o porto {candidate} já está ocupado") from exc
             continue
         return server, int(server.server_address[1])
     raise NoxError(f"nenhum porto livre entre {port} e {MAX_PORT}")
@@ -459,12 +460,11 @@ def serve(
     *,
     port: int = DEFAULT_PORT,
     open_browser: bool = True,
-    tray: bool = False,
-    desktop: bool = False,
+    strict_port: bool = False,
     out: Callable[[str], None] = print,
 ) -> int:
     app = NoxApp(config)
-    server, bound = build_server(app, port)
+    server, bound = build_server(app, port, strict_port=strict_port)
     url = f"http://127.0.0.1:{bound}/"
     out(f"Nox UI em {url}")
     _claim_port(bound)
@@ -477,74 +477,30 @@ def serve(
             on_error=lambda routine, exc: app.logs.append(f"rotina {routine.id} falhou: {exc}"),
         )
         scheduler.start()
-    # Em modo desktop quem mostra o HUD é a janela, não o browser.
-    if open_browser and not desktop:
+    if open_browser:
         webbrowser.open(url)
-
-    icon = None
-    if config.update.enabled:
-        # Verificar atualizações não pode atrasar a janela: vai em segundo plano.
-        threading.Thread(target=app.check_update, kwargs={"force": True}, daemon=True).start()
-    if tray:
-        try:
-            from nox.ui.tray import Tray
-
-            icon = Tray(
-                url,
-                on_open=lambda: _open_browser(url),
-                on_toggle_voice=app.set_voice,
-                # O `pystray` só sai do `run()` pelo `on_quit`; o HTTP é
-                # parado a seguir, no `finally`.
-                on_quit=lambda: None,
-                voice_on=app.state.snapshot()["voice"],
-            )
-        except ImportError as exc:
-            out(f"aviso: sem ícone na bandeja ({exc})")
-            icon = None
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    # Se o modo estava ligado, volta a ligar em segundo plano; a UI mostra o
+    # estado assim que o servidor responde.
+    app.start_whatsapp()
     try:
-        if desktop:
-            _run_desktop(url, out)
-        elif icon is not None:
-            icon.run()
-        else:
-            while thread.is_alive():
-                thread.join(0.5)
+        while thread.is_alive():
+            thread.join(0.5)
     except KeyboardInterrupt:
         out("a fechar")
     finally:
-        if icon is not None:
-            icon.stop()
         if scheduler is not None:
             scheduler.stop()
         app.stop_voice()
+        app.whatsapp.stop()
         app.approvals.cancel_all()
         server.shutdown()
         thread.join(timeout=3)
         server.server_close()
         _release_port()
     return 0
-
-
-def _run_desktop(url: str, out: Callable[[str], None]) -> None:
-    """Abre a janela nativa. Sem o extra `shell`, cai para o browser.
-
-    Bloqueia até a janela fechar: é o ciclo de vida da app.
-    """
-    from nox.ui import window
-
-    if not window.available():
-        out("aviso: sem janela nativa (falta o extra `shell`); abro no browser")
-        webbrowser.open(url)
-        while True:
-            time.sleep(0.5)
-    window.open_window(url)
-
-
-def _open_browser(url: str) -> None:
-    webbrowser.open(url)
 
 
 def _claim_port(port: int) -> None:

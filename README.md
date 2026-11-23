@@ -1,210 +1,170 @@
 # HeyNox
 
-**HeyNox** é um assistente pessoal de IA local-first chamado **Nox**.
+**HeyNox** é o assistente pessoal **Nox**: conversa, ferramentas, memória,
+WhatsApp e rotinas. O motor é Python; o HUD é TypeScript/React.
 
-O Nox ouve por “Hey Nox”, transcreve a fala, compreende pedidos,
-executa ferramentas seguras, guarda memória e pode ajudar em projetos
-GitHub através de branches, testes e pull requests.
+Desde 2026-11-23 corre como **serviço systemd no homelab**, em loopback. A única
+forma de o usar é pelo **painel NoxSec** (`/heynox/`) ou pela **APK**. As versões
+Windows, desktop e portátil, o instalador, a bandeja e a auto-atualização foram
+removidos.
 
-## Funcionalidades
+## Onde corre
 
-- Wake word “Hey Nox”, VAD, barge-in e réplica sem repetir a palavra
-- Voz bidirecional (Piper offline ou `edge-tts` neural)
-- Transcrição na cloud (Groq) com fallback local
-- Memória de longo prazo (SQLite + FTS5) e perfis de voz
-- Ferramentas de ficheiros, shell, web, browser e notas, com aprovações e diff
-- GitHub pelo `gh`: clone, branches, commit, testes antes do push, PRs e issues
-- Rotinas agendadas, sub-agentes, skills em Markdown e servidores MCP
-- Controlo do PC: janelas, OCR, rato e teclado, com emergência
-- Janela própria de desktop (HUD), não um separador do browser, e ícone na bandeja
-- Auditoria de todas as ferramentas em JSONL
-- Instalador Windows com `HeyNox.exe` e `nox.exe`
-
-## Estado
-
-Todas as fases do [`roadmap`](docs/roadmap.md) (0 a 6) estão fechadas e o
-projeto está empacotado. O que falta para a 1.0 está listado no roadmap;
-resumindo: memória semântica, router multi-modelo, telemetria local opcional e
-build Linux/macOS.
-
-A transcrição usa `whisper-large-v3-turbo` na Groq (~0,4 s); sem rede cai
-sozinha para o faster-whisper local.
-
-A interface está em TypeScript (`ui/`) e corre dentro de uma janela nativa
-sobre o WebView2 do Windows. O motor é Python e não mudou. Ver
-[`docs/interface.md`](docs/interface.md).
-
-## Abrir o Nox (Windows)
-
-Três formas, as três abrem a mesma janela:
-
-| Forma | Como | Quando |
-|---|---|---|
-| Comando | `nox --desktop` | tens o projeto instalado em Python; é o caminho de desenvolvimento |
-| Instalador | `HeyNox-Setup.exe`, depois o atalho do menu Iniciar | uso normal, com desinstalador e atalhos |
-| Portátil | extrair `HeyNox-<versao>-windows-x64-portable.zip` e correr `HeyNox\HeyNox.exe` | sem instalar nada, por exemplo numa pen |
-
-Os dois artefactos saem do mesmo build:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File installeruild.ps1
-# dist\HeyNox-Setup.exe
-# dist\HeyNox-<versao>-windows-x64-portable.zip
+```text
+browser / APK
+     |
+     | HTTPS admin.noxsec.site
+     v
+NoxSec API (127.0.0.1:8730) ---- /heynox/ ----> HeyNox (127.0.0.1:8765)
+     |                                              |
+     | sessão admin ou ticket de uso único          | /var/lib/heynox
+     v                                              v
+painel web / WebView da APK                    memória, config, chaves
 ```
 
-O portátil guarda os dados em `%LOCALAPPDATA%\HeyNox`, igual ao instalado.
-Apagar a pasta não apaga a memória; para isso existe `nox --memory-reset`.
+- `heynox.service`, utilizador `heynox`.
+- Código em `/opt/heynox`; o `ui/dist` é servido ao lado de `nox/`.
+- Dados, configuração e `.env` em `/var/lib/heynox`; nada de segredos no repo.
+- O HeyNox **não** abre portas para a rede. O NoxSec é a única entrada.
+- `voice_enabled: false` e `desktop.enabled: false` na configuração do serviço.
 
-## Uso
+## Usar
+
+1. Abre <https://admin.noxsec.site> e inicia sessão.
+2. Escolhe **HeyNox** na navegação lateral. O HUD carrega num iframe
+   autenticado pela sessão admin.
+3. No primeiro arranque aparece a configuração: escolhe o fornecedor, cola a
+   chave do modelo e guarda. A chave fica em `/var/lib/heynox/.env`.
+4. Na APK, a gaveta tem **Painel / HeyNox / Diagnóstico / Settings**. A app pede
+   um ticket de uso único e o WebView recebe apenas o cookie `/heynox`.
+
+O HUD também funciona em `nox --ui` numa máquina local, para diagnóstico. Não é
+uma aplicação desktop: abre no browser e não tem janela, bandeja ou atualização
+automática.
+
+## Instalar no homelab
+
+O instalador é idempotente e corre como root. A cópia de origem tem de ter
+`nox/`, `ui/dist` já construído e `deploy/`.
 
 ```bash
-nox --desktop                # janela própria do HeyNox (é o que o .exe faz)
-nox --ui                     # o mesmo HUD no browser, para diagnóstico
-nox --check                  # configuração e ambiente
-nox --text                   # conversa por texto
-nox --voice                  # conversa por voz: diz "Hey Nox"
-nox --voice --no-wake        # ouve sempre, sem palavra de ativação
-nox --voice --input a.wav    # o mesmo pipeline, a partir de um ficheiro
-nox --devices                # lista os microfones disponíveis
-nox --say "que horas são?"   # uma resposta e sai
-nox --speak "Bom dia."       # sintetiza para WAV
-nox --transcribe audio.wav   # transcreve um WAV
-
-nox --enroll                 # inscreve a tua voz (3 amostras)
-nox --enroll-files a.wav b.wav c.wav   # o mesmo, a partir de ficheiros
-nox --voiceprint             # vê os perfis de voz
-nox --forget-voice --name eu # apaga um perfil
-nox --test-stt 4             # grava 4 s e mostra o que o STT ouviu
-
-nox --routines               # lista as rotinas e o estado
-nox --memory                 # o que o Nox sabe sobre ti
-nox --forget Rui             # esquece o que contiver "Rui"
-nox --memory-reset           # apaga factos e histórico
-nox --memory-export a.json   # exporta / --memory-import para importar
+cd /tmp/heynox-install
+bash deploy/instalar.sh
 ```
 
-Perguntas simples — horas, data, agradecimentos — são respondidas localmente,
-sem rede e sem custo. Tudo o resto vai ao modelo configurado no `config.yaml`;
-a chave fica em `NOX_LLM_API_KEY`, no `.env`.
-
-## Interface
-
-A interface local (aberta pelo `HeyNox.exe`) é um HUD: o nome no centro, um anel
-com o **espectro real** do áudio que está a sair, a conversa à direita e a
-memória por baixo. Não é uma animação: os níveis vêm do PCM que o altifalante
-está a reproduzir (`/api/levels`, 48 bandas a 25 fps).
-
-Abrir o `HeyNox.exe` outra vez não cria uma segunda instância: reabre o browser
-na que já está a correr. Para fechar, usa **Sair** no ícone `HeyNox` da
-bandeja — o mesmo menu tem «Ouvir» para ligar/desligar a voz.
-
-## Instalação
+O script cria o utilizador, instala o venv, copia o serviço, ativa
+`heynox.service` e espera por `GET /api/health`.
 
 ```bash
-git clone https://github.com/7lokii/HeyNox.git
-cd HeyNox
-python -m venv .venv
+systemctl status heynox.service
+journalctl -u heynox.service -n 50 --no-pager
+curl -fsS http://127.0.0.1:8765/api/health
 ```
 
-Ativar o ambiente (Windows PowerShell):
+### Atualizar o serviço
 
-```powershell
-.venv\Scripts\Activate.ps1
-```
+1. `cd HeyNox/ui && npm run build`
+2. Enviar `nox/`, `ui/dist`, `pyproject.toml`, `README.md` e `deploy/`.
+3. Na cópia extraída no servidor, correr `bash deploy/instalar.sh`.
+4. Confirmar `heynox.service` ativo e o health.
 
-Linux/macOS:
+O instalador preserva `/var/lib/heynox/config.yaml` e `.env` entre atualizações.
+
+## CLI
+
+O CLI continua disponível para diagnóstico e para os comandos locais:
 
 ```bash
-source .venv/bin/activate
-```
-
-Instalar o núcleo (sem modelos nem áudio) ou com os extras que quiseres:
-
-```bash
-pip install -e ".[dev]"        # núcleo + ferramentas de desenvolvimento
-pip install -e ".[voice]"      # microfone, wake word, VAD, STT e TTS local
-pip install -e ".[browser]"    # Playwright (falta o Chromium, ver docs/tools.md)
-pip install -e ".[desktop]"    # rato, teclado, capturas e OCR do Windows
-pip install -e ".[tray]"       # ícone na bandeja (pystray)
-```
-
-Configurar e verificar:
-
-```bash
-cp .env.example .env         # Windows: copy .env.example .env
 nox --check
+nox --serve                  # modo do systemd, loopback, sem browser
+nox --ui                     # HUD local no browser, diagnóstico
+nox --say "que horas são?"
+nox --text                   # conversa por texto
+nox --voice                  # requer as dependências de voz
+nox --devices
+nox --memory
+nox --memory-reset
+nox --routines
+nox --transcribe audio.wav
 ```
 
-Na app (`.exe`), não há ficheiros para editar: o primeiro arranque abre um ecrã
-de configuração dentro da própria janela, onde se escolhe o fornecedor do
-modelo, se cola a chave, se testa e se escolhe o microfone. Fica gravado em
-`%LOCALAPPDATA%\HeyNox`. Depois, a engrenagem no topo abre as mesmas opções e
-mais três coisas: **acesso total**, **atualizações** e onde estão os dados.
+`--desktop` já não abre uma janela; devolve um erro e o código 2.
 
-## Acesso total e atualizações
+## Painel NoxSec
 
-**Acesso total** (Definições → Acesso total) desliga os pedidos de aprovação:
-o Nox passa a escrever ficheiros, correr comandos e mexer no rato sem
-perguntar. Tudo o que faz nesse modo fica no `logs/audit.jsonl`, e o botão
-**Parar** do topo continua a bloquear o controlo do PC. Desligado por omissão.
+O painel não tem token do HeyNox. Para o browser, usa a sessão admin existente.
+Para o WebView da APK:
 
-**Atualizações** vêm de `releases/latest.json`. A app verifica no arranque (e a
-pedido), compara versões e, na versão portátil, descarrega o zip novo, confere
-o `sha256` do manifesto e troca a pasta quando a app fecha. Sem `sha256` no
-manifesto, nada é aplicado. Instalações em `Program Files` não se trocam
-sozinhas: mostram a versão nova e o caminho do instalador.
-
-## Instalador Windows
-
-O build gera `dist\HeyNox-Setup.exe` (Inno Setup) com `HeyNox.exe`, `nox.exe` e
-arranque opcional. Ver [`docs/packaging.md`](docs/packaging.md).
-
-```powershell
-winget install astral-sh.uv JRSoftware.InnoSetup
-powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```text
+GET /api/heynox/ticket         (sessão admin ou Bearer)
+GET /heynox/?ticket=...        303 + Set-Cookie noxsec_heynox_session
 ```
+
+O ticket vale 60 segundos e só pode ser usado uma vez. O cookie vale 12 horas,
+é `HttpOnly`, `Secure`, `SameSite=Lax` e tem `Path=/heynox`; não cobre `/api` do
+painel. O iframe só é permitido no mesmo domínio (`frame-ancestors 'self'` e
+`X-Frame-Options: SAMEORIGIN`).
+
+## Desenvolvimento
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -e ".[dev,whatsapp]"
+cd ui && npm install && npm run build
+```
+
+Testes:
+
+```bash
+.venv/Scripts/python.exe -m pytest -q          # Windows
+.venv/bin/python -m pytest -q                  # Linux
+```
+
+O estado actual: **408 testes passam, 3 são saltados** sem rede/modelos
+(`NOX_SLOW_TESTS`). O NoxSec API tem 105. A app Flutter compila e a release
+`v0.9.0+36` está publicada no painel e no servidor.
+
+## Configuração
+
+`deploy/config.yaml` é o ponto de partida do serviço. Pontos importantes:
+
+```yaml
+nox:
+  voice_enabled: false
+memory:
+  sqlite_path: /var/lib/heynox/nox.db
+desktop:
+  enabled: false
+security:
+  allowed_paths:
+    - /var/lib/heynox
+```
+
+O resto (fornecedor, modelo, chave) pode ser mudado no ecrã de configuração do
+HUD. As alterações são gravadas em `/var/lib/heynox/config.yaml` e `.env`.
+
+## Segurança
+
+- O motor não é exposto na rede; só o proxy autenticado do NoxSec lhe chega.
+- A sessão admin do browser não é copiada para o WebView da APK.
+- O cookie do HeyNox é limitado a `/heynox`; o ticket é de uso único e curto.
+- O serviço corre com `ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges` e
+  só pode escrever em `/var/lib/heynox`.
+- A allowlist de caminhos do serviço é `/var/lib/heynox`; não vê o resto do PVE.
+- `.env`, `.git` e credenciais continuam bloqueados pela sandbox.
 
 ## Estrutura
 
 ```text
-nox/
-├── main.py        CLI `nox`: todos os argumentos
-├── config.py      config.yaml tipado (pydantic)
-├── optional.py    Import lazy das dependências pesadas (extras)
-├── paths.py       Caminhos do projeto, do pacote e dos dados do utilizador
-├── audio/         Microfone, wake word, VAD, WAV, espectro, voz
-├── speech/        STT (local e Groq) e TTS (Piper e edge-tts)
-├── brain/         Agente, cliente LLM e prompts
-├── memory/        Memória SQLite + FTS5
-├── tools/         Uma ferramenta por ficheiro (ficheiros, shell, web, GitHub…)
-├── safety/        Aprovações, sandbox e audit log
-├── integrations/  GitHub (gh CLI)
-├── automation/    Rotinas agendadas
-├── mcp/           Cliente MCP (stdio)
-├── desktop/       Janelas, captura, OCR e controlo do PC
-├── ui/            Servidor local, HUD, janela nativa e ícone da bandeja
-└── skills.py      Skills em Markdown
-
-ui/                HUD em TypeScript (Vite + React); compila para ui/dist
-installer/         PyInstaller (.spec gerados, hooks) e Inno Setup
-scripts/           Pontos de entrada dos .exe e bench_stt.py
-tests/             Suite (pytest) e fixtures/ com amostras de voz
-docs/              Um documento por área (ver abaixo)
+nox/             motor, CLI, ferramentas, memória, voz e integrações
+ui/              HUD React/Vite; o build vive em ui/dist
+deploy/          unit systemd, config do serviço e instalador
+tests/           pytest; fixtures de voz em tests/fixtures/samples
+docs/            documentação por área
 ```
 
-Documentação: [`roadmap.md`](docs/roadmap.md),
-[`architecture.md`](docs/architecture.md), [`voice.md`](docs/voice.md),
-[`memory.md`](docs/memory.md), [`tools.md`](docs/tools.md),
-[`security.md`](docs/security.md), [`automation.md`](docs/automation.md),
-[`desktop.md`](docs/desktop.md) e [`packaging.md`](docs/packaging.md).
-
-## Segurança
-
-O Nox não acede a `.env`/`.git`, não sai de `security.allowed_paths`, não corre
-comandos fora da allowlist sem aprovação e pede confirmação antes de escrever
-ficheiros, controlar o PC ou abrir PRs. Tudo fica no audit log em JSONL.
-Ver [`docs/security.md`](docs/security.md).
-
-## Licença
-
-MIT, se confirmado pelo autor.
+Documentação: [`architecture.md`](docs/architecture.md),
+[`interface.md`](docs/interface.md), [`security.md`](docs/security.md),
+[`whatsapp.md`](docs/whatsapp.md) e [`roadmap.md`](docs/roadmap.md).

@@ -1,0 +1,148 @@
+nox:
+  name: Nox
+  language: pt-PT
+  persona: calm, direct, helpful, futuristic
+  wake_word: hey nox
+  wake_word_sensitivity: 0.7
+  voice_enabled: false
+  text_enabled: true
+  voice_fillers: true
+wake:
+  provider: vosk
+  model: vosk-model-small-pt-0.3
+  phrases:
+  - nox
+  - ei nox
+  - hey nox
+  grammar:
+  - inox
+  - ei inox
+  - '[unk]'
+  voiceprint: false
+  voiceprint_threshold: 0.35
+  timeout_s: 8
+  follow_up_s: 6
+audio:
+  input_device: Mi TW
+  input_fallback: default
+  sample_rate: 16000
+  channels: 1
+  block_ms: 30
+  min_speech_rms: 120
+  noise_gate: true
+  noise_gate_factor: 2.5
+  denoise_wake: false
+  barge_in: false
+  barge_in_ms: 300
+  barge_in_threshold: 800
+  vad:
+    provider: webrtc
+    sensitivity: 0.5
+    aggressiveness: 2
+    silence_ms: 500
+stt:
+  provider: openai
+  model: small
+  device: auto
+  compute_type: int8
+  beam_size: 3
+  language: pt
+  initial_prompt: ''
+  trim_silence: true
+  denoise: true
+  denoise_strength: 1.5
+  cloud_base_url: https://api.groq.com/openai/v1
+  cloud_model: whisper-large-v3-turbo
+  cloud_api_key_env: GROQ_API_KEY
+  fallback_provider: faster-whisper
+llm:
+  default_provider: groq
+  model: openai/gpt-oss-20b
+  api_format: openai
+  base_url: https://api.groq.com/openai/v1
+  api_key_env: NOX_LLM_API_KEY
+  max_tokens: 1200
+  temperature: 0.4
+  timeout: 30
+  router:
+    simple_tasks: groq
+    coding_tasks: anthropic
+    private_tasks: ollama
+    fallback: openai_compatible
+tts:
+  provider: edge
+  voice: pt-PT-DuarteNeural
+  speed: 1.0
+memory:
+  enabled: true
+  sqlite_path: /var/lib/heynox/nox.db
+  vector_store: none
+  embedding_provider: local
+  history_turns: 12
+github:
+  default_repo: 7lokii/HeyNox
+  default_branch: main
+  allow_push_to_main: true
+  require_pr: false
+  require_tests: true
+tools:
+  enabled: true
+  max_steps: 6
+  command_timeout: 60
+  approval_timeout_s: 45
+  confirm_writes: true
+automation:
+  enabled: true
+  tick_s: 30
+desktop:
+  enabled: false
+  confirm_actions: true
+  allowed_apps:
+  - notepad.exe
+  - calc.exe
+  - explorer.exe
+  screenshot_dir: /var/lib/heynox/screenshots
+mcp:
+  enabled: false
+  timeout_s: 20
+  servers: {}
+security:
+  allowed_paths:
+  - /var/lib/heynox
+  blocked_paths:
+  - .env
+  - .git
+  - credentials
+  allowed_commands:
+  - git status
+  - git diff
+  - git log
+  - git show
+  - git branch
+  - git add
+  - git commit
+  - pytest
+  - python -m pytest
+  - ruff check
+  - ruff format
+  blocked_commands:
+  - rm -rf
+  - rm -r
+  - del /s
+  - del /q
+  - rd /s
+  - format
+  - diskpart
+  - mkfs
+  - shutdown
+  - reg delete
+  - cipher /w
+  - vssadmin
+  - dd if=
+  require_confirmation:
+  - delete
+  - force_push
+  - install
+  - system_change
+  - send_email
+  - purchase

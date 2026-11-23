@@ -26,7 +26,16 @@ def bundle_dir() -> Path:
 
 
 def user_data_dir() -> Path:
-    """Diretório de dados do utilizador. Windows: %LOCALAPPDATA%\\HeyNox."""
+    """Diretório de dados do utilizador.
+
+    O serviço do homelab aponta `HEYNOX_DATA_DIR` para `/var/lib/heynox`; sem
+    essa variável, mantém-se o caminho nativo de cada sistema.
+    """
+    # Só o prefixo HEYNOX_: `NOX_DATA_DIR` já existe no .env local com `./data`
+    # e mudar o significado desse valor alterava o comportamento do desktop.
+    override = os.environ.get("HEYNOX_DATA_DIR")
+    if override:
+        return Path(override).expanduser()
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
     elif sys.platform == "darwin":

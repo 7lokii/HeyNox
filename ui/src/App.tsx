@@ -8,10 +8,17 @@ import { Spectrum } from "./components/Spectrum";
 import { ConversationLog } from "./components/ConversationLog";
 import { Approvals } from "./components/Approvals";
 import { MemoryPanel } from "./components/MemoryPanel";
+import { WhatsAppPanel } from "./components/WhatsAppPanel";
 import { Composer } from "./components/Composer";
 import { Settings } from "./screens/Settings";
 import { Setup } from "./screens/Setup";
-import type { Approval, Fact, SettingsPayload, Turn, UpdateState } from "./types";
+import type {
+  Approval,
+  Fact,
+  SettingsPayload,
+  Turn,
+  WhatsAppState,
+} from "./types";
 
 const STATE_MS = 900;
 const MEMORY_MS = 2500;
@@ -25,14 +32,10 @@ export function App() {
   const [voiceError, setVoiceError] = useState("");
   const [emergency, setEmergency] = useState(false);
   const [fullAccess, setFullAccess] = useState(false);
+  const [whatsapp, setWhatsapp] = useState<WhatsAppState | null>(null);
+  const [whatsappBusy, setWhatsappBusy] = useState(false);
   const [setup, setSetup] = useState<SettingsPayload | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [update, setUpdate] = useState<UpdateState>({
-    available: false,
-    latest: "",
-    current: "",
-    can_apply: false,
-  });
 
   const refresh = useCallback(async () => {
     try {
@@ -42,7 +45,6 @@ export function App() {
       setTurns(state.turns);
       setApprovals(state.approvals ?? []);
       setFullAccess(Boolean(state.full_access));
-      setUpdate(state.update ?? { available: false, latest: "", current: "", can_apply: false });
       if (state.setup_required) {
         // Primeiro arranque: sem chave não há HUD, há configuração. O
         // `current ?? payload` evita recarregar o formulário a cada polling
@@ -73,6 +75,58 @@ export function App() {
     }
   }, []);
 
+  const refreshWhatsApp = useCallback(async () => {
+    try {
+      setWhatsapp(await api.whatsapp());
+    } catch {
+      // O modo é opcional; uma falha aqui não pode parar o HUD.
+    }
+  }, []);
+
+  const toggleWhatsApp = useCallback(async (on: boolean) => {
+    setWhatsappBusy(true);
+    try {
+      setWhatsapp(await api.setWhatsApp(on));
+    } catch {
+      // O próximo polling repõe o estado real.
+    } finally {
+      setWhatsappBusy(false);
+    }
+  }, []);
+
+  const selectWhatsAppGroup = useCallback(async (jid: string) => {
+    setWhatsappBusy(true);
+    try {
+      setWhatsapp(await api.selectWhatsAppGroup(jid));
+    } catch {
+      // A lista pode ter mudado; o próximo polling mostra o estado.
+    } finally {
+      setWhatsappBusy(false);
+    }
+  }, []);
+
+  const setWhatsAppMode = useCallback(async (mode: string) => {
+    setWhatsappBusy(true);
+    try {
+      setWhatsapp(await api.setWhatsAppMode(mode));
+    } catch {
+      // O próximo polling repõe o estado real.
+    } finally {
+      setWhatsappBusy(false);
+    }
+  }, []);
+
+  const refreshWhatsAppGroups = useCallback(async () => {
+    setWhatsappBusy(true);
+    try {
+      setWhatsapp(await api.refreshWhatsAppGroups());
+    } catch {
+      // Sem rede, a lista anterior fica.
+    } finally {
+      setWhatsappBusy(false);
+    }
+  }, []);
+
   const toggleEmergency = useCallback(async () => {
     try {
       const data = await api.emergency(!emergency);
@@ -90,18 +144,21 @@ export function App() {
   useEffect(() => {
     const stateId = setInterval(() => void refresh(), STATE_MS);
     const memoryId = setInterval(() => void refreshMemory(), MEMORY_MS);
+    const whatsappId = setInterval(() => void refreshWhatsApp(), 1600);
     // A primeira leitura sai num timer: o efeito só monta os relógios, e o
     // `setState` acontece na resposta, não durante o render.
     const kick = setTimeout(() => {
       void refresh();
       void refreshMemory();
+      void refreshWhatsApp();
     }, 0);
     return () => {
       clearTimeout(kick);
       clearInterval(stateId);
       clearInterval(memoryId);
+      clearInterval(whatsappId);
     };
-  }, [refresh, refreshMemory]);
+  }, [refresh, refreshMemory, refreshWhatsApp]);
 
   if (setup) {
     return (
@@ -124,22 +181,20 @@ export function App() {
         onToggleEmergency={() => void toggleEmergency()}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      {update.available && (
-        <div className="update-bar">
-          <span>
-            Versão {update.latest} disponível. Estás na {update.current}.
-          </span>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            Ver
-          </button>
-        </div>
-      )}
       <main className="stage">
         <Spectrum onStatus={setStatus} />
         <aside className="side">
           <div className="panel-head">Conversa</div>
           <ConversationLog turns={turns} />
           <Approvals items={approvals} onDecided={() => void refresh()} />
+          <WhatsAppPanel
+            state={whatsapp}
+            busy={whatsappBusy}
+            onToggle={(on) => void toggleWhatsApp(on)}
+            onSelect={(jid) => void selectWhatsAppGroup(jid)}
+            onMode={(mode) => void setWhatsAppMode(mode)}
+            onRefresh={() => void refreshWhatsAppGroups()}
+          />
           <MemoryPanel facts={facts} onChanged={() => void refreshMemory()} />
         </aside>
       </main>
@@ -149,7 +204,6 @@ export function App() {
           onSaved={() => {
             void refresh();
           }}
-          onUpdateApplied={() => setSettingsOpen(false)}
         />
       )}
       <Composer

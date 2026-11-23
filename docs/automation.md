@@ -32,7 +32,7 @@ Detalhes que evitam surpresas:
 - As rotinas não têm permissões extra: escrever ficheiros e comandos fora da
   lista continuam a pedir aprovação.
 
-Ficheiro: `%LOCALAPPDATA%\HeyNox\routines.json`.
+Ficheiro: `/var/lib/heynox/routines.json no serviço (local: `%LOCALAPPDATA%\HeyNox\routines.json`)`.
 
 ## Sub-agentes
 

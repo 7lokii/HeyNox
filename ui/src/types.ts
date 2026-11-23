@@ -29,7 +29,6 @@ export interface NoxState {
   voice_error: string;
   setup_required: boolean;
   full_access: boolean;
-  update: UpdateState;
 }
 
 /** Um fornecedor de modelo, com o que o formulário precisa de pré-preencher. */
@@ -61,9 +60,6 @@ export interface SettingsValues {
   input_device: string;
   input_fallback: string;
   full_access: boolean;
-  update_enabled: boolean;
-  update_manifest_url: string;
-  update_check_hours: number;
 }
 
 /** Resposta de `GET /api/settings`. */
@@ -95,17 +91,6 @@ export interface SettingsDraft {
   clear_api_key?: boolean;
   input_device?: string;
   full_access?: boolean;
-  update_enabled?: boolean;
-  update_manifest_url?: string;
-  update_check_hours?: number;
-}
-
-/** Pedaço de `GET /api/state` e `GET /api/update`. */
-export interface UpdateState {
-  available: boolean;
-  latest: string;
-  current: string;
-  can_apply: boolean;
 }
 
 /** Resposta de `GET /api/levels`. */
@@ -125,4 +110,25 @@ export interface Fact {
 /** Resposta de `GET /api/memory`. */
 export interface MemoryPayload {
   facts: Fact[];
+}
+
+/** Grupo visível na conta ligada. */
+export interface WhatsAppGroup {
+  jid: string;
+  name: string;
+  participants: number;
+}
+
+/** Resposta de `GET /api/whatsapp`. */
+export interface WhatsAppState {
+  enabled: boolean;
+  /** off | starting | qr | connected | error */
+  status: string;
+  qr: string;
+  me: string;
+  error: string;
+  groups: WhatsAppGroup[];
+  selected: WhatsAppGroup | null;
+  /** mentions | all */
+  mode: string;
 }

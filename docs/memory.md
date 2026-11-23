@@ -3,7 +3,8 @@
 O Nox guarda duas coisas: **a conversa** e **factos** sobre o utilizador.
 
 ```text
-%LOCALAPPDATA%\HeyNox\data\nox.db     (configurável em memory.sqlite_path)
+/var/lib/heynox/nox.db                  (serviço; configurável em memory.sqlite_path)
+%LOCALAPPDATA%\HeyNox\data\nox.db     (execução local)
 ```
 
 O caminho é relativo ao diretório de dados do utilizador de propósito: a pasta

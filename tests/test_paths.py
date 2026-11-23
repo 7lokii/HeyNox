@@ -11,6 +11,13 @@ def test_install_dir_is_project_root_when_not_frozen() -> None:
     assert paths.install_dir() == Path(paths.__file__).resolve().parent.parent
 
 
+def test_user_data_dir_follows_heynox_data_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HEYNOX_DATA_DIR", str(tmp_path / "dados"))
+    assert paths.user_data_dir() == tmp_path / "dados"
+
+
 def test_user_data_dir_follows_localappdata_on_windows(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -116,6 +116,22 @@ def test_extra_system_is_added_to_the_prompt() -> None:
     assert "SKILL-X" in agent.conversation.system
 
 
+def test_context_is_added_to_each_model_request() -> None:
+    agent = Agent(EchoLlm())
+    agent.context = lambda text: f"\nCTX: {text}\n"
+
+    agent.reply("fala-me de Lisboa")
+
+    assert "CTX: fala-me de Lisboa" in agent.conversation.system
+
+
+def test_system_prompt_knows_the_creator_and_discord() -> None:
+    agent = Agent(EchoLlm())
+    assert "Diogo Camilo" in agent.conversation.system
+    assert "_k1ngsl4y3r" in agent.conversation.system
+    assert "dono é o Diogo Camilo" in agent.conversation.system
+
+
 def test_build_agent_registers_the_phase_5_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     from pathlib import Path
 

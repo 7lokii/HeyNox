@@ -1,153 +1,134 @@
 # Arquitetura
 
-```text
-Microfone -> Wake word ("Hey Nox") -> VAD -> STT -> Agente -> TTS -> Altifalante
-                                                     |
-                                                     +-> memória (SQLite/FTS5)
-                                                     +-> LLM (config.yaml)
-                                                     +-> ferramentas + aprovações
+O HeyNox é um motor Python com um HUD React. Desde 2026-11-23 é um serviço do
+homelab; o painel NoxSec e a APK são as únicas interfaces.
 
-Browser (HUD) <-> HTTP 127.0.0.1:8765 <-> NoxApp  (texto, voz, rotinas, aprovações)
-                                            ^
-                                            +-> bandeja (pystray) no HeyNox.exe
+```text
+                        HTTPS admin.noxsec.site
+                                  |
+                                  v
+                 +-------------------------------+
+                 | NoxSec API :8730 (loopback)   |
+                 |  sessão admin / ticket 60 s   |
+                 +---------------+---------------+
+                                 | /heynox/
+                                 | HTTP, 127.0.0.1
+                                 v
+                 +-------------------------------+
+                 | heynox.service :8765          |
+                 |  NoxApp, HUD, API, rotinas    |
+                 +---------------+---------------+
+                                 |
+                                 v
+                        /var/lib/heynox
+                    config, .env, nox.db, logs
 ```
 
-## Mapa das pastas
+O Cloudflare Tunnel é a única entrada exterior do NoxSec. O HeyNox não tem
+entrada própria: `heynox.service` ouve em `127.0.0.1:8765`, e `noxsec.service`
+faz o proxy autenticado em `/heynox/`.
 
-| Pasta | Responsabilidade | Doc |
-|---|---|---|
-| `nox/main.py` | CLI `nox`, todos os `--flags` | README, `docs/packaging.md` |
-| `nox/config.py` | `config.yaml` tipado com pydantic | — |
-| `nox/audio/` | Microfone, wake word, VAD, denoise, WAV, espectro, voz | `docs/voice.md` |
-| `nox/speech/` | STT (local + Groq) e TTS (Piper + edge-tts) | `docs/voice.md` |
-| `nox/brain/` | `Agent`, LLM (Anthropic/OpenAI), prompt, mensagens | `docs/voice.md` |
-| `nox/memory/` | SQLite + FTS5, extração de factos | `docs/memory.md` |
-| `nox/tools/` | Uma ferramenta por ficheiro + registo | `docs/tools.md` |
-| `nox/safety/` | Aprovações, sandbox de caminhos, audit log | `docs/security.md` |
-| `nox/integrations/` | `gh` CLI (GitHub) | `docs/tools.md` |
-| `nox/automation/` | Agendador de rotinas | `docs/automation.md` |
-| `nox/mcp/` | Cliente MCP por stdio | `docs/automation.md` |
-| `nox/desktop/` | Janelas, captura, OCR, rato/teclado, emergência | `docs/desktop.md` |
-| `nox/ui/` | Servidor HTTP, HUD (`index.html`), estado, bandeja | `docs/packaging.md` |
-| `nox/skills.py` | Skills em Markdown (projeto e utilizador) | `docs/automation.md` |
-| `installer/` | `.spec` gerados, hooks, Inno Setup, `build.ps1` | `docs/packaging.md` |
-| `scripts/` | Pontos de entrada dos `.exe` e ferramentas de diagnóstico | — |
-| `tests/fixtures/` | Amostras de voz e capturas do HUD (não são dados de execução) | — |
+## Componentes
 
-## Decisões transversais
+| Caminho | Função |
+|---|---|
+| `nox/main.py` | CLI; `--check`, `--serve`, `--ui`, voz, memória e diagnóstico |
+| `nox/config.py` | `config.yaml` tipado com pydantic; validação e caminhos |
+| `nox/brain/` | agente, cliente LLM, prompts e ferramentas |
+| `nox/memory/` | SQLite + FTS5; histórico e factos |
+| `nox/tools/` | ficheiros, shell, web, GitHub, browser e desktop |
+| `nox/safety/` | sandbox, aprovações e audit JSONL |
+| `nox/integrations/whatsapp.py` | dispositivo ligado por QR, histórico e grupos |
+| `nox/ui/server.py` | servidor HTTP stdlib, endpoints e ciclo de vida |
+| `nox/ui/static.py` | resolução do HUD compilado |
+| `nox/ui/settings.py` | configuração e segredos pela interface |
+| `ui/` | HUD React/Vite; build em `ui/dist` |
+| `deploy/` | unit systemd, config do serviço e instalador |
 
-- **Núcleo sem dependências pesadas.** Em `pyproject.toml`, áudio, wake word,
-  VAD, STT, TTS, browser, desktop e bandeja vivem em extras (`audio`, `wake`,
-  `vad`, `stt`, `tts`, `voice`, `browser`, `desktop`, `tray`). `nox.optional`
-  faz o import lazy e explica qual extra instalar quando falta um módulo.
-- **Configuração tipada.** `nox/config.py` valida o `config.yaml` com pydantic.
-  Erros de configuração dão mensagem clara e código de saída 2, não stack trace.
-- **Segredos fora do código.** `.env` é carregado com `python-dotenv` sem sobrepor
-  variáveis já definidas no ambiente; o `.gitignore` bloqueia `.env*`.
-- **Estado de arranque observável.** `nox --check` valida config + ambiente e lista
-  o que falta para o modo voz, desktop e OCR.
-- **Dados de execução fora do repo.** Notas, capturas, memória e rotinas vão
-  para `%LOCALAPPDATA%\HeyNox` ou `data/` (ignorado). As amostras que servem
-  os testes e o `bench_stt.py` vivem em `tests/fixtures/samples/`.
+## Arranque do serviço
 
-## Decisões da Fase 1
+O systemd corre:
 
-- **Áudio é `bytes`, não `numpy`.** `nox.audio.types.Pcm` é PCM 16 bits mono
-  little-endian. O núcleo continua sem dependências; os adaptadores reais
-  convertem à entrada e à saída. Consequência: os testes correm sem microfone.
-- **Contratos antes de implementações.** `AudioSource`, `WakeWordDetector`,
-  `VoiceActivityDetector`, `Transcriber` e `Synthesizer` são Protocols. Cada um
-  tem um duplo determinístico (`FakeSource`, `AlwaysAwake`, `EnergyVad`,
-  `ScriptedTranscriber`, `NullSynthesizer`) para testar o loop completo.
-- **`Segmenter` fecha as frases.** Junta blocos entre a primeira fala e 700 ms de
-  silêncio, guarda 300 ms de pré-roll para não cortar a primeira sílaba e
-  descarta ruídos com menos de 300 ms.
-- **Respostas locais antes do modelo.** `Agent.local_answer` responde a horas,
-  data, agradecimentos e às ordens de emergência sem rede. Só enunciados com
-  até cinco palavras passam por aqui, para não responder à hora errada a
-  perguntas como "a que horas é o jantar?".
-- **Sem chave, o Nox não morre.** `UnconfiguredLlm` deixa o arranque e as
-  respostas locais a funcionar; o erro só aparece quando o modelo é necessário.
-- **STT e TTS sem PyTorch.** faster-whisper corre em CTranslate2 e o Piper em
-  ONNX Runtime. O `torch` fica só para o Silero VAD, o que tira ~2 GB ao
-  instalador.
-- **O ciclo fecha sem microfone.** `--speak` grava WAV, `--transcribe` lê WAV e
-  `nox/audio/wav.py` converte entre os dois. O teste de ida e volta
-  (TTS -> WAV -> STT) valida o pipeline antes de existir hardware.
-- **Reamostragem em Python.** `nox.audio.types.resample` faz interpolação
-  linear: o Piper produz 22,05 kHz e o Whisper quer 16 kHz.
-- **VAD do WebRTC, não do Silero.** `webrtcvad` é 10 KB e não puxa PyTorch. O
-  Silero fica no extra `silero` para quem quiser comparar.
-- **`VoiceLoop` com peças injectáveis.** Fonte, segmentador, transcritor,
-  sintetizador e altifalante entram no construtor, por isso o loop testa-se com
-  duplos e sem hardware (`tests/test_voice.py`).
-- **`WavSource` fecha o ciclo.** `nox --voice --input a.wav` corre o pipeline
-  todo a partir de um ficheiro — foi assim que o loop foi validado antes de
-  alguém falar ao microfone.
-- **`Step` em vez de booleano.** Ler um bloco devolve `IDLE`, `TURN` ou `END`:
-  uma fonte de ficheiro tem fim, um microfone não.
-- **Filler em paralelo com o STT.** As frases de espera são sintetizadas no
-  arranque e tocadas numa thread enquanto a transcrição corre noutra. Em série
-  somavam 0,7 s ao turno; em paralelo escondem esse tempo.
-- **TTS por frases.** `split_sentences` parte a resposta e a síntese da frase
-  seguinte sobrepõe-se à reprodução da atual.
-- **Réplica sem repetir a palavra.** Depois de responder, o Nox continua armado
-  durante `wake.follow_up_s` (6 s). Uma pergunta de seguimento não obriga a
-  dizer "Hey Nox" outra vez.
-- **Barge-in com dois sinais.** O VAD e o limiar de energia têm de concordar
-  durante 300 ms; um só dispara com o eco do próprio Nox. A flag está desligada
-  por omissão e o áudio já lido entra no segmentador, para não perder a
-  primeira palavra.
-- **Wake word por Vosk, não por openWakeWord.** Não existe modelo "hey nox"
-  treinado e treinar um exige GPU e horas. O Vosk transcreve localmente e o
-  detector procura a palavra ("Nox" sai como "inox"). Só corre quando o VAD
-  ouve fala, com 1,5 s de tolerância.
+```text
+/opt/heynox/.venv/bin/nox --serve --config /var/lib/heynox/config.yaml
+```
 
-## Decisões da Fase 2 (memória e interface)
+Com:
 
-- **Memória em SQLite, não em Chroma.** Duas tabelas e um índice FTS5. A
-  pesquisa semântica custaria dependências e um modelo de embeddings para
-  ganhar pouco numa base de dezenas de factos.
-- **Extração por regras, não por LLM.** Uma chamada ao modelo por turno para
-  apanhar "chamo-me X" custaria latência e dinheiro; as regras apanham o que é
-  dito de forma explícita e o resto fica para um extrator semântico.
-- **Uma ligação SQLite por thread.** A interface serve pedidos em várias threads
-  e o SQLite recusa ligações partilhadas.
-- **Espectro do áudio real, não simulado.** `nox/audio/levels.py` calcula 48
-  bandas por FFT e emite-as ao ritmo da reprodução; a página desenha-as em
-  canvas, espelhadas no eixo vertical. Se o Nox não estiver a falar, o anel
-  respira devagar em vez de fingir dados.
-- **Interface sem framework.** `ThreadingHTTPServer` (stdlib) e uma página
-  estática, sem build. Ouve em `127.0.0.1`: não há autenticação porque quem
-  chega ao porto já está na máquina. O motor corre numa thread e publica
-  estado (`on_turn`/`on_status`) que a página consulta por polling.
+- `HEYNOX_DATA_DIR=/var/lib/heynox`;
+- `NOX_DATA_DIR=/var/lib/heynox` para rotinas e utilitários que usam o caminho
+  histórico;
+- `ProtectSystem=strict`, `ProtectHome`, `NoNewPrivileges`;
+- `ReadWritePaths=/var/lib/heynox`;
+- `Restart=always`.
 
-## Decisões das Fases 3–6 (ferramentas, automação e PC)
+O `--serve` falha se o porto 8765 estiver ocupado (`strict_port=True`) em vez de
+escolher 8766 em silêncio; o proxy não pode falar com um processo antigo. Não
+abre browser.
 
-Cada uma está detalhada no respetivo documento; em resumo:
+O arranque cria `nox.db` e `logs/` se faltarem. Se não houver chave do modelo,
+continua a responder a perguntas locais (horas, data, agradecimentos) e o HUD
+mostra a configuração inicial.
 
-- **Aprovações na interface** (`nox/safety/approvals.py`): a ferramenta bloqueia
-  à espera, a página mostra o resumo/diff, a decisão expira. Ver `docs/security.md`.
-- **Uma ferramenta por ficheiro em `nox/tools/`**, todas a passar pelo mesmo
-  registo e pelos mesmos limites (sandbox de caminhos, audit log). A tabela
-  completa está em `docs/tools.md`.
-- **GitHub pelo `gh` autenticado**, não por API própria: reutiliza as
-  credenciais e as regras do utilizador.
-- **Sub-agentes em `ThreadPoolExecutor`**, com contexto limpo e sem
-  `spawn_agent` (sem recursão). Ver `docs/automation.md`.
-- **MCP por stdio**, com ferramentas expostas como `mcp_<servidor>_<ferramenta>`
-  e desligado por omissão. Ver `docs/automation.md`.
-- **Desktop com allowlist e emergência**: um `EMERGENCY` por processo corta
-  todas as ações (incluindo capturas). Ver `docs/desktop.md`.
+## Autenticação e proxy
 
-## Decisões do empacotamento
+- **Browser:** o iframe usa a sessão admin do NoxSec; não há segundo login.
+- **APK:** `GET /api/heynox/ticket` exige a sessão admin do cliente HTTP.
+  O ticket é de uso único e vale 60 s.
+- `GET /heynox/?ticket=...` responde 303 e define
+  `noxsec_heynox_session` com `Path=/heynox`, `HttpOnly`, `Secure`,
+  `SameSite=Lax`, 12 h.
+- O proxy encaminha métodos GET/POST/PUT/PATCH/DELETE, query e corpo, e só
+  permite `index.html`, `favicon.svg`, `assets/` e `api/`.
+- `Set-Cookie` do upstream não atravessa; o HeyNox não tem autenticação própria.
 
-- **`HeyNox.exe` windowed** abre a interface; sem consola, avisos e erros vão
-  para `%LOCALAPPDATA%\HeyNox\logs\nox.log` e as exceções fatais para uma caixa
-  nativa.
-- **Bandeja em vez de processo invisível**: o `.exe` não tem janela, por isso o
-  `pystray` dá-lhe «Abrir interface», «Ouvir» e «Sair».
-- **Instância única** pelo `ui.port` guardado, para um segundo clique reabrir o
-  browser em vez de subir outro servidor.
-- **Python 3.11 no build** (combinação validada de torch/ctranslate2/piper/winrt).
-  Ver `docs/packaging.md`.
+O `NoxSec` mantém `X-Frame-Options: DENY` em todo o lado exceto `/heynox`, onde
+usa `SAMEORIGIN` e `frame-ancestors 'self'`.
+
+## Interface
+
+O HUD usa `base: "./"` no Vite e `document.baseURI` no cliente. O mesmo build
+serve `/` e `/heynox/`. O painel só define o `src` do iframe quando a aba é
+aberta e limpa-o no logout.
+
+## Dados e configuração
+
+- Config inicial: `deploy/config.yaml`.
+- Config em execução: `/var/lib/heynox/config.yaml`.
+- Segredos: `/var/lib/heynox/.env`, modo 600, nunca no repositório.
+- Memória: `/var/lib/heynox/nox.db`.
+- Auditoria: `/var/lib/heynox/logs/audit.jsonl`.
+- Caminhos permitidos pela sandbox: apenas `/var/lib/heynox`.
+- Voz e controlo do PC desligados no serviço. O WhatsApp é instalado pelo
+  extra `[whatsapp]` e usa o mesmo diretório de dados.
+
+## Removido em 2026-11-23
+
+- `installer/`, `releases/`, workflow de release e scripts dos `.exe`.
+- PyInstaller, Inno Setup, o pacote portátil e o auto-update (`nox/ui/update.py`).
+- Janela nativa (`nox/ui/window.py`), bandeja (`nox/ui/tray.py`) e os extras
+  `tray`/`shell`.
+- Dispatching por `--desktop`; o argumento devolve erro e código 2.
+
+O núcleo, a voz (opcional), as ferramentas, a memória, o WhatsApp e as rotinas
+continuam no motor. O desktop é uma ferramenta do motor, não uma distribuição:
+no serviço está desligado.
+
+## Testes
+
+A suíte do motor tem **408 testes que passam e 3 saltos** que precisam de rede ou
+modelos (`NOX_SLOW_TESTS`). A API NoxSec tem **105**. O build do HUD e o build
+release da APK são validados na publicação; a app tem 27 testes Flutter.
+
+## Publicação
+
+`scripts/publicar-release.ps1`:
+
+1. compila o painel;
+2. copia-o para `dist.novo`, sem o servir;
+3. sobe a versão da APK;
+4. compila e publica a APK assinada;
+5. exige que `/api/apk/info` devolva a mesma versão e tamanho;
+6. só então troca `dist.novo` por `dist`.
+
+A release actual é `v0.9.0+36`; painel e APK são publicados como uma unidade.

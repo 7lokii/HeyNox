@@ -12,7 +12,6 @@ import json
 import os
 import urllib.error
 import urllib.request
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -67,7 +66,7 @@ PROVIDERS: tuple[Provider, ...] = (
         "openai",
         "anthropic/claude-3.5-haiku",
     ),
-    Provider("groq", "Groq", "https://api.groq.com/openai/v1", "openai", "llama-3.3-70b-versatile"),
+    Provider("groq", "Groq", "https://api.groq.com/openai/v1", "openai", "openai/gpt-oss-20b"),
     Provider(
         "ollama",
         "Ollama (local)",
@@ -171,9 +170,6 @@ class SettingsStore:
             "input_device": config.audio.input_device,
             "input_fallback": config.audio.input_fallback,
             "full_access": config.tools.full_access,
-            "update_enabled": config.update.enabled,
-            "update_manifest_url": config.update.manifest_url,
-            "update_check_hours": config.update.check_hours,
         }
 
     def has_model_key(self) -> bool:
@@ -261,15 +257,6 @@ class SettingsStore:
 
         if "full_access" in payload:
             document.setdefault("tools", {})["full_access"] = bool(payload["full_access"])
-
-        update_section = document.setdefault("update", {})
-        if "update_enabled" in payload:
-            update_section["enabled"] = bool(payload["update_enabled"])
-        if payload.get("update_manifest_url"):
-            update_section["manifest_url"] = str(payload["update_manifest_url"]).strip()
-        if payload.get("update_check_hours"):
-            with suppress(TypeError, ValueError):
-                update_section["check_hours"] = float(payload["update_check_hours"])
 
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         header = "# Escrito pela interface do Nox. Podes editar, mas a app volta a gravar.\n"

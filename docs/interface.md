@@ -1,156 +1,94 @@
 # Interface
 
-O HeyNox é uma **app de desktop** com HUD próprio. Não abre um separador do
-browser: abre uma janela com ícone, barra de título e ciclo de vida próprio.
-Fechar a janela fecha a app e o motor.
+O HeyNox já não tem janela nativa, bandeja nem instalador. O HUD é uma aplicação
+web servida pelo próprio motor em `127.0.0.1:8765` e exposta apenas pelo NoxSec.
 
-O motor continua a ser Python. A janela é a única coisa que mudou.
+## Três caminhos, uma interface
 
-## Duas gerações de HUD
-
-| Onde | O que é | Quando é usado |
+| Cliente | Entrada | Autenticação |
 |---|---|---|
-| `ui/` (Vite + React + TypeScript) | O HUD atual, compilado para `ui/dist` | Sempre que existe um build |
-| `nox/ui/index.html` | O HUD original de ficheiro único | Só como rede de segurança, sem build |
+| Browser do painel | `https://admin.noxsec.site` → `GET /heynox/` | cookie de sessão admin do NoxSec |
+| APK Android | WebView em `https://admin.noxsec.site/heynox/` | ticket de uso único → cookie `noxsec_heynox_session` |
+| Diagnóstico local | `nox --ui` → `http://127.0.0.1:8765/` | nenhuma; só loopback |
 
-`nox/ui/static.py` procura por esta ordem: `NOX_UI_DIST`, `ui/dist` no
-repositório, `ui/dist` embutido pelo PyInstaller, e por fim o `index.html`
-legado. Sem build o `.exe` abre o que abria antes, em vez de rebentar.
+O `--serve`, usado pelo systemd, não abre browser. O `--ui` é o único caminho que
+abre uma página localmente e serve para desenvolvimento.
 
-## A janela
+## Como o painel o mostra
 
-`nox/ui/window.py`, sobre o WebView2 que já vem com o Windows.
+`NoxSec-Dashboard` tem a aba **HeyNox**. O iframe nasce com
+`data-src="/heynox/"` e só recebe `src` na primeira vez que a aba é aberta; ao
+sair da sessão, o `src` é removido. Isto evita manter o HUD a fazer polling
+enquanto a aba está fechada.
 
-```bash
-nox --desktop      # janela própria (é o que o HeyNox.exe faz)
-nox --ui           # o mesmo HUD, no browser: diagnóstico e desenvolvimento
+O caminho `/heynox` é o único onde o CSP do NoxSec permite ser embutido:
+
+```text
+frame-ancestors 'self'
+X-Frame-Options: SAMEORIGIN
 ```
 
-- Tamanho 1280x820, mínimo 980x640, fundo `#04070d` (sem flash branco a abrir).
-- O servidor local (127.0.0.1:8765) arranca primeiro; a janela abre depois.
-- `--ui` continua a existir e a abrir o browser. É a via de diagnóstico e o
-  caminho quando o extra `shell` não está instalado.
+Nas restantes rotas continua `frame-ancestors 'none'` e `DENY`.
 
-Precisa do extra:
+## Como a APK o mostra
 
-```bash
-pip install -e ".[shell]"     # pywebview
-```
+O cliente HTTP do Dart tem a sessão admin, mas o WebView não a herda. O fluxo é:
 
-Sem o extra, `--desktop` escreve um aviso e abre no browser. Não falha.
+1. a app chama `GET /api/heynox/ticket` com a sessão admin;
+2. recebe um ticket de 60 segundos e abre
+   `https://admin.noxsec.site/heynox/?ticket=...`;
+3. o servidor consome o ticket e responde 303 com
+   `noxsec_heynox_session`, `Path=/heynox`, `HttpOnly`, `Secure`,
+   `SameSite=Lax`, 12 horas;
+4. o WebView segue para `/heynox/` e o HUD usa caminhos relativos.
 
-## Desenvolvimento
+O ticket não pode ser reutilizado. O cookie não cobre `/api` do painel, e a app
+nunca entrega ao WebView o cookie `noxsec_admin_session`.
 
-Duas metades, dois processos.
+A página `lib/ecras/heynox.dart` só é criada na primeira abertura da aba. O
+`WebViewController` bloqueia navegação para outro host.
 
-```bash
-# terminal 1: o motor
-nox --ui
+## Caminhos relativos
 
-# terminal 2: o HUD com recarregar automático
-cd ui && npm install && npm run dev     # http://localhost:5173
-```
+O build do Vite usa `base: "./"` e o cliente da API resolve pedidos a partir de
+`document.baseURI`. O mesmo `ui/dist` funciona em `/` (modo local) e em
+`/heynox/` (atrás do proxy), sem um build separado para cada um.
 
-O Vite faz proxy de `/api` para `127.0.0.1:8765`, por isso os componentes falam
-com os mesmos caminhos do pacote. O porto do motor é configurável:
-
-```bash
-NOX_API=http://127.0.0.1:8766 npm run dev
-```
-
-Para ver o HUD com dados sem gastar LLM nem voz:
-
-```bash
-.venv/Scripts/python.exe ui/scripts/mock-api.py 8765
-```
-
-## Build
-
-```bash
-cd ui && npm run build        # ui/dist/index.html + assets
-```
-
-O PyInstaller embute `ui/dist` (`installer/pyinstaller.py` gera a entrada de
-`datas`). O workflow `release.yml` compila o HUD antes de compilar o `.exe`;
-sem esse passo o pacote sairia com o HUD legado.
-
-`ui/dist` fica fora do git. É artefacto.
-
-## Contrato com o backend
-
-O HUD não conhece Python: fala HTTP com o motor local.
+## Endpoints do HUD
 
 | Rota | Método | Para quê |
 |---|---|---|
-| `/` | GET | O HUD |
-| `/api/state` | GET | Turnos, estado, voz, aprovações, emergência |
-| `/api/levels` | GET | Espectro de saída e de entrada (48 bandas) |
-| `/api/memory` | GET | Factos guardados |
-| `/api/say` | POST | Uma pergunta por texto |
-| `/api/voice` | POST | Ligar/desligar a voz |
-| `/api/memory/forget` | POST | Esquecer o que contenha o texto |
-| `/api/approvals` | POST | Aprovar ou recusar um pedido |
-| `/api/emergency` | POST | Travar/retomar o controlo do PC |
-| `/api/settings` | GET | Presets, valores, chaves mascaradas, caminhos, versão |
-| `/api/settings` | POST | Gravar `.env` e `config.yaml` e passar a usá-los |
-| `/api/settings/test` | POST | Pedido mínimo ao fornecedor para validar a chave |
-| `/api/devices` | GET | Microfones visíveis |
-| `/api/update` | GET | Último resultado da verificação de versão |
-| `/api/update/check` | POST | Verificar agora, sem esperar o intervalo |
-| `/api/update/apply` | POST | Descarregar, conferir o `sha256` e trocar a pasta |
+| `/api/health` | GET | liveness do serviço; usado pelo systemd/scripts |
+| `/api/state` | GET | conversa, voz, níveis, aprovações, emergência |
+| `/api/say` | POST | enviar uma mensagem |
+| `/api/voice` | POST | ligar/desligar a voz (desligada no serviço) |
+| `/api/levels` | GET | espectro de saída e entrada |
+| `/api/devices` | GET | microfones visíveis |
+| `/api/settings` | GET/POST | configuração e segredos mascarados |
+| `/api/settings/test` | POST | testar a chave do modelo |
+| `/api/memory` | GET | factos guardados |
+| `/api/memory/forget` | POST | esquecer por padrão |
+| `/api/approvals` | POST | aprovar/recusar uma ação |
+| `/api/emergency` | POST | parar/retomar o controlo do PC |
+| `/api/whatsapp` e subrotas | GET/POST | estado, grupo e modo do WhatsApp |
 
-O estado vem por polling (900 ms o estado, 2500 ms a memória, 90 ms o
-espectro). O servidor é stdlib e não tem websockets.
+Os antigos `/api/update*` já não existem. Não há atualização automática dentro
+da app: a release é publicada pelo desktop com `scripts/publicar-release.ps1`.
 
-Os estáticos são servidos só de dentro de `ui/dist` ou de `nox/ui/`: um `..` no
-caminho devolve 404 e não lê o disco.
+## Ficheiros e dados
 
-## Porque não Tauri
+- `ui/dist/index.html` e `ui/dist/assets/*`: HUD compilado.
+- `/var/lib/heynox/config.yaml`: configuração do serviço.
+- `/var/lib/heynox/.env`: chaves; modo 600.
+- `/var/lib/heynox/nox.db`: memória SQLite.
+- `/var/lib/heynox/logs/audit.jsonl`: auditoria.
 
-O pedido original era TypeScript + Tauri. Tauri precisa de duas coisas que este
-PC não tem:
+O `nox/ui/index.html` antigo continua apenas como fallback de desenvolvimento, se
+o build do Vite não existir. Em produção o `ui/dist` é obrigatório.
 
-- toolchain Rust (`cargo`, `rustc`);
-- MSVC + Windows SDK para ligar o binário. Há `Windows Kits\10` mas sem `Lib\um`,
-  e não há Visual Studio com a carga C++.
+## CSP e isolamento
 
-Instalar as duas ocupa entre 6 e 8 GB e o `C:` tem 6,1 GB livres. Ficou de fora
-por agora, com a janela a ser feita pelo `pywebview`, que usa o WebView2 já
-instalado e não acrescenta um segundo motor de render.
-
-O HUD em `ui/` é o mesmo nos dois caminhos: se o Rust e o SDK aparecerem, a
-troca é a shell, não a interface.
-
-## Configuração dentro da app
-
-Primeiro arranque: `GET /api/state` traz `setup_required: true` enquanto não
-houver chave para o fornecedor configurado. O HUD não aparece; aparece o ecrã de
-configuração (`ui/src/screens/Setup.tsx`), com fornecedor, chave, modelo,
-microfone e palavra de ativação. O botão de concluir só liga com uma chave, ou
-com um fornecedor local que não precise dela (Ollama).
-
-O que fica gravado, e onde (`nox/ui/settings.py`):
-
-| Ficheiro | Conteúdo |
-|---|---|
-| `%LOCALAPPDATA%\HeyNox\.env` | chaves, uma linha por chave, nada mais |
-| `%LOCALAPPDATA%\HeyNox\config.yaml` | cópia do `config.yaml` embutido com as alterações por cima |
-
-A cópia é o que impede o ecrã de apagar o que não mostra: secções como `memory`,
-`github`, `automation` e `stt` sobrevivem a cada gravação.
-
-As chaves nunca voltam ao HUD. `GET /api/settings` devolve `{"set": true,
-"preview": "...c123"}`: o sufixo serve para reconhecer a chave, o resto não sai
-do processo. O teste de chave também nunca escreve a chave em log.
-
-## Acesso total
-
-`tools.full_access` liga-se nas definições e aplica-se sem reiniciar: o
-`ApprovalBroker` devolve `True` de imediato e escreve uma linha
-`aprovação:auto:<ação>` no `logs/audit.jsonl`. Ainda assim há dois limites: a
-paragem de emergência continua a travar o controlo do PC, e nada disto contorna
-o `Sandbox` de caminhos.
-
-Também vale fora da interface: sem `full_access`, um comando fora da lista era
-recusado em `nox --voice` por não haver quem aprovasse. Com o interruptor
-ligado, o `build_agent` cria o broker sozinho.
+O proxy do NoxSec não copia `Set-Cookie` do upstream, não aceita caminhos com
+`..` e só encaminha `index.html`, `favicon.svg`, `assets/` e `api/`. O browser
+nunca fala diretamente com o porto 8765; esse porto está ligado apenas a
+`127.0.0.1`.

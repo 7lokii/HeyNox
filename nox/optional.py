@@ -22,7 +22,6 @@ _EXTRAS = {
     "sounddevice": "audio",
     "numpy": "audio",
     "playwright": "browser",
-    "pystray": "tray",
     "PIL": "desktop",
 }
 

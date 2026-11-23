@@ -49,8 +49,6 @@ def test_windowed_mode_logs_unexpected_errors(
 ) -> None:
     monkeypatch.setattr("nox.main.user_data_dir", lambda: tmp_path)
     monkeypatch.setattr("nox.main.has_console", lambda: False)
-    alerts: list[str] = []
-    monkeypatch.setattr("nox.main.alert", alerts.append)
 
     def boom(*_args, **_kwargs):
         raise RuntimeError("falha simulada")
@@ -59,7 +57,6 @@ def test_windowed_mode_logs_unexpected_errors(
     assert main(["--check"]) == 1
     log = (tmp_path / "logs" / "nox.log").read_text(encoding="utf-8")
     assert "RuntimeError: falha simulada" in log
-    assert "falha simulada" in alerts[0]
 
 
 def test_say_answers_local_question(capsys) -> None:
@@ -113,6 +110,24 @@ def test_memory_reset_empties_the_database(tmp_path: Path, capsys) -> None:
 
     assert main(["--memory-reset", "--config", str(path)]) == 0
     assert "apagados 1 factos e 1 turnos" in capsys.readouterr().out
+
+
+def test_serve_mode_does_not_open_a_browser(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    opened: list[str] = []
+    calls: list[dict] = []
+    monkeypatch.setattr("nox.main.load_environment", lambda *_a, **_k: None)
+    monkeypatch.setattr("nox.main.webbrowser.open", opened.append)
+    monkeypatch.setattr(
+        "nox.ui.server.serve",
+        lambda _config, **kwargs: calls.append(kwargs) or 0,
+    )
+
+    assert main(["--serve"]) == 0
+    assert opened == []
+    assert calls[0]["open_browser"] is False
+    assert calls[0]["strict_port"] is True
 
 
 def test_second_launch_reopens_the_running_ui(
