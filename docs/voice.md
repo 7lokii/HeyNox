@@ -5,7 +5,7 @@ Pipeline: `áudio -> VAD -> STT -> LLM -> TTS -> áudio`.
 | Etapa | Extra | Biblioteca | Estado |
 |---|---|---|---|
 | Captura | `audio` | sounddevice | **funcional** |
-| Wake word | `wake` | vosk | **funcional** |
+| Wake word | `wake` | vosk | **funcional no CLI e no HUD** |
 | VAD | `vad` | webrtcvad | **funcional** |
 | STT | `stt` | faster-whisper (local) | **funcional** |
 | STT cloud | — | Groq `whisper-large-v3-turbo` | **por omissão** |
@@ -47,6 +47,7 @@ O `--speak` grava por omissão em `%LOCALAPPDATA%\HeyNox\out\nox.wav`.
 | Modelo | Tamanho | Onde fica | Quando é descarregado |
 |---|---|---|---|
 | Piper `pt_PT-tugão-medium` | ~60 MB | `%LOCALAPPDATA%\HeyNox\models\piper\` | no primeiro `--speak` |
+| Vosk `vosk-model-small-pt-0.3` | ~50 MB | `%LOCALAPPDATA%\HeyNox\models\vosk\` | no primeiro turno de voz |
 | Whisper `small` | ~480 MB | cache do Hugging Face | no primeiro `--transcribe` |
 
 O download da voz é feito por `nox/models.py`, não pelo `piper-tts`: o
@@ -180,9 +181,12 @@ procura a palavra distintiva, por isso "hey"/"ei" são opcionais:
 No HUD, o microfone abre sozinho com a página e também exige uma destas formas:
 a palavra tem de abrir a frase (pode vir depois de “ei”, “hey” ou “olá”), é
 retirada antes de chegar ao agente, e uma menção a meio da conversa não ativa o
-Nox. Dizer só “Nox” abre `wake.timeout_s` para o pedido seguinte; cada novo
-pedido exige a palavra outra vez. `wake.provider: off` desliga este filtro e
-deixa a conversa contínua.
+Nox. Antes do Whisper, o PCM passa pelo **Vosk local** (`VoskWakeVerifier`): se
+o Vosk não ouvir a palavra no início, o Whisper nem é chamado e o áudio não sai
+para a cloud. Quando o Vosk aceita, o Whisper transcreve o pedido e pode não
+repetir “Nox”; a posição já foi validada. Dizer só “Nox” abre `wake.timeout_s`
+para o pedido seguinte; cada novo pedido exige a palavra outra vez.
+`wake.provider: off` desliga este filtro e deixa a conversa contínua.
 
 ```yaml
 wake:

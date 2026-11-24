@@ -50,10 +50,11 @@ A voz é a do dispositivo, não a do serviço: o homelab não tem placa de som. 
 para começar e fechar a frase, envia PCM 16 kHz a `/api/voice/turn` e toca o
 MP3 devolvido. Se o browser bloquear o `AudioContext` até haver um gesto, o
 primeiro toque no ecrã desbloqueia-o; não há botão de voz. A sessão de voz
-vive enquanto a página estiver aberta. O servidor só entrega o turno ao agente se a transcrição
-começar por uma das `wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`, depois de
-«ei», «hey» ou «olá»); a palavra é retirada antes do pedido. Uma menção a meio
-da frase é ignorada. Sem ativação, o HUD mostra «Diz Nox» e continua a ouvir.
+vive enquanto a página estiver aberta. O servidor valida primeiro o PCM com o Vosk local: só se a wake word abrir a
+frase é que o Whisper é chamado. A palavra é retirada do início quando o
+Whisper a repete, mas o STT pode omiti-la depois de o Vosk a ter validado. Uma
+menção a meio da frase é ignorada e não chega à cloud. Sem ativação, o HUD
+mostra «Diz Nox» e continua a ouvir.
 Dizer só «Nox» abre uma janela para o pedido seguinte; cada novo pedido exige
 a palavra outra vez. O WebView da APK pede a permissão Android pela ponte
 `NoxSec` no arranque; no browser é o pedido normal do Chrome. Se a permissão

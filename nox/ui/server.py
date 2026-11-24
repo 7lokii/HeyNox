@@ -22,7 +22,7 @@ from typing import Any
 
 from nox import __version__
 from nox.automation.routines import RoutineScheduler, RoutineStore
-from nox.audio.wake import leading_wake_word, strip_wake_word, wake_tokens
+from nox.audio.wake import VoskWakeVerifier, WakeVerifier, strip_wake_word
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
@@ -32,6 +32,7 @@ from nox.integrations.whatsapp import (
     WHATSAPP_SYSTEM,
     WhatsAppService,
 )
+from nox.models import ensure_vosk_model
 from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
 from nox.ui import settings as settings_ui
@@ -76,6 +77,7 @@ class NoxApp:
         approvals: ApprovalBroker | None = None,
         settings: settings_ui.SettingsStore | None = None,
         whatsapp: WhatsAppService | None = None,
+        wake_verifier: WakeVerifier | None = None,
     ) -> None:
         self.config = config
         self.state = state or NoxState()
@@ -102,6 +104,9 @@ class NoxApp:
         self._voice_awake_until = 0.0
         self._transcriber = None
         self._transcriber_lock = threading.Lock()
+        self._wake_verifier = wake_verifier
+        self._wake_verifier_injected = wake_verifier is not None
+        self._wake_verifier_lock = threading.Lock()
 
     def _wire_whatsapp_context(self) -> None:
         """O dono vê o histórico; o convidado só vê a contagem do grupo."""
@@ -223,6 +228,27 @@ class NoxApp:
     def voice_error(self) -> str:
         return self._voice_error
 
+    def _wake_check(self) -> WakeVerifier:
+        """Constrói o Vosk uma vez; o modelo fica em cache no processo."""
+        with self._wake_verifier_lock:
+            if self._wake_verifier is not None:
+                return self._wake_verifier
+            settings = self.config.wake
+            try:
+                model = ensure_vosk_model(
+                    settings.model,
+                    progress=lambda message: self.logs.append(f"wake: {message}"),
+                )
+                self._wake_verifier = VoskWakeVerifier(
+                    settings.phrases or [self.config.nox.wake_word],
+                    model_path=model,
+                    sample_rate=16000,
+                )
+            except (NoxError, ImportError, OSError) as exc:
+                self.logs.append(f"wake: {exc}")
+                raise NoxError(f"não consegui validar a wake word: {exc}") from exc
+            return self._wake_verifier
+
     def voice_turn(self, audio: bytes, sample_rate: int) -> dict[str, Any]:
         """Turno de voz vindo do microfone do browser/WebView.
 
@@ -233,10 +259,30 @@ class NoxApp:
         from nox.audio.types import Pcm
         from nox.speech.stt import build_transcriber
 
+        pcm = Pcm(audio)
+        wake_gate = self.config.wake.provider != "off"
+        phrases = self.config.wake.phrases or [self.config.nox.wake_word]
+        now = time.monotonic()
+        armed = wake_gate and now < self._voice_awake_until
+        validated = False
+        if wake_gate and not armed:
+            # O Vosk valida a posição no áudio antes de o Whisper ser chamado.
+            # Conversa sem ativação não sai para a cloud.
+            if not self._wake_check().accepts(pcm, sample_rate):
+                return {
+                    "text": "",
+                    "answer": "",
+                    "audio": "",
+                    "voice_error": "",
+                    "wake": False,
+                    "hint": f"diz «{self.config.nox.name}» para falar.",
+                }
+            validated = True
+
         with self._transcriber_lock:
             if self._transcriber is None:
                 self._transcriber = build_transcriber(self.config)
-        text = self._transcriber.transcribe(Pcm(audio), sample_rate)
+        text = self._transcriber.transcribe(pcm, sample_rate)
         if not text:
             return {
                 "text": "",
@@ -247,44 +293,25 @@ class NoxApp:
                 "hint": "",
             }
 
-        wake_gate = self.config.wake.provider != "off"
-        if wake_gate:
-            phrases = self.config.wake.phrases or [self.config.nox.wake_word]
-            tokens = wake_tokens(phrases)
-            now = time.monotonic()
-            armed = now < self._voice_awake_until
-            # Só conta a palavra no início: uma menção a meio de uma conversa
-            # (ou uma alucinação do STT) não pode acordar o agente.
-            has_wake = bool(tokens and leading_wake_word(text, phrases))
-            if has_wake:
-                command = strip_wake_word(text, phrases)
+        if wake_gate and validated:
+            # O Vosk é a autoridade da posição. O Whisper pode não repetir
+            # "Nox" (ou colocá-la noutro sítio); a transcrição é o pedido, e a
+            # palavra só se retira quando abre a frase.
+            command = strip_wake_word(text, phrases)
+            if command == text.strip():
+                command = text.strip()
+            if not command:
                 # Dizer só "Nox" e fazer uma pausa é uma ativação válida: o
                 # pedido seguinte chega noutro turno, como no loop --voice.
                 self._voice_awake_until = now + self.config.wake.timeout_s
-                if not command:
-                    return {
-                        "text": text,
-                        "answer": "",
-                        "audio": "",
-                        "voice_error": "",
-                        "wake": True,
-                        "hint": f"diz o pedido depois de «{self.config.nox.name}».",
-                    }
-            elif armed:
-                command = text
-            elif tokens:
-                # O HUD escuta sempre que está aberto. Sem a palavra no início,
-                # não se grava turno nem se chama o modelo.
                 return {
                     "text": text,
                     "answer": "",
                     "audio": "",
                     "voice_error": "",
-                    "wake": False,
-                    "hint": f"diz «{self.config.nox.name}» para falar.",
+                    "wake": True,
+                    "hint": f"diz o pedido depois de «{self.config.nox.name}».",
                 }
-            else:
-                command = text
         else:
             command = text
 
@@ -353,6 +380,9 @@ class NoxApp:
             self.stop_voice()
         self.config = settings_ui.load_config(self.settings.config_path)
         self.approvals.set_full_access(self.config.tools.full_access)
+        if not self._wake_verifier_injected:
+            with self._wake_verifier_lock:
+                self._wake_verifier = None
         with self._transcriber_lock:
             self._transcriber = None
         self.agent = build_agent(self.config, approvals=self.approvals)

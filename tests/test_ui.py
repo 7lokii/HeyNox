@@ -29,6 +29,29 @@ def _sem_chaves_no_ambiente():
         os.environ.pop(name, None)
 
 
+class AlwaysWakeVerifier:
+    def accepts(self, _audio, _sample_rate: int) -> bool:
+        return True
+
+
+class RejectingWakeVerifier:
+    def accepts(self, _audio, _sample_rate: int) -> bool:
+        return False
+
+
+class ScriptedWakeVerifier:
+    def __init__(self, outcomes: list[bool]) -> None:
+        self.outcomes = outcomes
+
+    def accepts(self, _audio, _sample_rate: int) -> bool:
+        return self.outcomes.pop(0)
+
+
+class NeverTranscribe:
+    def transcribe(self, _audio, _sample_rate: int) -> str:
+        raise AssertionError("o Whisper não devia ser chamado sem a validação do Vosk")
+
+
 @pytest.fixture
 def server(tmp_path):
     store = MemoryStore(tmp_path / "nox.db")
@@ -36,7 +59,13 @@ def server(tmp_path):
     config = Config.model_validate({"nox": {"voice_enabled": False}})
     # Diretório de definições próprio: os testes não tocam no real.
     settings = SettingsStore(root=tmp_path / "app")
-    app = NoxApp(config, agent=Agent(EchoLlm(), memory=store), settings=settings)
+    app = NoxApp(
+        config,
+        agent=Agent(EchoLlm(), memory=store),
+        settings=settings,
+        # A suite não carrega o modelo Vosk; o pré-filtro é testado à parte.
+        wake_verifier=AlwaysWakeVerifier(),
+    )
     httpd, port = build_server(app, port=0)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -316,6 +345,7 @@ def _voice_turn(app: NoxApp, text: str) -> dict:
 
 def test_voice_turn_ignores_a_request_without_the_wake_word(server) -> None:
     _, app = server
+    app._wake_verifier = RejectingWakeVerifier()
 
     result = _voice_turn(app, "que horas são?")
 
@@ -325,16 +355,28 @@ def test_voice_turn_ignores_a_request_without_the_wake_word(server) -> None:
     assert app.state.snapshot()["turns"] == []
 
 
-def test_voice_turn_rejects_the_wake_word_in_the_middle(server) -> None:
+def test_vosk_rejects_before_whisper(server) -> None:
     _, app = server
+    app._wake_verifier = RejectingWakeVerifier()
+    app._transcriber = NeverTranscribe()
 
-    # Regressão do HUD: o STT devolveu «Bom dia, tudo bem? Nox. Que horas são?»
-    # e o gate antigo aceitava a menção a meio da frase, chamando o agente.
-    result = _voice_turn(app, "Bom dia, tudo bem? Nox. Que horas são?")
+    result = app.voice_turn(b"\x00\x00" * 800, 16000)
 
     assert result["wake"] is False
-    assert result["answer"] == ""
+    assert result["text"] == ""
+    assert result["hint"] == "diz «Nox» para falar."
     assert app.state.snapshot()["turns"] == []
+
+
+def test_voice_turn_accepts_when_vosk_validated_but_whisper_drops_the_word(server) -> None:
+    _, app = server
+
+    # Em produção o Vosk aceitou o áudio que começava em "Nox" e o Whisper
+    # devolveu só o pedido. A posição é decidida pelo Vosk.
+    result = _voice_turn(app, "olá")
+
+    assert result["wake"] is True
+    assert result["answer"] == "(eco) olá"
 
 
 def test_voice_turn_strips_the_wake_word_before_the_agent(server) -> None:
@@ -373,6 +415,7 @@ def test_wake_word_alone_opens_a_window_for_the_request(server) -> None:
 
 def test_a_new_request_needs_the_wake_word_after_an_answer(server) -> None:
     _, app = server
+    app._wake_verifier = ScriptedWakeVerifier([True, False])
 
     assert _voice_turn(app, "Nox, olá")["answer"] == "(eco) olá"
     result = _voice_turn(app, "olá outra vez")

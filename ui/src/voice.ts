@@ -309,16 +309,18 @@ class VoiceSession {
     try {
       const data = await api.voiceTurn(pcm.buffer);
       if (this.closed) return;
-      if (!data.text) {
-        this.callbacks.onStatus("não ouvi");
-        await delay(700);
-        this.resume();
-        return;
-      }
+      // O Vosk pode recusar antes de haver transcrição. Nesse caso `text`
+      // vem vazio, mas a resposta certa é «diz Nox», não «não ouvi».
       if (data.wake === false) {
         this.callbacks.onStatus(data.hint || "diz «Nox» para falar");
         await delay(1100);
         if (!this.closed) this.callbacks.onStatus("a ouvir");
+        this.resume();
+        return;
+      }
+      if (!data.text) {
+        this.callbacks.onStatus("não ouvi");
+        await delay(700);
         this.resume();
         return;
       }

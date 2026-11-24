@@ -10,6 +10,7 @@ Não existe modelo openWakeWord treinado para "hey nox", por isso a deteção re
 from __future__ import annotations
 
 import json
+import threading
 import unicodedata
 from collections import deque
 from collections.abc import Sequence
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import Protocol
 
 from nox.audio.denoise import NoiseGate, StreamingDenoiser
-from nox.audio.types import Pcm
+from nox.audio.types import Pcm, resample
 from nox.audio.vad import WebRtcVad
 from nox.audio.voiceprint import VoiceProfile, is_known
 from nox.config import NoxError
@@ -36,6 +37,12 @@ class WakeWordError(NoxError):
 class WakeWordDetector(Protocol):
     def process(self, chunk: Pcm) -> bool:
         """True quando a wake word terminou de ser dita neste bloco."""
+        ...
+
+
+class WakeVerifier(Protocol):
+    def accepts(self, audio: Pcm, sample_rate: int) -> bool:
+        """True quando a ativação abre a frase deste áudio."""
         ...
 
 
@@ -153,6 +160,57 @@ def leading_wake_word(text: str, phrases: Sequence[str] | str) -> bool:
     if not clean:
         return False
     return strip_wake_word(clean, phrases) != clean
+
+
+class VoskWakeVerifier:
+    """Valida uma frase completa antes de a enviar ao Whisper.
+
+    O Vosk local reconhece a frase toda; a ativação só conta quando aparece no
+    início, depois dos mesmos fillers aceites pelo gate do HUD. Isto evita
+    enviar conversa ambiente para a transcrição cloud e impede que uma menção
+    a meio da frase seja tratada como pedido. O Whisper transcreve depois, mas
+    já não decide se a frase foi ativada.
+    """
+
+    def __init__(
+        self,
+        phrases: Sequence[str] | str,
+        *,
+        model_path: Path | str | None = None,
+        sample_rate: int = 16000,
+    ) -> None:
+        if sample_rate != 16000:
+            raise WakeWordError("a validação Vosk só funciona a 16 kHz")
+        tokens = wake_tokens(phrases)
+        if not tokens:
+            raise WakeWordError(f"nenhuma de {phrases} tem palavras distintivas")
+
+        require("vosk")
+        from vosk import Model, SetLogLevel
+
+        SetLogLevel(-1)
+        path = Path(model_path) if model_path else ensure_vosk_model()
+        self._model = Model(str(path))
+        self._phrases = phrases
+        self._lock = threading.Lock()
+
+    def accepts(self, audio: Pcm, sample_rate: int) -> bool:
+        from vosk import KaldiRecognizer
+
+        if sample_rate != 16000:
+            audio = resample(audio, sample_rate, 16000)
+
+        parts: list[str] = []
+        with self._lock:
+            recognizer = KaldiRecognizer(self._model, 16000)
+            for offset in range(0, len(audio), 960):  # 30 ms a 16 kHz
+                chunk = audio[offset : offset + 960]
+                if recognizer.AcceptWaveform(chunk):
+                    parts.append(json.loads(recognizer.Result()).get("text", ""))
+            parts.append(json.loads(recognizer.FinalResult()).get("text", ""))
+
+        heard = " ".join(part for part in parts if part).strip()
+        return leading_wake_word(heard, self._phrases)
 
 
 def _distance(left: str, right: str) -> int:
