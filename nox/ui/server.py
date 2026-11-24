@@ -271,9 +271,8 @@ class NoxApp:
             elif armed:
                 command = text
             elif tokens:
-                # O microfone só está aberto porque o botão Ouvir foi tocado;
-                # mesmo assim, o pedido tem de ser dirigido ao Nox. Sem a
-                # palavra, não se grava turno nem se chama o modelo.
+                # O HUD escuta sempre que está aberto. Sem a palavra, não se
+                # grava turno nem se chama o modelo.
                 return {
                     "text": text,
                     "answer": "",
@@ -287,16 +286,19 @@ class NoxApp:
         else:
             command = text
 
+        if wake_gate:
+            # Consumido o pedido, a janela fecha. Só volta a abrir com outra
+            # ativação; uma resposta não deixa o microfone à escuta do Nox.
+            self._voice_awake_until = 0.0
+
         self.state.add_turn("user", text)
         try:
             answer = self.agent.reply(command)
         except NoxError as exc:
             answer = f"Erro: {exc}"
         self.state.add_turn("assistant", answer)
-        if wake_gate:
-            # Uma resposta não deve obrigar a repetir a ativação; a janela
-            # curta é a mesma do modo --voice.
-            self._voice_awake_until = time.monotonic() + self.config.wake.follow_up_s
+        # Cada novo pedido exige a wake word. A única janela é a aberta por
+        # dizer só "Nox" e fazer uma pausa; uma resposta não arma outra.
 
         encoded = ""
         voice_error = ""

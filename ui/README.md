@@ -46,21 +46,22 @@ da APK) o HUD passa a uma coluna compacta: reactor curto, conversa e painéis co
 scroll interno e sem barras de página.
 
 A voz é a do dispositivo, não a do serviço: o homelab não tem placa de som. O
-`voice.ts` abre `getUserMedia`, mede a energia para começar e fechar a frase,
-envia PCM 16 kHz a `/api/voice/turn` e toca o MP3 devolvido. O servidor só
-entrega o turno ao agente se a transcrição contiver uma das `wake.phrases`
-(`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é retirada antes do pedido. Sem ela,
-o HUD mostra «Diz Nox» e volta a ouvir. Dizer só «Nox» abre uma janela para o
-pedido seguinte; depois da resposta há uma réplica curta, como no modo
-`--voice`. O WebView da APK
-pede a permissão Android pela ponte `NoxSec` quando se toca em **Ouvir**; no
-browser é o pedido normal do Chrome. Sem permissão, o botão volta a Ouvir e o
-HUD mostra um aviso persistente acima do rodapé, com «Tentar de novo»; o aviso
-só desaparece quando o microfone abre com sucesso. Se o WebView da APK não
-conseguir abrir o microfone, a mensagem distingue essa falha e pede para
-autorizar o microfone no Android ou fechar outra app que o esteja a usar; no
-browser, um `NotReadableError` continua a ser apresentado como microfone
-ocupado.
+`voice.ts` abre `getUserMedia` sozinho quando o HUD carrega, mede a energia
+para começar e fechar a frase, envia PCM 16 kHz a `/api/voice/turn` e toca o
+MP3 devolvido. Se o browser bloquear o `AudioContext` até haver um gesto, o
+primeiro toque no ecrã desbloqueia-o; não há botão de voz. Não há botão **Ouvir**: a sessão de voz vive enquanto a página
+estiver aberta. O servidor só entrega o turno ao agente se a transcrição
+contiver uma das `wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é
+retirada antes do pedido. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir.
+Dizer só «Nox» abre uma janela para o pedido seguinte; cada novo pedido exige
+a palavra outra vez. O WebView da APK pede a permissão Android pela ponte
+`NoxSec` no arranque; no browser é o pedido normal do Chrome. Se a permissão
+falhar, a voz para e o HUD mostra um aviso persistente acima do rodapé, com
+«Tentar de novo»; o aviso só desaparece quando o microfone abre com sucesso. Se
+o WebView da APK não conseguir abrir o microfone, a mensagem distingue essa
+falha e pede para autorizar o microfone no Android ou fechar outra app que o
+esteja a usar; no browser, um `NotReadableError` continua a ser apresentado
+como microfone ocupado.
 
 ## Regras
 

@@ -29,8 +29,10 @@ export function App() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [facts, setFacts] = useState<Fact[]>([]);
-  const [voiceOn, setVoiceOn] = useState(false);
-  const [voiceStatus, setVoiceStatus] = useState("parado");
+  // A voz vive enquanto o HUD estiver aberto. Não há botão para a ligar:
+  // o servidor é que decide, pela transcrição, se a fala era para o Nox.
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [voiceStatus, setVoiceStatus] = useState("a ligar");
   const [voiceSpeaking, setVoiceSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [voiceDenied, setVoiceDenied] = useState(false);
@@ -76,7 +78,10 @@ export function App() {
     active: voiceOn,
     onStatus: (status) => {
       setVoiceStatus(status);
-      if (status === "a ouvir") setVoiceDenied(false);
+      if (status === "a ouvir") {
+        setVoiceDenied(false);
+        setVoiceError("");
+      }
     },
     onSpeaking: setVoiceSpeaking,
     onTurn: () => {
@@ -93,6 +98,14 @@ export function App() {
       setVoiceSpeaking(false);
     },
   });
+
+  const retryVoice = useCallback(() => {
+    setVoiceError("");
+    setVoiceDenied(false);
+    setVoiceStatus("a ligar");
+    setVoiceOn(true);
+    void refresh();
+  }, [refresh]);
 
   const refreshWhatsApp = useCallback(async () => {
     try {
@@ -232,19 +245,13 @@ export function App() {
         />
       )}
       <Composer
-        voice={voiceOn}
         voiceError={voiceError}
         voiceDenied={voiceDenied}
         onSent={() => {
           void refresh();
           void refreshMemory();
         }}
-        onVoice={(on) => {
-          setVoiceError("");
-          setVoiceStatus(on ? "a ouvir" : "parado");
-          setVoiceOn(on);
-          void refresh();
-        }}
+        onRetry={retryVoice}
       />
     </div>
   );

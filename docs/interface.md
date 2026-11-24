@@ -85,26 +85,29 @@ Os antigos `/api/update*` já não existem. Não há atualização automática d
 da app: a release é publicada pelo desktop com `scripts/publicar-release.ps1`.
 
 O HUD não usa `/api/voice`: o homelab não tem placa de som, por isso a voz é
-capturada no dispositivo que abriu a página. O botão **Ouvir** abre o microfone
-do browser/WebView, deteta o fim da frase por energia e envia PCM mono a
-16 kHz para `/api/voice/turn`. O servidor transcreve com o STT configurado,
-passa pelo agente e devolve a resposta em texto e MP3 em base64, que o browser
-toca. O turno só chega ao agente se a transcrição contiver uma das
-`wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é retirada do início
-antes de o agente a receber. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir,
-sem gravar um turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o
-pedido seguinte; depois de uma resposta, `wake.follow_up_s` permite a réplica.
-Com `wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro
-do microfone e vermelho enquanto o Nox fala. O `Permissions-Policy` do NoxSec tem de permitir `microphone=(self)`, e o
-iframe do painel leva `allow="microphone"`.
+capturada no dispositivo que abriu a página. O HUD abre o microfone sozinho
+quando carrega; se o browser mantiver o áudio bloqueado, o primeiro toque no
+ecrã desbloqueia-o e o estado passa a «a ouvir». Depois deteta o fim da frase
+por energia e envia PCM mono a 16 kHz
+para `/api/voice/turn`. O servidor transcreve com o STT configurado, passa pelo
+agente e devolve a resposta em texto e MP3 em base64, que o browser toca. O
+turno só chega ao agente se a transcrição contiver uma das `wake.phrases`
+(`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é retirada do início antes de o agente
+a receber. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir, sem gravar um
+turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o pedido
+seguinte; cada novo pedido exige a palavra outra vez. Com
+`wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro do
+microfone e vermelho enquanto o Nox fala. O `Permissions-Policy` do NoxSec tem
+de permitir `microphone=(self)`, e o iframe do painel leva
+`allow="microphone"`.
 
-Se o acesso for negado, o HUD mostra um aviso persistente acima do rodapé com
-«Microfone bloqueado» e «Tentar de novo». O aviso só desaparece quando o
-microfone abre com sucesso; a permissão tem de ser reposta nas definições do
-browser ou da app. Um `NotReadableError` no WebView da APK é apresentado como
-falha de abertura do WebView, com a permissão Android e outras apps como
-ações; no browser, o mesmo erro continua a ser descrito como microfone
-ocupado. Os outros erros de voz continuam a aparecer como mensagem passageira.
+Se o microfone falhar, o HUD mostra um aviso persistente acima do rodapé com
+«Microfone bloqueado» ou «Voz indisponível» e «Tentar de novo». O aviso só
+desaparece quando o microfone abre com sucesso; a permissão tem de ser reposta
+nas definições do browser ou da app. Um `NotReadableError` no WebView da APK é
+apresentado como falha de abertura do WebView, com a permissão Android e outras
+apps como ações; no browser, o mesmo erro continua a ser descrito como
+microfone ocupado.
 
 ## Ficheiros e dados
 

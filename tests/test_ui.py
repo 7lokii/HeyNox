@@ -359,6 +359,20 @@ def test_wake_word_alone_opens_a_window_for_the_request(server) -> None:
     assert result["answer"] == "(eco) olá"
 
 
+def test_a_new_request_needs_the_wake_word_after_an_answer(server) -> None:
+    _, app = server
+
+    assert _voice_turn(app, "Nox, olá")["answer"] == "(eco) olá"
+    result = _voice_turn(app, "olá outra vez")
+
+    assert result["wake"] is False
+    assert result["answer"] == ""
+    assert [turn["text"] for turn in app.state.snapshot()["turns"]] == [
+        "Nox, olá",
+        "(eco) olá",
+    ]
+
+
 def test_voice_turn_accepts_any_speech_when_wake_is_off(server) -> None:
     _, app = server
     app.config.wake.provider = "off"

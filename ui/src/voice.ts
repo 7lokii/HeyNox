@@ -102,6 +102,7 @@ class VoiceSession {
   private paused = false;
   private busy = false;
   private closed = false;
+  private unlock: (() => void) | null = null;
 
   constructor(callbacks: Callbacks) {
     this.callbacks = callbacks;
@@ -129,7 +130,19 @@ class VoiceSession {
 
       const context = new AudioContext();
       this.context = context;
-      await context.resume();
+      // Um WebView pode criar o contexto suspenso por não haver gesto. Isto
+      // não é uma falha do microfone: o primeiro toque no ecrã desbloqueia-o.
+      // Não se espera pela promessa: sem gesto ela pode ficar pendente e o
+      // arranque nunca chegava a ligar o processador.
+      void context.resume().catch(() => undefined);
+      context.addEventListener("statechange", () => {
+        if (this.closed || context.state !== "running") return;
+        if (this.unlock) {
+          document.removeEventListener("pointerdown", this.unlock);
+          this.unlock = null;
+        }
+        this.callbacks.onStatus("a ouvir");
+      });
       this.source = context.createMediaStreamSource(this.stream);
       this.analyser = context.createAnalyser();
       this.analyser.fftSize = 256;
@@ -143,7 +156,11 @@ class VoiceSession {
       this.processor.onaudioprocess = (event) => this.onAudio(event);
       this.source.connect(this.processor);
       this.processor.connect(context.destination);
-      this.callbacks.onStatus("a ouvir");
+      if (context.state === "running") {
+        this.callbacks.onStatus("a ouvir");
+      } else {
+        this.showUnlock();
+      }
     } catch (error) {
       if (this.closed) return;
       this.fail(voiceMessage(error), isMicrophoneDenied(error));
@@ -153,6 +170,10 @@ class VoiceSession {
   stop(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.unlock) {
+      document.removeEventListener("pointerdown", this.unlock);
+      this.unlock = null;
+    }
     this.processor?.disconnect();
     this.source?.disconnect();
     this.analyser?.disconnect();
@@ -169,6 +190,27 @@ class VoiceSession {
   private closeStream(): void {
     for (const track of this.stream?.getTracks() ?? []) track.stop();
     this.stream = null;
+  }
+
+  /** O Chrome/WebView bloqueia o áudio até haver um gesto. Não se pede um
+   *  botão: o primeiro toque em qualquer sítio do HUD serve. */
+  private showUnlock(): void {
+    if (this.unlock || this.closed) return;
+    this.callbacks.onStatus("toca para ativar a voz");
+    const unlock = () => {
+      document.removeEventListener("pointerdown", unlock);
+      this.unlock = null;
+      void this.context
+        ?.resume()
+        .then(() => {
+          if (!this.closed && this.context?.state === "running") {
+            this.callbacks.onStatus("a ouvir");
+          }
+        })
+        .catch(() => undefined);
+    };
+    this.unlock = unlock;
+    document.addEventListener("pointerdown", unlock);
   }
 
   private fail(message: string, permissionDenied: boolean): void {
@@ -311,7 +353,7 @@ class VoiceSession {
     this.silenceMs = 0;
     this.recordMs = 0;
     this.preRoll = [];
-    void this.context?.resume();
+    void this.context?.resume().catch(() => undefined);
   }
 
   private async speak(answer: string, audio: string): Promise<void> {
