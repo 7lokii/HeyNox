@@ -33,6 +33,7 @@ export function App() {
   const [voiceStatus, setVoiceStatus] = useState("parado");
   const [voiceSpeaking, setVoiceSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const [voiceDenied, setVoiceDenied] = useState(false);
   const [emergency, setEmergency] = useState(false);
   const [fullAccess, setFullAccess] = useState(false);
   const [whatsapp, setWhatsapp] = useState<WhatsAppState | null>(null);
@@ -73,13 +74,19 @@ export function App() {
 
   useVoice({
     active: voiceOn,
-    onStatus: setVoiceStatus,
+    onStatus: (status) => {
+      setVoiceStatus(status);
+      if (status === "a ouvir") setVoiceDenied(false);
+    },
     onSpeaking: setVoiceSpeaking,
     onTurn: () => {
       void refresh();
       void refreshMemory();
     },
-    onError: setVoiceError,
+    onError: (message, permissionDenied) => {
+      setVoiceError(message);
+      if (permissionDenied) setVoiceDenied(true);
+    },
     onStop: () => {
       setVoiceOn(false);
       setVoiceStatus("parado");
@@ -227,6 +234,7 @@ export function App() {
       <Composer
         voice={voiceOn}
         voiceError={voiceError}
+        voiceDenied={voiceDenied}
         onSent={() => {
           void refresh();
           void refreshMemory();

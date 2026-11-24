@@ -40,7 +40,7 @@ interface VoiceOptions {
   onStatus: (status: string) => void;
   onSpeaking: (speaking: boolean) => void;
   onTurn: () => void;
-  onError: (message: string) => void;
+  onError: (message: string, permissionDenied: boolean) => void;
   onStop: () => void;
 }
 
@@ -57,7 +57,7 @@ interface Callbacks {
   onStatus: (status: string) => void;
   onSpeaking: (speaking: boolean) => void;
   onTurn: () => void;
-  onError: (message: string) => void;
+  onError: (message: string, permissionDenied: boolean) => void;
   onStop: () => void;
 }
 
@@ -75,7 +75,8 @@ export function useVoice(options: VoiceOptions): void {
       onStatus: (status) => callbacks.current.onStatus(status),
       onSpeaking: (speaking) => callbacks.current.onSpeaking(speaking),
       onTurn: () => callbacks.current.onTurn(),
-      onError: (message) => callbacks.current.onError(message),
+      onError: (message, permissionDenied) =>
+        callbacks.current.onError(message, permissionDenied),
       onStop: () => callbacks.current.onStop(),
     });
     void session.start();
@@ -145,7 +146,7 @@ class VoiceSession {
       this.callbacks.onStatus("a ouvir");
     } catch (error) {
       if (this.closed) return;
-      this.fail(voiceMessage(error));
+      this.fail(voiceMessage(error), isMicrophoneDenied(error));
     }
   }
 
@@ -170,8 +171,8 @@ class VoiceSession {
     this.stream = null;
   }
 
-  private fail(message: string): void {
-    this.callbacks.onError(message);
+  private fail(message: string, permissionDenied: boolean): void {
+    this.callbacks.onError(message, permissionDenied);
     this.callbacks.onStatus("parado");
     this.stop();
     this.callbacks.onStop();
@@ -278,7 +279,7 @@ class VoiceSession {
       }
     } catch (error) {
       if (this.closed) return;
-      this.callbacks.onError(voiceMessage(error));
+      this.callbacks.onError(voiceMessage(error), false);
       this.callbacks.onStatus("a ouvir");
       await delay(900);
       this.resume();
@@ -325,6 +326,21 @@ async function ensureMicrophone(): Promise<void> {
     };
     target.NoxSec?.postMessage("microfone");
   });
+}
+
+/** A recusa veio da permissão, não da rede nem do aparelho. */
+export function isMicrophoneDenied(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    return (
+      error.name === "NotAllowedError" ||
+      error.name === "PermissionDeniedError" ||
+      error.name === "SecurityError"
+    );
+  }
+  if (error instanceof Error) {
+    return /sem permissão|permission denied/i.test(error.message);
+  }
+  return false;
 }
 
 export function voiceMessage(error: unknown): string {

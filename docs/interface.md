@@ -93,6 +93,12 @@ toca. O anel fica azul com o espectro do microfone e vermelho enquanto o Nox
 fala. O `Permissions-Policy` do NoxSec tem de permitir `microphone=(self)`, e o
 iframe do painel leva `allow="microphone"`.
 
+Se o acesso for negado, o HUD mostra um aviso persistente acima do rodapé com
+«Microfone bloqueado» e «Tentar de novo». O aviso só desaparece quando o
+microfone abre com sucesso; a permissão tem de ser reposta nas definições do
+browser ou da app. Os outros erros de voz continuam a aparecer como mensagem
+passageira.
+
 ## Ficheiros e dados
 
 - `ui/dist/index.html` e `ui/dist/assets/*`: HUD compilado.
