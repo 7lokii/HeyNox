@@ -110,3 +110,89 @@ def test_unconfigured_client_explains_itself() -> None:
     client = UnconfiguredLlm("falta a chave")
     with pytest.raises(LlmError, match="falta a chave"):
         client.complete([Message("user", "oi")])
+
+
+def test_openai_client_sends_tools_in_its_dialect(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_post(url, payload, headers, timeout):
+        captured.update(payload=payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "list_dir",
+                                    "arguments": '{"path": "E:/projetos"}',
+                                },
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr("nox.brain.llm._post_json", fake_post)
+    client = OpenAiLlm("https://exemplo.test/v1", "chave", "modelo-teste")
+    tools = [
+        {
+            "name": "list_dir",
+            "description": "lista uma pasta",
+            "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}},
+        }
+    ]
+    reply = client.complete_with_tools([Message("user", "lista")], tools=tools)
+
+    payload = captured["payload"]
+    assert payload["tool_choice"] == "auto"
+    assert payload["tools"][0]["type"] == "function"
+    assert payload["tools"][0]["function"]["name"] == "list_dir"
+    assert payload["tools"][0]["function"]["parameters"]["type"] == "object"
+    assert reply.text == ""
+    assert reply.tool_calls[0].name == "list_dir"
+    assert reply.tool_calls[0].arguments == {"path": "E:/projetos"}
+    assert reply.raw == [
+        {"type": "tool_use", "id": "call_1", "name": "list_dir", "input": {"path": "E:/projetos"}}
+    ]
+
+
+def test_openai_client_replays_tool_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_post(url, payload, headers, timeout):
+        captured.update(payload=payload)
+        return {"choices": [{"message": {"content": "Pronto."}}]}
+
+    monkeypatch.setattr("nox.brain.llm._post_json", fake_post)
+    client = OpenAiLlm("https://exemplo.test/v1", "chave", "modelo-teste")
+    messages = [
+        Message("user", "lista a pasta"),
+        Message(
+            "assistant",
+            [{"type": "tool_use", "id": "call_1", "name": "list_dir", "input": {"path": "E:/"}}],
+        ),
+        Message(
+            "user",
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": "a.txt",
+                    "is_error": False,
+                }
+            ],
+        ),
+    ]
+    answer = client.complete_with_tools(messages)
+
+    chat = captured["payload"]["messages"]
+    assert answer.text == "Pronto."
+    assert chat[1]["role"] == "assistant"
+    assert chat[1]["tool_calls"][0]["function"]["name"] == "list_dir"
+    assert chat[1]["tool_calls"][0]["function"]["arguments"] == '{"path": "E:/"}'
+    assert chat[2] == {"role": "tool", "tool_call_id": "call_1", "content": "a.txt"}

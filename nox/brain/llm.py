@@ -155,6 +155,70 @@ def _openai_text(data: dict[str, Any]) -> str:
     return text
 
 
+def _openai_tool(definition: dict[str, Any]) -> dict[str, Any]:
+    """A definicao interna (formato Anthropic) vista pela API OpenAI."""
+    return {
+        "type": "function",
+        "function": {
+            "name": str(definition.get("name", "")),
+            "description": str(definition.get("description", "")),
+            "parameters": definition.get("input_schema") or {"type": "object", "properties": {}},
+        },
+    }
+
+
+def _openai_chat(messages: Sequence[Message], system: str) -> list[dict[str, Any]]:
+    """Converte o historico neutro (blocos Anthropic) no dialeto OpenAI.
+
+    Sem isto o cliente OpenAI mandava as mensagens sem `tool_calls` e sem
+    `role: tool`, e o modelo via um historico incoerente.
+    """
+    chat: list[dict[str, Any]] = []
+    if system:
+        chat.append({"role": "system", "content": system})
+    for message in messages:
+        if isinstance(message.content, str):
+            chat.append({"role": message.role, "content": message.content})
+            continue
+        if message.role == "assistant":
+            text = "".join(
+                str(block.get("text", ""))
+                for block in message.content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+            calls = [
+                {
+                    "id": str(block.get("id", "")),
+                    "type": "function",
+                    "function": {
+                        "name": str(block.get("name", "")),
+                        "arguments": json.dumps(block.get("input") or {}),
+                    },
+                }
+                for block in message.content
+                if isinstance(block, dict) and block.get("type") == "tool_use"
+            ]
+            entry: dict[str, Any] = {"role": "assistant", "content": text or None}
+            if calls:
+                entry["tool_calls"] = calls
+            chat.append(entry)
+            continue
+        for block in message.content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_result":
+                chat.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": str(block.get("tool_use_id", "")),
+                        "content": str(block.get("content", "")),
+                    }
+                )
+            elif block.get("type") == "text":
+                chat.append({"role": "user", "content": str(block.get("text", ""))})
+    return chat
+
+
 class AnthropicLlm:
     """Endpoint no formato Anthropic Messages (`POST /messages`)."""
 
@@ -258,16 +322,17 @@ class OpenAiLlm:
         self._temperature = temperature
         self._timeout = timeout
 
-    def complete(self, messages: Sequence[Message], *, system: str = "") -> str:
-        chat: list[dict[str, Any]] = []
-        if system:
-            chat.append({"role": "system", "content": system})
-        chat.extend({"role": m.role, "content": m.content} for m in messages)
+    def complete(
+        self,
+        messages: Sequence[Message],
+        *,
+        system: str = "",
+    ) -> str:
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
             "temperature": self._temperature,
-            "messages": chat,
+            "messages": _openai_chat(messages, system),
         }
         data = _post_json(
             self._url, payload, {"Authorization": f"Bearer {self._key}"}, self._timeout
@@ -281,9 +346,47 @@ class OpenAiLlm:
         system: str = "",
         tools: Sequence[dict[str, Any]] = (),
     ) -> LlmReply:
-        # Este dialeto ainda não devolve tool_calls; degrada para texto em vez
-        # de fingir que sabe usar ferramentas.
-        return LlmReply(text=self.complete(messages, system=system))
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "temperature": self._temperature,
+            "messages": _openai_chat(messages, system),
+        }
+        if tools:
+            payload["tools"] = [_openai_tool(tool) for tool in tools]
+            payload["tool_choice"] = "auto"
+
+        data = _post_json(
+            self._url, payload, {"Authorization": f"Bearer {self._key}"}, self._timeout
+        )
+        choices = data.get("choices") or []
+        if not choices:
+            raise LlmError("o modelo devolveu uma resposta vazia")
+        message = choices[0].get("message") or {}
+        text = (message.get("content") or "").strip()
+
+        # O historico fica em blocos neutros (os mesmos do dialeto Anthropic),
+        # para o resto do agente nao saber que fornecedor respondeu.
+        blocks: list[dict[str, Any]] = []
+        if text:
+            blocks.append({"type": "text", "text": text})
+        calls: list[ToolCall] = []
+        for raw_call in message.get("tool_calls") or []:
+            function = raw_call.get("function") or {}
+            try:
+                arguments = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            call_id = str(raw_call.get("id", ""))
+            name = str(function.get("name", ""))
+            calls.append(ToolCall(id=call_id, name=name, arguments=arguments))
+            blocks.append({"type": "tool_use", "id": call_id, "name": name, "input": arguments})
+
+        if not blocks:
+            raise LlmError("o modelo devolveu uma resposta vazia")
+        return LlmReply(text=text, tool_calls=calls, raw=blocks)
 
 
 def build_llm(config: Config) -> LlmClient:
