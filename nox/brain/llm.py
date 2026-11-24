@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -102,8 +104,41 @@ class UnconfiguredLlm:
         raise LlmError(self._reason)
 
 
+# Esperas de 429 que passam disto são um limite de plano, não uma rajada: uma
+# conversa por voz não pode ficar 20 s calada à espera do próximo minuto.
+RETRY_MAX_WAIT_S = 12.0
+RETRY_STATUS = (429, 500, 502, 503, 504)
+
+
+def _retry_wait(exc: urllib.error.HTTPError, detail: str) -> float | None:
+    """Quanto esperar antes de repetir, ou None para não repetir."""
+    if exc.code not in RETRY_STATUS:
+        return None
+    header = (exc.headers or {}).get("Retry-After") if exc.headers else None
+    if header:
+        try:
+            return max(0.0, float(header))
+        except ValueError:
+            pass
+    # O Groq diz «Please try again in 21.225s»; o OpenRouter usa «retry_after».
+    for pattern in (r"try again in ([0-9.]+)s", r"retry_after[^0-9]*([0-9.]+)"):
+        found = re.search(pattern, detail)
+        if found:
+            try:
+                return max(0.0, float(found.group(1)))
+            except ValueError:
+                continue
+    return 2.0
+
+
 def _post_json(
-    url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: float,
+    *,
+    retries: int = 2,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
     # O Cloudflare do Groq devolve 1010 a `Python-urllib`; identificar a app
@@ -117,16 +152,24 @@ def _post_json(
             "Content-Type": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-            data = json.load(response)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace").strip()[:300]
-        raise LlmError(f"o modelo respondeu {exc.code} {exc.reason}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise LlmError(f"sem ligação a {url}: {exc.reason}") from exc
-    except (TimeoutError, OSError) as exc:
-        raise LlmError(f"{url} não respondeu em {timeout:.0f}s") from exc
+    attempt = 0
+    while True:
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+                data = json.load(response)
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace").strip()[:300]
+            wait = _retry_wait(exc, detail)
+            if wait is not None and attempt < retries and wait <= RETRY_MAX_WAIT_S:
+                attempt += 1
+                sleep(wait)
+                continue
+            raise LlmError(f"o modelo respondeu {exc.code} {exc.reason}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise LlmError(f"sem ligação a {url}: {exc.reason}") from exc
+        except (TimeoutError, OSError) as exc:
+            raise LlmError(f"{url} não respondeu em {timeout:.0f}s") from exc
     if not isinstance(data, dict):
         raise LlmError("resposta do modelo em formato inesperado")
     return data

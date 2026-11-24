@@ -196,3 +196,53 @@ def test_openai_client_replays_tool_history(monkeypatch: pytest.MonkeyPatch) -> 
     assert chat[1]["tool_calls"][0]["function"]["name"] == "list_dir"
     assert chat[1]["tool_calls"][0]["function"]["arguments"] == '{"path": "E:/"}'
     assert chat[2] == {"role": "tool", "tool_call_id": "call_1", "content": "a.txt"}
+
+
+def test_post_json_retries_a_short_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    import urllib.error
+
+    tentativas: list[int] = []
+    esperas: list[float] = []
+
+    class Resposta:
+        def __enter__(self) -> io.BytesIO:
+            return io.BytesIO(b'{"ok": true}')
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+    def fake_urlopen(request, timeout):
+        tentativas.append(1)
+        if len(tentativas) == 1:
+            raise urllib.error.HTTPError(
+                request.full_url,
+                429,
+                "Too Many Requests",
+                None,
+                io.BytesIO(b'{"message": "Please try again in 3.5s"}'),
+            )
+        return Resposta()
+
+    monkeypatch.setattr("nox.brain.llm.urllib.request.urlopen", fake_urlopen)
+    data = _post_json("https://exemplo.test/v1", {"x": 1}, {}, 5.0, sleep=esperas.append)
+
+    assert data == {"ok": True}
+    assert len(tentativas) == 2
+    assert esperas == [3.5]
+
+
+def test_post_json_gives_up_on_a_long_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    import urllib.error
+
+    def fake_urlopen(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            429,
+            "Too Many Requests",
+            None,
+            io.BytesIO(b'{"message": "Please try again in 21.2s"}'),
+        )
+
+    monkeypatch.setattr("nox.brain.llm.urllib.request.urlopen", fake_urlopen)
+    with pytest.raises(LlmError, match="429"):
+        _post_json("https://exemplo.test/v1", {"x": 1}, {}, 5.0, sleep=lambda _: None)

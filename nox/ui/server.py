@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from nox import __version__
-from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.audio.wake import VoskWakeVerifier, WakeVerifier, strip_wake_word
+from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
