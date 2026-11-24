@@ -7,6 +7,7 @@ from nox.audio.wake import (
     VoskWakeWord,
     WakeWordError,
     matches,
+    strip_wake_word,
     wake_tokens,
 )
 
@@ -58,3 +59,21 @@ def test_matches_accepts_every_form() -> None:
 def test_phrases_without_content_are_rejected() -> None:
     assert wake_tokens("hey") == ()
     assert wake_tokens(["ei", "olá"]) == ()
+
+
+def test_strip_wake_word_removes_only_the_leading_activation() -> None:
+    phrases = ["nox", "ei nox", "hey nox"]
+    assert strip_wake_word("Nox, que horas são?", phrases) == "que horas são?"
+    assert strip_wake_word("Hey Nox, que horas são?", phrases) == "que horas são?"
+    assert strip_wake_word("Ei Nox que horas são", phrases) == "que horas são"
+    assert strip_wake_word("a inox, que horas são?", phrases) == "que horas são?"
+
+
+def test_strip_wake_word_keeps_a_later_mention() -> None:
+    phrases = ["nox", "ei nox", "hey nox"]
+    assert strip_wake_word("que horas são, Nox?", phrases) == "que horas são, Nox?"
+    assert strip_wake_word("bom dia", phrases) == "bom dia"
+
+
+def test_strip_wake_word_can_leave_an_empty_prompt() -> None:
+    assert strip_wake_word("Nox", ["nox"]) == ""

@@ -108,6 +108,10 @@ export interface VoiceTurn {
   /** MP3 em base64, ou vazio quando o TTS do servidor falhou. */
   audio: string;
   voice_error: string;
+  /** False quando a transcrição não veio dirigida ao Nox. */
+  wake: boolean;
+  /** Indicação curta para o HUD quando não há resposta. */
+  hint: string;
 }
 
 export interface Fact {

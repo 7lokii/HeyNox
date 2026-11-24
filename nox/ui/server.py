@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import threading
+import time
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -21,6 +22,7 @@ from typing import Any
 
 from nox import __version__
 from nox.automation.routines import RoutineScheduler, RoutineStore
+from nox.audio.wake import matches, strip_wake_word, wake_tokens
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
@@ -97,6 +99,7 @@ class NoxApp:
         self._synth = None
         self._speaker = None
         self._voice_error = ""
+        self._voice_awake_until = 0.0
         self._transcriber = None
         self._transcriber_lock = threading.Lock()
 
@@ -220,7 +223,7 @@ class NoxApp:
     def voice_error(self) -> str:
         return self._voice_error
 
-    def voice_turn(self, audio: bytes, sample_rate: int) -> dict[str, str]:
+    def voice_turn(self, audio: bytes, sample_rate: int) -> dict[str, Any]:
         """Turno de voz vindo do microfone do browser/WebView.
 
         O homelab não tem placa de som: quem ouve é o dispositivo que abriu o
@@ -235,14 +238,65 @@ class NoxApp:
                 self._transcriber = build_transcriber(self.config)
         text = self._transcriber.transcribe(Pcm(audio), sample_rate)
         if not text:
-            return {"text": "", "answer": "", "audio": "", "voice_error": ""}
+            return {
+                "text": "",
+                "answer": "",
+                "audio": "",
+                "voice_error": "",
+                "wake": True,
+                "hint": "",
+            }
+
+        wake_gate = self.config.wake.provider != "off"
+        if wake_gate:
+            phrases = self.config.wake.phrases or [self.config.nox.wake_word]
+            tokens = wake_tokens(phrases)
+            now = time.monotonic()
+            armed = now < self._voice_awake_until
+            has_wake = bool(tokens and matches(text, tokens))
+            if has_wake:
+                command = strip_wake_word(text, phrases)
+                # Dizer só "Nox" e fazer uma pausa é uma ativação válida: o
+                # pedido seguinte chega noutro turno, como no loop --voice.
+                self._voice_awake_until = now + self.config.wake.timeout_s
+                if not command:
+                    return {
+                        "text": text,
+                        "answer": "",
+                        "audio": "",
+                        "voice_error": "",
+                        "wake": True,
+                        "hint": f"diz o pedido depois de «{self.config.nox.name}».",
+                    }
+            elif armed:
+                command = text
+            elif tokens:
+                # O microfone só está aberto porque o botão Ouvir foi tocado;
+                # mesmo assim, o pedido tem de ser dirigido ao Nox. Sem a
+                # palavra, não se grava turno nem se chama o modelo.
+                return {
+                    "text": text,
+                    "answer": "",
+                    "audio": "",
+                    "voice_error": "",
+                    "wake": False,
+                    "hint": f"diz «{self.config.nox.name}» para falar.",
+                }
+            else:
+                command = text
+        else:
+            command = text
 
         self.state.add_turn("user", text)
         try:
-            answer = self.agent.reply(text)
+            answer = self.agent.reply(command)
         except NoxError as exc:
             answer = f"Erro: {exc}"
         self.state.add_turn("assistant", answer)
+        if wake_gate:
+            # Uma resposta não deve obrigar a repetir a ativação; a janela
+            # curta é a mesma do modo --voice.
+            self._voice_awake_until = time.monotonic() + self.config.wake.follow_up_s
 
         encoded = ""
         voice_error = ""
@@ -258,7 +312,14 @@ class NoxApp:
             except (NoxError, ImportError, OSError) as exc:
                 # O texto vai na mesma; o HUD cai para a voz do sistema.
                 voice_error = str(exc)
-        return {"text": text, "answer": answer, "audio": encoded, "voice_error": voice_error}
+        return {
+            "text": text,
+            "answer": answer,
+            "audio": encoded,
+            "voice_error": voice_error,
+            "wake": True,
+            "hint": "",
+        }
 
     # ---------------------- configuração na interface ----------------------
 

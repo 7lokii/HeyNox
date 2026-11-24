@@ -121,6 +121,27 @@ def _is_token(word: str, token: str) -> bool:
     return False
 
 
+def strip_wake_word(text: str, phrases: Sequence[str] | str) -> str:
+    """Remove a palavra de ativação do início da transcrição.
+
+    O STT pode devolver "Nox, que horas são?", "Hey Nox..." ou a forma que o
+    Vosk costuma produzir, "a inox...". Só se retira a palavra quando está no
+    início, para não mutilar uma frase que apenas menciona o nome. O resto da
+    frase fica intacto.
+    """
+    tokens = wake_tokens(phrases)
+    words = text.strip().split()
+    for index, word in enumerate(words):
+        if not any(_is_token(normalize(word), token) for token in tokens):
+            continue
+        prefix = [normalize(part) for part in words[:index]]
+        if not all(part in _FILLER_WORDS or part == "a" for part in prefix):
+            break
+        rest = " ".join(words[index + 1 :]).strip()
+        return rest.lstrip(" ,.;:!?—–-")
+    return text.strip()
+
+
 def _distance(left: str, right: str) -> int:
     """Distância de Levenshtein, para palavras curtas."""
     previous = list(range(len(right) + 1))

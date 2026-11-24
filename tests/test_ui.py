@@ -12,6 +12,7 @@ from nox.brain.agent import Agent
 from nox.brain.llm import EchoLlm
 from nox.config import Config
 from nox.memory.store import MemoryStore
+from nox.speech.stt import ScriptedTranscriber
 from nox.ui.server import NoxApp, build_server
 from nox.ui.settings import SettingsStore
 from nox.ui.state import NoxState
@@ -306,3 +307,63 @@ def test_devices_endpoint_survives_without_audio(server, monkeypatch) -> None:
     monkeypatch.setattr("nox.audio.devices.input_devices", boom)
 
     assert get_json(f"{url}/api/devices")["devices"] == []
+
+
+def _voice_turn(app: NoxApp, text: str) -> dict:
+    app._transcriber = ScriptedTranscriber([text])
+    return app.voice_turn(b"\x00\x00" * 800, 16000)
+
+
+def test_voice_turn_ignores_a_request_without_the_wake_word(server) -> None:
+    _, app = server
+
+    result = _voice_turn(app, "que horas são?")
+
+    assert result["wake"] is False
+    assert result["answer"] == ""
+    assert result["hint"] == "diz «Nox» para falar."
+    assert app.state.snapshot()["turns"] == []
+
+
+def test_voice_turn_strips_the_wake_word_before_the_agent(server) -> None:
+    _, app = server
+
+    result = _voice_turn(app, "Nox, olá")
+
+    assert result["wake"] is True
+    assert result["answer"] == "(eco) olá"
+    assert [turn["text"] for turn in app.state.snapshot()["turns"]] == [
+        "Nox, olá",
+        "(eco) olá",
+    ]
+
+
+def test_voice_turn_with_only_the_wake_word_asks_for_the_request(server) -> None:
+    _, app = server
+
+    result = _voice_turn(app, "Nox")
+
+    assert result["wake"] is True
+    assert result["answer"] == ""
+    assert result["hint"] == "diz o pedido depois de «Nox»."
+    assert app.state.snapshot()["turns"] == []
+
+
+def test_wake_word_alone_opens_a_window_for_the_request(server) -> None:
+    _, app = server
+
+    assert _voice_turn(app, "Nox")["answer"] == ""
+    result = _voice_turn(app, "olá")
+
+    assert result["wake"] is True
+    assert result["answer"] == "(eco) olá"
+
+
+def test_voice_turn_accepts_any_speech_when_wake_is_off(server) -> None:
+    _, app = server
+    app.config.wake.provider = "off"
+
+    result = _voice_turn(app, "olá")
+
+    assert result["wake"] is True
+    assert result["answer"] == "(eco) olá"

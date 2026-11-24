@@ -89,8 +89,13 @@ capturada no dispositivo que abriu a página. O botão **Ouvir** abre o microfon
 do browser/WebView, deteta o fim da frase por energia e envia PCM mono a
 16 kHz para `/api/voice/turn`. O servidor transcreve com o STT configurado,
 passa pelo agente e devolve a resposta em texto e MP3 em base64, que o browser
-toca. O anel fica azul com o espectro do microfone e vermelho enquanto o Nox
-fala. O `Permissions-Policy` do NoxSec tem de permitir `microphone=(self)`, e o
+toca. O turno só chega ao agente se a transcrição contiver uma das
+`wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é retirada do início
+antes de o agente a receber. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir,
+sem gravar um turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o
+pedido seguinte; depois de uma resposta, `wake.follow_up_s` permite a réplica.
+Com `wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro
+do microfone e vermelho enquanto o Nox fala. O `Permissions-Policy` do NoxSec tem de permitir `microphone=(self)`, e o
 iframe do painel leva `allow="microphone"`.
 
 Se o acesso for negado, o HUD mostra um aviso persistente acima do rodapé com

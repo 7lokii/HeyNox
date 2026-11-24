@@ -271,6 +271,20 @@ class VoiceSession {
         this.resume();
         return;
       }
+      if (data.wake === false) {
+        this.callbacks.onStatus(data.hint || "diz «Nox» para falar");
+        await delay(1100);
+        if (!this.closed) this.callbacks.onStatus("a ouvir");
+        this.resume();
+        return;
+      }
+      if (!data.answer) {
+        this.callbacks.onStatus(data.hint || "não ouvi");
+        await delay(data.hint ? 1100 : 700);
+        if (!this.closed) this.callbacks.onStatus("a ouvir");
+        this.resume();
+        return;
+      }
       this.callbacks.onTurn();
       if (data.answer) await this.speak(data.answer, data.audio);
       if (!this.closed) {
