@@ -178,6 +178,7 @@ class VoskWakeVerifier:
         *,
         model_path: Path | str | None = None,
         sample_rate: int = 16000,
+        grammar: Sequence[str] | None = None,
     ) -> None:
         if sample_rate != 16000:
             raise WakeWordError("a validação Vosk só funciona a 16 kHz")
@@ -192,6 +193,11 @@ class VoskWakeVerifier:
         path = Path(model_path) if model_path else ensure_vosk_model()
         self._model = Model(str(path))
         self._phrases = phrases
+        # O modelo pt não conhece "nox": sem vocabulário restrito, um "Nox"
+        # curto pode sair como "bom", "no" ou vazio. É o mesmo grammar que o
+        # loop de voz usa em `VoskWakeWord`; aqui tem de ser passado ao
+        # reconhecedor de frase inteira, não só às palavras esperadas.
+        self._grammar = json.dumps(list(grammar)) if grammar else ""
         self._lock = threading.Lock()
 
     def accepts(self, audio: Pcm, sample_rate: int) -> bool:
@@ -202,7 +208,11 @@ class VoskWakeVerifier:
 
         parts: list[str] = []
         with self._lock:
-            recognizer = KaldiRecognizer(self._model, 16000)
+            recognizer = (
+                KaldiRecognizer(self._model, 16000, self._grammar)
+                if self._grammar
+                else KaldiRecognizer(self._model, 16000)
+            )
             for offset in range(0, len(audio), 960):  # 30 ms a 16 kHz
                 chunk = audio[offset : offset + 960]
                 if recognizer.AcceptWaveform(chunk):

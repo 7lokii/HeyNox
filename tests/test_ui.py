@@ -403,6 +403,26 @@ def test_voice_turn_with_only_the_wake_word_asks_for_the_request(server) -> None
     assert app.state.snapshot()["turns"] == []
 
 
+def test_voice_turn_opens_the_window_when_whisper_returns_nothing(server) -> None:
+    _, app = server
+    app._wake_verifier = AlwaysWakeVerifier()
+
+    # Vosk aceitou o áudio, mas o Whisper não conseguiu transcrever o "Nox"
+    # curto. Ainda assim a ativação é válida e o pedido seguinte é aceite.
+    result = _voice_turn(app, "")
+
+    assert result["wake"] is True
+    assert result["text"] == ""
+    assert result["hint"] == "diz o pedido depois de «Nox»."
+    assert app.state.snapshot()["turns"] == []
+
+    app._wake_verifier = RejectingWakeVerifier()
+    result = _voice_turn(app, "olá")
+
+    assert result["wake"] is True
+    assert result["answer"] == "(eco) olá"
+
+
 def test_wake_word_alone_opens_a_window_for_the_request(server) -> None:
     _, app = server
 

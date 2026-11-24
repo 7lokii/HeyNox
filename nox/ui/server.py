@@ -243,6 +243,7 @@ class NoxApp:
                     settings.phrases or [self.config.nox.wake_word],
                     model_path=model,
                     sample_rate=16000,
+                    grammar=settings.grammar or None,
                 )
             except (NoxError, ImportError, OSError) as exc:
                 self.logs.append(f"wake: {exc}")
@@ -284,6 +285,19 @@ class NoxApp:
                 self._transcriber = build_transcriber(self.config)
         text = self._transcriber.transcribe(pcm, sample_rate)
         if not text:
+            if wake_gate and validated:
+                # O Vosk ouviu a ativação, mas o Whisper não devolveu texto
+                # (acontece com um "Nox" muito curto). A ativação é válida:
+                # abre-se a janela para o pedido seguinte.
+                self._voice_awake_until = now + self.config.wake.timeout_s
+                return {
+                    "text": "",
+                    "answer": "",
+                    "audio": "",
+                    "voice_error": "",
+                    "wake": True,
+                    "hint": f"diz o pedido depois de «{self.config.nox.name}».",
+                }
             return {
                 "text": "",
                 "answer": "",

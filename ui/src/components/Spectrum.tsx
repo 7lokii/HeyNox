@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "../api";
-import { subscribeVoiceInput } from "../voice";
+import { subscribeVoiceInput, subscribeVoiceOutput } from "../voice";
 
 const BANDS = 48;
 const POLL_MS = 90;
@@ -31,6 +31,8 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
   const current = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const inputTarget = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const inputCurrent = useRef<number[]>(new Array<number>(BANDS).fill(0));
+  const outputTarget = useRef<number[]>(new Array<number>(BANDS).fill(0));
+  const outputCurrent = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const onStatusRef = useRef(onStatus);
 
   useEffect(() => {
@@ -132,7 +134,13 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       const base = radius * 0.6;
       phase += 0.006;
 
-      const aFalar = speakingRef.current || target.current.some((value) => value > 0.02);
+      // A voz que se ouve aqui é a deste dispositivo: o serviço não tem placa
+      // de som. Nesse caso o vermelho segue `outputCurrent`, medido no MP3 a
+      // tocar; só sem áudio mensurável é que se desenha o pulso de reserva.
+      const localLevels = clientVoiceRef.current;
+      const speakLevels = localLevels ? outputTarget.current : target.current;
+      const measured = speakLevels.some((value) => value > 0.02);
+      const aFalar = speakingRef.current || measured;
       const listening = inputTarget.current.some((value) => value > 0.02);
       const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
       const voice = aFalar
@@ -171,14 +179,16 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
 
       const idle = 0.045 + 0.03 * Math.sin(phase * 2.2);
 
+      const source = localLevels ? outputCurrent.current : current.current;
+
       // Espelhado no eixo vertical: meia volta mostra o espectro, a outra metade
       // repete-o. É o que dá o desenho simétrico em vez de um gráfico torto.
       for (let i = 0; i < BANDS; i += 1) {
         const band = i < BANDS / 2 ? i : BANDS - 1 - i;
         const value = aFalar
-          ? current.current[band] > 0.01
-            ? current.current[band]
-            : 0.12 + 0.08 * Math.abs(Math.sin(phase * 1.7 + band * 0.5))
+          ? measured
+            ? Math.max(0.02, source[band])
+            : 0.16 + 0.24 * Math.abs(Math.sin(phase * 2.4 + band * 0.55))
           : idle * (0.6 + 0.4 * Math.sin(phase * 1.6 + band * 0.42));
         const angle = (i / BANDS) * Math.PI * 2 - Math.PI / 2;
         const inner = base * 1.02;
@@ -224,6 +234,8 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
         current.current[i] += (target.current[i] - current.current[i]) * 0.28;
         inputCurrent.current[i] +=
           (inputTarget.current[i] - inputCurrent.current[i]) * 0.38;
+        outputCurrent.current[i] +=
+          (outputTarget.current[i] - outputCurrent.current[i]) * 0.38;
       }
 
       if (alive) frame = requestAnimationFrame(draw);
@@ -234,7 +246,8 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
         const data = await api.levels();
         if (!alive) return;
         if (Array.isArray(data.levels) && data.levels.length === BANDS) {
-          target.current = data.levels;
+          // Em modo voz o vermelho vem da reprodução local, não do serviço.
+          if (!clientVoiceRef.current) target.current = data.levels;
         }
         if (!clientVoiceRef.current && Array.isArray(data.input) && data.input.length === BANDS) {
           inputTarget.current = data.input;
@@ -255,6 +268,11 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
         inputTarget.current = levels;
       }
     });
+    const unsubscribeOutput = subscribeVoiceOutput((levels) => {
+      if (clientVoiceRef.current && levels.length === BANDS) {
+        outputTarget.current = levels;
+      }
+    });
     draw();
     void poll();
 
@@ -264,6 +282,7 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       if (timer) clearTimeout(timer);
       observer.disconnect();
       unsubscribe();
+      unsubscribeOutput();
       window.removeEventListener("resize", resize);
     };
   }, []);

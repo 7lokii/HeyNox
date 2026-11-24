@@ -95,11 +95,13 @@ turno só chega ao agente se o Vosk local ouvir uma das `wake.phrases`
 (`Nox`, `Ei Nox` ou `Hey Nox`, opcionalmente depois de «ei», «hey» ou «olá») no
 início do PCM. Se não ouvir, o áudio não chega ao Whisper nem à cloud. Depois
 disso, o Whisper transcreve o pedido e a palavra é retirada do início quando
-aparece; o STT pode não a repetir. Uma menção a meio da frase não ativa o Nox. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir, sem gravar um
+aparece; o STT pode não a repetir. Uma menção a meio da frase não ativa o Nox. Sem ela, o microfone continua ativo, mas o HUD fica em «Diz Nox»
+em vez de voltar a «a ouvir», e não grava um
 turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o pedido
 seguinte; cada novo pedido exige a palavra outra vez. Com
 `wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro do
-microfone e vermelho enquanto o Nox fala. O `Permissions-Policy` do NoxSec tem
+microfone e vermelho enquanto o Nox fala. O vermelho segue o MP3 que toca no
+dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `Permissions-Policy` do NoxSec tem
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.
 

@@ -41,7 +41,9 @@ src/
 
 `components/Spectrum.tsx` desenha o anel em canvas a 60 fps e lê o espectro real
 de `/api/levels` a cada 90 ms. O Nox fala a vermelho e, enquanto fala, o acento
-do HUD acompanha; o microfone desenha ondas azuis. Em ecrãs estreitos (o WebView
+do HUD acompanha; o microfone desenha ondas azuis. Em modo voz o áudio toca no
+dispositivo, não no serviço, por isso o anel vermelho mede o MP3 em reprodução
+(`subscribeVoiceOutput`) em vez de `/api/levels`, que ali fica a zeros. Em ecrãs estreitos (o WebView
 da APK) o HUD passa a uma coluna compacta: reactor curto, conversa e painéis com
 scroll interno e sem barras de página.
 
@@ -54,7 +56,8 @@ vive enquanto a página estiver aberta. O servidor valida primeiro o PCM com o V
 frase é que o Whisper é chamado. A palavra é retirada do início quando o
 Whisper a repete, mas o STT pode omiti-la depois de o Vosk a ter validado. Uma
 menção a meio da frase é ignorada e não chega à cloud. Sem ativação, o HUD
-mostra «Diz Nox» e continua a ouvir.
+fica em «Diz Nox»; não volta a «a ouvir», para o estado não parecer uma
+ativação.
 Dizer só «Nox» abre uma janela para o pedido seguinte; cada novo pedido exige
 a palavra outra vez. O WebView da APK pede a permissão Android pela ponte
 `NoxSec` no arranque; no browser é o pedido normal do Chrome. Se a permissão

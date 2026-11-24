@@ -99,3 +99,44 @@ def test_leading_wake_word_rejects_a_mention_in_the_middle() -> None:
 def test_leading_wake_word_requires_a_non_empty_transcript() -> None:
     assert leading_wake_word("", ["nox"]) is False
     assert leading_wake_word("   ", ["nox"]) is False
+
+
+def test_vosk_verifier_passes_the_configured_grammar(monkeypatch, tmp_path) -> None:
+    """Sem isto, o config `wake.grammar` não chegava ao verificador do HUD."""
+    import json
+    import sys
+    import types
+
+    from nox.audio.wake import VoskWakeVerifier
+
+    captured: dict[str, object] = {}
+
+    class FakeRecognizer:
+        def __init__(self, _model, _rate, grammar=None):
+            captured["grammar"] = grammar
+
+        def AcceptWaveform(self, _chunk):
+            return False
+
+        def FinalResult(self):
+            return json.dumps({"text": "inox"})
+
+    class FakeModel:
+        def __init__(self, path):
+            captured["model"] = path
+
+    fake_vosk = types.SimpleNamespace(
+        Model=FakeModel,
+        SetLogLevel=lambda _level: None,
+        KaldiRecognizer=FakeRecognizer,
+    )
+    monkeypatch.setitem(sys.modules, "vosk", fake_vosk)
+
+    verifier = VoskWakeVerifier(
+        ["nox"],
+        model_path=tmp_path,
+        grammar=["inox", "[unk]"],
+    )
+
+    assert verifier.accepts(Pcm(b"\x00\x00" * 960), 16000) is True
+    assert captured["grammar"] == json.dumps(["inox", "[unk]"])

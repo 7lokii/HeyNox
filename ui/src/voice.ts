@@ -22,6 +22,7 @@ const ZERO_LEVELS = new Array<number>(BANDS).fill(0);
 type LevelsListener = (levels: number[]) => void;
 
 const listeners = new Set<LevelsListener>();
+const outputListeners = new Set<LevelsListener>();
 
 /** Bandas do microfone local, para o anel azul do reactor. */
 export function subscribeVoiceInput(listener: LevelsListener): () => void {
@@ -31,8 +32,24 @@ export function subscribeVoiceInput(listener: LevelsListener): () => void {
   };
 }
 
+/** Bandas da voz do Nox a sair neste dispositivo, para o anel vermelho.
+ *
+ * O serviço não tem placa de som: o MP3 toca aqui. Sem medir esta reprodução
+ * o anel vermelho não tinha matéria e ficava a pulsar sozinho.
+ */
+export function subscribeVoiceOutput(listener: LevelsListener): () => void {
+  outputListeners.add(listener);
+  return () => {
+    outputListeners.delete(listener);
+  };
+}
+
 function publish(levels: number[]): void {
   for (const listener of listeners) listener(levels);
+}
+
+function publishOutput(levels: number[]): void {
+  for (const listener of outputListeners) listener(levels);
 }
 
 interface VoiceOptions {
@@ -183,6 +200,7 @@ class VoiceSession {
       this.context = null;
     }
     publish(ZERO_LEVELS);
+    publishOutput(ZERO_LEVELS);
     this.callbacks.onSpeaking(false);
     this.callbacks.onStatus("parado");
   }
@@ -269,14 +287,7 @@ class VoiceSession {
     if (now - this.lastPublish < 80) return;
     this.lastPublish = now;
     this.analyser.getByteFrequencyData(this.frequencies);
-    const step = Math.max(1, Math.floor(this.frequencies.length / BANDS));
-    const levels = new Array<number>(BANDS).fill(0);
-    for (let i = 0; i < BANDS; i += 1) {
-      let sum = 0;
-      for (let j = 0; j < step; j += 1) sum += this.frequencies[i * step + j] ?? 0;
-      levels[i] = sum / step / 255;
-    }
-    publish(levels);
+    publish(bandsFrom(this.frequencies));
   }
 
   private async finish(): Promise<void> {
@@ -312,15 +323,19 @@ class VoiceSession {
       // O Vosk pode recusar antes de haver transcrição. Nesse caso `text`
       // vem vazio, mas a resposta certa é «diz Nox», não «não ouvi».
       if (data.wake === false) {
+        // Numa sala com conversa, voltar a «a ouvir» depois de uma recusa
+        // parecia uma ativação. Sem a palavra, o estado fica no pedido.
         this.callbacks.onStatus(data.hint || "diz «Nox» para falar");
         await delay(1100);
-        if (!this.closed) this.callbacks.onStatus("a ouvir");
         this.resume();
         return;
       }
       if (!data.text) {
-        this.callbacks.onStatus("não ouvi");
-        await delay(700);
+        // A ativação pode ser válida mesmo sem transcrição: um "Nox" curto
+        // passa no Vosk e o Whisper pode devolver vazio. Nesse caso o servidor
+        // manda o pedido seguinte; não é "não ouvi".
+        this.callbacks.onStatus(data.hint || "não ouvi");
+        await delay(data.hint ? 1100 : 700);
         this.resume();
         return;
       }
@@ -364,7 +379,7 @@ class VoiceSession {
     this.callbacks.onSpeaking(true);
     this.callbacks.onStatus("a falar");
     let played = false;
-    if (audio) played = await playMp3(audio);
+    if (audio) played = await playMp3(audio, this.context);
     if (!played && !this.closed) await speakLocally(answer);
     this.callbacks.onSpeaking(false);
   }
@@ -466,17 +481,83 @@ function base64Blob(value: string): Blob {
   return new Blob([bytes], { type: "audio/mpeg" });
 }
 
-async function playMp3(value: string): Promise<boolean> {
+/** Agrupa o analisador em BANDS bandas, a mesma escala do anel. */
+function bandsFrom(frequencies: Uint8Array): number[] {
+  const step = Math.max(1, Math.floor(frequencies.length / BANDS));
+  const levels = new Array<number>(BANDS).fill(0);
+  for (let i = 0; i < BANDS; i += 1) {
+    let sum = 0;
+    for (let j = 0; j < step; j += 1) sum += frequencies[i * step + j] ?? 0;
+    levels[i] = sum / step / 255;
+  }
+  return levels;
+}
+
+/** Mede o áudio que está a sair, para o anel vermelho seguir a voz real. */
+function meterPlayback(
+  audio: HTMLAudioElement,
+  context: AudioContext | null,
+): { stop: () => void } | null {
+  if (!context) return null;
+  let source: MediaElementAudioSourceNode;
+  let analyser: AnalyserNode;
+  try {
+    source = context.createMediaElementSource(audio);
+    analyser = context.createAnalyser();
+  } catch {
+    // WebView sem suporte: o som toca, o anel fica na animação de reserva.
+    return null;
+  }
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.75;
+  const frequencies = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+  source.connect(analyser);
+  analyser.connect(context.destination);
+  void context.resume().catch(() => undefined);
+
+  let frame = 0;
+  let last = 0;
+  const tick = () => {
+    const now = performance.now();
+    if (now - last >= 80) {
+      last = now;
+      analyser.getByteFrequencyData(frequencies);
+      publishOutput(bandsFrom(frequencies));
+    }
+    frame = requestAnimationFrame(tick);
+  };
+  tick();
+
+  return {
+    stop: () => {
+      cancelAnimationFrame(frame);
+      try {
+        source.disconnect();
+        analyser.disconnect();
+      } catch {
+        // Já desligado.
+      }
+      publishOutput(ZERO_LEVELS);
+    },
+  };
+}
+
+async function playMp3(value: string, context: AudioContext | null): Promise<boolean> {
   const url = URL.createObjectURL(base64Blob(value));
   try {
     const audio = new Audio(url);
     audio.preload = "auto";
+    const meter = meterPlayback(audio, context);
     return await new Promise<boolean>((resolve) => {
-      audio.onended = () => resolve(true);
-      audio.onerror = () => resolve(false);
+      const done = (played: boolean) => {
+        meter?.stop();
+        resolve(played);
+      };
+      audio.onended = () => done(true);
+      audio.onerror = () => done(false);
       void audio.play().then(
         () => undefined,
-        () => resolve(false),
+        () => done(false),
       );
     });
   } finally {
