@@ -96,8 +96,10 @@ iframe do painel leva `allow="microphone"`.
 Se o acesso for negado, o HUD mostra um aviso persistente acima do rodapé com
 «Microfone bloqueado» e «Tentar de novo». O aviso só desaparece quando o
 microfone abre com sucesso; a permissão tem de ser reposta nas definições do
-browser ou da app. Os outros erros de voz continuam a aparecer como mensagem
-passageira.
+browser ou da app. Um `NotReadableError` no WebView da APK é apresentado como
+falha de abertura do WebView, com a permissão Android e outras apps como
+ações; no browser, o mesmo erro continua a ser descrito como microfone
+ocupado. Os outros erros de voz continuam a aparecer como mensagem passageira.
 
 ## Ficheiros e dados
 

@@ -343,6 +343,10 @@ export function isMicrophoneDenied(error: unknown): boolean {
   return false;
 }
 
+function inAndroidWebView(): boolean {
+  return Boolean((window as NoxWindow).NoxSec);
+}
+
 export function voiceMessage(error: unknown): string {
   if (error instanceof DOMException) {
     switch (error.name) {
@@ -351,7 +355,9 @@ export function voiceMessage(error: unknown): string {
       case "NotFoundError":
         return "não encontrei um microfone neste dispositivo.";
       case "NotReadableError":
-        return "o microfone está ocupado por outra app.";
+        return inAndroidWebView()
+          ? "o WebView não abriu o microfone. Autoriza-o no Android e fecha outras apps que o estejam a usar."
+          : "o microfone está ocupado por outra app. Fecha-a e tenta de novo.";
       case "OverconstrainedError":
         return "o microfone não aceitou as definições pedidas.";
       default:

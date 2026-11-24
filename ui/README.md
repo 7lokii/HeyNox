@@ -51,7 +51,11 @@ envia PCM 16 kHz a `/api/voice/turn` e toca o MP3 devolvido. O WebView da APK
 pede a permissão Android pela ponte `NoxSec` quando se toca em **Ouvir**; no
 browser é o pedido normal do Chrome. Sem permissão, o botão volta a Ouvir e o
 HUD mostra um aviso persistente acima do rodapé, com «Tentar de novo»; o aviso
-só desaparece quando o microfone abre com sucesso.
+só desaparece quando o microfone abre com sucesso. Se o WebView da APK não
+conseguir abrir o microfone, a mensagem distingue essa falha e pede para
+autorizar o microfone no Android ou fechar outra app que o esteja a usar; no
+browser, um `NotReadableError` continua a ser apresentado como microfone
+ocupado.
 
 ## Regras
 
