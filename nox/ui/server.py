@@ -22,7 +22,7 @@ from typing import Any
 
 from nox import __version__
 from nox.automation.routines import RoutineScheduler, RoutineStore
-from nox.audio.wake import matches, strip_wake_word, wake_tokens
+from nox.audio.wake import leading_wake_word, strip_wake_word, wake_tokens
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
@@ -253,7 +253,9 @@ class NoxApp:
             tokens = wake_tokens(phrases)
             now = time.monotonic()
             armed = now < self._voice_awake_until
-            has_wake = bool(tokens and matches(text, tokens))
+            # Só conta a palavra no início: uma menção a meio de uma conversa
+            # (ou uma alucinação do STT) não pode acordar o agente.
+            has_wake = bool(tokens and leading_wake_word(text, phrases))
             if has_wake:
                 command = strip_wake_word(text, phrases)
                 # Dizer só "Nox" e fazer uma pausa é uma ativação válida: o
@@ -271,8 +273,8 @@ class NoxApp:
             elif armed:
                 command = text
             elif tokens:
-                # O HUD escuta sempre que está aberto. Sem a palavra, não se
-                # grava turno nem se chama o modelo.
+                # O HUD escuta sempre que está aberto. Sem a palavra no início,
+                # não se grava turno nem se chama o modelo.
                 return {
                     "text": text,
                     "answer": "",

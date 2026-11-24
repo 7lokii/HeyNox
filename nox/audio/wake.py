@@ -142,6 +142,19 @@ def strip_wake_word(text: str, phrases: Sequence[str] | str) -> str:
     return text.strip()
 
 
+def leading_wake_word(text: str, phrases: Sequence[str] | str) -> bool:
+    """True só quando a ativação abre a frase.
+
+    O HUD ouve conversa ambiente. Uma menção a «Nox» a meio de uma frase não
+    é um pedido; aceitá-la fazia o agente responder sem o utilizador o ter
+    chamado. A palavra pode ser precedida por «ei», «hey», «olá» ou «a».
+    """
+    clean = text.strip()
+    if not clean:
+        return False
+    return strip_wake_word(clean, phrases) != clean
+
+
 def _distance(left: str, right: str) -> int:
     """Distância de Levenshtein, para palavras curtas."""
     previous = list(range(len(right) + 1))

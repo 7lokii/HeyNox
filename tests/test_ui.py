@@ -325,6 +325,18 @@ def test_voice_turn_ignores_a_request_without_the_wake_word(server) -> None:
     assert app.state.snapshot()["turns"] == []
 
 
+def test_voice_turn_rejects_the_wake_word_in_the_middle(server) -> None:
+    _, app = server
+
+    # Regressão do HUD: o STT devolveu «Bom dia, tudo bem? Nox. Que horas são?»
+    # e o gate antigo aceitava a menção a meio da frase, chamando o agente.
+    result = _voice_turn(app, "Bom dia, tudo bem? Nox. Que horas são?")
+
+    assert result["wake"] is False
+    assert result["answer"] == ""
+    assert app.state.snapshot()["turns"] == []
+
+
 def test_voice_turn_strips_the_wake_word_before_the_agent(server) -> None:
     _, app = server
 

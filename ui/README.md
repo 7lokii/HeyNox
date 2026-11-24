@@ -49,10 +49,11 @@ A voz é a do dispositivo, não a do serviço: o homelab não tem placa de som. 
 `voice.ts` abre `getUserMedia` sozinho quando o HUD carrega, mede a energia
 para começar e fechar a frase, envia PCM 16 kHz a `/api/voice/turn` e toca o
 MP3 devolvido. Se o browser bloquear o `AudioContext` até haver um gesto, o
-primeiro toque no ecrã desbloqueia-o; não há botão de voz. Não há botão **Ouvir**: a sessão de voz vive enquanto a página
-estiver aberta. O servidor só entrega o turno ao agente se a transcrição
-contiver uma das `wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é
-retirada antes do pedido. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir.
+primeiro toque no ecrã desbloqueia-o; não há botão de voz. A sessão de voz
+vive enquanto a página estiver aberta. O servidor só entrega o turno ao agente se a transcrição
+começar por uma das `wake.phrases` (`Nox`, `Ei Nox` ou `Hey Nox`, depois de
+«ei», «hey» ou «olá»); a palavra é retirada antes do pedido. Uma menção a meio
+da frase é ignorada. Sem ativação, o HUD mostra «Diz Nox» e continua a ouvir.
 Dizer só «Nox» abre uma janela para o pedido seguinte; cada novo pedido exige
 a palavra outra vez. O WebView da APK pede a permissão Android pela ponte
 `NoxSec` no arranque; no browser é o pedido normal do Chrome. Se a permissão

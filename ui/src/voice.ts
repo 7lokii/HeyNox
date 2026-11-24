@@ -303,7 +303,9 @@ class VoiceSession {
       return;
     }
 
-    this.callbacks.onStatus("a pensar");
+    // Não anunciar «a pensar» antes de o servidor confirmar a wake word:
+    // o ruído ambiente chega aqui e não pode parecer um pedido. O estado
+    // continua «a ouvir» até haver uma resposta para falar.
     try {
       const data = await api.voiceTurn(pcm.buffer);
       if (this.closed) return;

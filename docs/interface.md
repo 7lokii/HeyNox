@@ -91,9 +91,10 @@ ecrã desbloqueia-o e o estado passa a «a ouvir». Depois deteta o fim da frase
 por energia e envia PCM mono a 16 kHz
 para `/api/voice/turn`. O servidor transcreve com o STT configurado, passa pelo
 agente e devolve a resposta em texto e MP3 em base64, que o browser toca. O
-turno só chega ao agente se a transcrição contiver uma das `wake.phrases`
-(`Nox`, `Ei Nox` ou `Hey Nox`); a palavra é retirada do início antes de o agente
-a receber. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir, sem gravar um
+turno só chega ao agente se a transcrição começar por uma das `wake.phrases`
+(`Nox`, `Ei Nox` ou `Hey Nox`, opcionalmente depois de «ei», «hey» ou «olá»);
+a palavra é retirada do início antes de o agente a receber. Uma menção a meio
+da frase não ativa o Nox. Sem ela, o HUD mostra «Diz Nox» e continua a ouvir, sem gravar um
 turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o pedido
 seguinte; cada novo pedido exige a palavra outra vez. Com
 `wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro do

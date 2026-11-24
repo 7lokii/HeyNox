@@ -178,10 +178,11 @@ Três formas ativam o Nox: **"Nox"**, **"Ei Nox"** e **"Hey Nox"**. O detetor
 procura a palavra distintiva, por isso "hey"/"ei" são opcionais:
 
 No HUD, o microfone abre sozinho com a página e também exige uma destas formas:
-a transcrição sem a palavra é ignorada, e a palavra é retirada do início antes
-de chegar ao agente. Dizer só “Nox” abre `wake.timeout_s` para o pedido
-seguinte; cada novo pedido exige a palavra outra vez. `wake.provider: off`
-desliga este filtro e deixa a conversa contínua.
+a palavra tem de abrir a frase (pode vir depois de “ei”, “hey” ou “olá”), é
+retirada antes de chegar ao agente, e uma menção a meio da conversa não ativa o
+Nox. Dizer só “Nox” abre `wake.timeout_s` para o pedido seguinte; cada novo
+pedido exige a palavra outra vez. `wake.provider: off` desliga este filtro e
+deixa a conversa contínua.
 
 ```yaml
 wake:

@@ -6,6 +6,7 @@ from nox.audio.wake import (
     NeverWake,
     VoskWakeWord,
     WakeWordError,
+    leading_wake_word,
     matches,
     strip_wake_word,
     wake_tokens,
@@ -77,3 +78,24 @@ def test_strip_wake_word_keeps_a_later_mention() -> None:
 
 def test_strip_wake_word_can_leave_an_empty_prompt() -> None:
     assert strip_wake_word("Nox", ["nox"]) == ""
+
+
+def test_leading_wake_word_accepts_an_activation_at_the_start() -> None:
+    phrases = ["nox", "ei nox", "hey nox"]
+    assert leading_wake_word("Nox, que horas são?", phrases) is True
+    assert leading_wake_word("Ei Nox, que horas são?", phrases) is True
+    assert leading_wake_word("a inox, que horas são?", phrases) is True
+    assert leading_wake_word("Nox", phrases) is True
+
+
+def test_leading_wake_word_rejects_a_mention_in_the_middle() -> None:
+    phrases = ["nox", "ei nox", "hey nox"]
+    # Foi esta a transcrição real que fez o Nox responder sem ativação.
+    assert leading_wake_word("Bom dia, tudo bem? Nox. Que horas são?", phrases) is False
+    assert leading_wake_word("Bom dia, tudo bem? Que horas são?", phrases) is False
+    assert leading_wake_word("o Nox é útil", phrases) is False
+
+
+def test_leading_wake_word_requires_a_non_empty_transcript() -> None:
+    assert leading_wake_word("", ["nox"]) is False
+    assert leading_wake_word("   ", ["nox"]) is False
