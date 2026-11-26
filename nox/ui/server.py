@@ -105,6 +105,7 @@ class NoxApp:
         self._voice_awake_until = 0.0
         self._transcriber = None
         self._transcriber_lock = threading.Lock()
+        self._synth_lock = threading.Lock()
         self._wake_verifier = wake_verifier
         self._wake_verifier_injected = wake_verifier is not None
         # Medição por turno: onde é que o tempo vai. Ver nox/metrics.py.
@@ -253,6 +254,66 @@ class NoxApp:
                 raise NoxError(f"não consegui validar a wake word: {exc}") from exc
             return self._wake_verifier
 
+    def _sintetizar_resposta(self, texto: str) -> tuple[str, str, str]:
+        """Áudio da resposta em base64, o mime e o erro, se houver.
+
+        O `edge` devolve MP3 (rede); o `piper` devolve WAV (local). O browser
+        recebe o mime junto com o áudio para saber o que tocar.
+        """
+        provider = self.config.tts.provider
+        try:
+            if provider == "edge":
+                from nox.speech.edge import synthesize_mp3
+
+                mp3 = synthesize_mp3(
+                    texto,
+                    self.config.tts.voice,
+                    speed=self.config.tts.speed,
+                    cache=self.config.tts.cache,
+                )
+                if not mp3:
+                    return "", "", ""
+                return base64.b64encode(mp3).decode("ascii"), "audio/mpeg", ""
+
+            if provider == "piper":
+                from nox.audio.wav import wav_bytes
+                from nox.speech.tts_cache import CacheDeVoz, cache_por_omissao
+
+                cache = cache_por_omissao() if self.config.tts.cache else None
+                chave = CacheDeVoz.chave(
+                    texto, self.config.tts.voice, self.config.tts.speed
+                )
+                if cache is not None:
+                    existente = cache.obter(chave, ".wav")
+                    if existente is not None:
+                        return base64.b64encode(existente).decode("ascii"), "audio/wav", ""
+
+                sintetizador = self._piper()
+                audio = sintetizador.synthesize(texto)
+                if not audio:
+                    return "", "", ""
+                wav = wav_bytes(audio, sintetizador.sample_rate)
+                if cache is not None:
+                    cache.guardar(chave, wav, ".wav")
+                return base64.b64encode(wav).decode("ascii"), "audio/wav", ""
+            return "", "", ""
+        except (NoxError, ImportError, OSError) as exc:
+            # O texto vai na mesma; o HUD cai para a voz do sistema.
+            return "", "", str(exc)
+
+    def _piper(self):
+        """O Piper carregado uma vez; o modelo é descarregado se faltar."""
+        with self._synth_lock:
+            if self._synth is None:
+                from nox.models import ensure_piper_voice
+                from nox.speech.tts import PiperSynthesizer
+
+                caminho = ensure_piper_voice(
+                    self.config.tts.voice, directory=self.settings.root / "models" / "piper"
+                )
+                self._synth = PiperSynthesizer(caminho, speed=self.config.tts.speed)
+            return self._synth
+
     def voice_turn(self, audio: bytes, sample_rate: int) -> dict[str, Any]:
         """Turno de voz vindo do microfone do browser/WebView.
 
@@ -360,23 +421,11 @@ class NoxApp:
         # dizer só "Nox" e fazer uma pausa; uma resposta não arma outra.
 
         encoded = ""
+        audio_mime = ""
         voice_error = ""
         marca_tts = time.monotonic()
-        if answer and not answer.startswith("Erro:") and self.config.tts.provider == "edge":
-            try:
-                from nox.speech.edge import synthesize_mp3
-
-                mp3 = synthesize_mp3(
-                    answer,
-                    self.config.tts.voice,
-                    speed=self.config.tts.speed,
-                    cache=self.config.tts.cache,
-                )
-                if mp3:
-                    encoded = base64.b64encode(mp3).decode("ascii")
-            except (NoxError, ImportError, OSError) as exc:
-                # O texto vai na mesma; o HUD cai para a voz do sistema.
-                voice_error = str(exc)
+        if answer and not answer.startswith("Erro:"):
+            encoded, audio_mime, voice_error = self._sintetizar_resposta(answer)
         if encoded:
             tts_ms = (time.monotonic() - marca_tts) * 1000
 
@@ -398,6 +447,7 @@ class NoxApp:
             "text": text,
             "answer": answer,
             "audio": encoded,
+            "audio_mime": audio_mime,
             "voice_error": voice_error,
             "wake": True,
             "hint": "",

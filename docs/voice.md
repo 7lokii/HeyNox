@@ -179,9 +179,28 @@ volta a sintetizar — o que é o comportamento correto, não uma falha. A cache
 teto (`tts.cache_max_mb`, 64 MB por omissão) e apaga os ficheiros mais antigos
 quando o passa. `tts.cache: false` desliga-a.
 
-Próximo passo, depois da cache: Piper local em vez de `edge` (o projeto já o usa
-no CLI) e pré-aquecer o Vosk no arranque do serviço, para o primeiro turno não
-pagar 800 ms.
+### Piper local no caminho do HUD
+
+O TTS do serviço passou a **Piper local** (`tts.provider: piper`,
+`pt_PT-tugão-medium`): o modelo fica em `<dados>/models/piper` (63 MB) e não há
+ida à rede para sintetizar. O HUD toca o WAV que vem no `audio` da resposta,
+com o mime indicado em `audio_mime` (`audio/wav` no Piper, `audio/mpeg` no
+`edge`). A cache de voz aplica-se aos dois formatos.
+
+Medido no homelab, mesma pergunta, três configurações:
+
+| | `tts_ms` | `total_ms` |
+|---|---|---|
+| `edge`, sem cache | 1 270 | 2 554 |
+| `edge`, cache a acertar | 6 | 475 |
+| `piper` local | **190-290** | **1 073** |
+
+O Piper gasta cerca de 200 ms por frase curta e 1 950 ms numa resposta de duas
+frases longas (sintetiza frase a frase). Em troca, é o mesmo tempo com ou sem
+rede, e o áudio não sai da VM.
+
+Próximo passo: pré-aquecer o Vosk no arranque do serviço, para o primeiro turno
+não pagar 800 ms.
 
 Um turno sem texto (ruído, ou o Vosk aceitou e o Whisper não devolveu nada) não
 é registado: não chegou a ser um turno.

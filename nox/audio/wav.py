@@ -7,12 +7,24 @@ para o núcleo.
 
 from __future__ import annotations
 
+import io
 import wave
 from array import array
 from pathlib import Path
 
 from nox.audio.types import SAMPLE_WIDTH, Pcm
 from nox.config import NoxError
+
+
+def wav_bytes(audio: Pcm, sample_rate: int) -> bytes:
+    """Um WAV completo em memória, para servir a um browser sem tocar no disco."""
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        handle.writeframes(audio)
+    return buffer.getvalue()
 
 
 class WavError(NoxError):

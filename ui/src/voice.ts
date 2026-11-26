@@ -347,7 +347,7 @@ class VoiceSession {
         return;
       }
       this.callbacks.onTurn();
-      if (data.answer) await this.speak(data.answer, data.audio);
+      if (data.answer) await this.speak(data.answer, data.audio, data.audio_mime);
       if (!this.closed) {
         this.callbacks.onStatus("a ouvir");
         this.resume();
@@ -375,11 +375,15 @@ class VoiceSession {
     void this.context?.resume().catch(() => undefined);
   }
 
-  private async speak(answer: string, audio: string): Promise<void> {
+  private async speak(
+    answer: string,
+    audio: string,
+    mime?: string,
+  ): Promise<void> {
     this.callbacks.onSpeaking(true);
     this.callbacks.onStatus("a falar");
     let played = false;
-    if (audio) played = await playMp3(audio, this.context);
+    if (audio) played = await playAudio(audio, mime || "audio/mpeg", this.context);
     if (!played && !this.closed) await speakLocally(answer);
     this.callbacks.onSpeaking(false);
   }
@@ -474,11 +478,11 @@ function encodePcm(chunks: Float32Array[], from: number): Int16Array<ArrayBuffer
   return pcm;
 }
 
-function base64Blob(value: string): Blob {
+function base64Blob(value: string, mime = "audio/mpeg"): Blob {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: "audio/mpeg" });
+  return new Blob([bytes], { type: mime });
 }
 
 /** Agrupa o analisador em BANDS bandas, a mesma escala do anel. */
@@ -542,8 +546,12 @@ function meterPlayback(
   };
 }
 
-async function playMp3(value: string, context: AudioContext | null): Promise<boolean> {
-  const url = URL.createObjectURL(base64Blob(value));
+async function playAudio(
+  value: string,
+  mime: string,
+  context: AudioContext | null,
+): Promise<boolean> {
+  const url = URL.createObjectURL(base64Blob(value, mime));
   try {
     const audio = new Audio(url);
     audio.preload = "auto";

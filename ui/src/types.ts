@@ -107,6 +107,8 @@ export interface VoiceTurn {
   answer: string;
   /** MP3 em base64, ou vazio quando o TTS do servidor falhou. */
   audio: string;
+  /** Mime do áudio devolvido: audio/mpeg (edge) ou audio/wav (piper). */
+  audio_mime?: string;
   voice_error: string;
   /** False quando a transcrição não veio dirigida ao Nox. */
   wake: boolean;
