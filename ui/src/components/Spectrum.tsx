@@ -17,6 +17,21 @@ import {
 } from "../voice";
 
 const BANDS = 48;
+
+/** As tres cores do reactor, em RGB, para poderem ser misturadas.
+ *
+ * Antes a cor mudava de um salto e o anel piscava; agora o valor corrente
+ * caminha para o alvo a cada frame (ver `rgbAtual` abaixo).
+ */
+type Cor = [number, number, number];
+
+const PALETA: Record<"branco" | "azul" | "vermelho", { halo: Cor; core: Cor }> = {
+  branco: { halo: [244, 247, 251], core: [255, 255, 255] },
+  azul: { halo: [56, 189, 248], core: [186, 230, 253] },
+  vermelho: { halo: [251, 75, 92], core: [255, 205, 211] },
+};
+
+const rgb = (cor: Cor) => `${Math.round(cor[0])}, ${Math.round(cor[1])}, ${Math.round(cor[2])}`;
 const POLL_MS = 90;
 const TICKS = 72;
 
@@ -40,6 +55,8 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
   const outputTarget = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const outputCurrent = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const phaseRef = useRef<VoicePhase>(getVoicePhase());
+  const haloAtual = useRef<Cor>([...PALETA.branco.halo] as Cor);
+  const coreAtual = useRef<Cor>([...PALETA.branco.core] as Cor);
   const onStatusRef = useRef(onStatus);
 
   useEffect(() => {
@@ -153,22 +170,28 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       const listening = phaseRef.current === "record";
       // Tres cores, por decisao do dono: branco quando esta calado, azul
       // enquanto ouve o pedido (o microfone tem sinal) e vermelho quando fala.
-      const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
-      const quiet = { halo: "244, 247, 251", core: "255, 255, 255" };
-      const voice = aFalar ? { halo: "251, 75, 92", core: "255, 205, 211" } : listening ? mic : quiet;
+      // Transicao suave: 12% por frame chega ao alvo em ~200 ms, o tempo de
+      // uma respiracao, sem o salto seco de antes.
+      const alvo = aFalar ? PALETA.vermelho : listening ? PALETA.azul : PALETA.branco;
+      for (let c = 0; c < 3; c += 1) {
+        haloAtual.current[c] += (alvo.halo[c] - haloAtual.current[c]) * 0.12;
+        coreAtual.current[c] += (alvo.core[c] - coreAtual.current[c]) * 0.12;
+      }
+      const halo = rgb(haloAtual.current);
+      const core = rgb(coreAtual.current);
 
       const glow = ctx.createRadialGradient(cx, cy, base * 0.2, cx, cy, radius);
-      glow.addColorStop(0, `rgba(${voice.halo}, ${aFalar ? 0.22 : 0.12})`);
-      glow.addColorStop(0.55, `rgba(${voice.halo}, ${aFalar ? 0.08 : 0.04})`);
+      glow.addColorStop(0, `rgba(${halo}, ${aFalar ? 0.22 : 0.12})`);
+      glow.addColorStop(0.55, `rgba(${halo}, ${aFalar ? 0.08 : 0.04})`);
       glow.addColorStop(1, "rgba(4, 7, 13, 0)");
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      ring(cx, cy, base * 1.3, 1, 0.1, [2, 10], phase * 0.35, voice.halo);
-      ring(cx, cy, base * 1.16, 1, 0.16, [30, 8], -phase * 0.5, voice.halo);
-      ring(cx, cy, base * 0.88, 1, 0.14, [], 0, voice.halo);
+      ring(cx, cy, base * 1.3, 1, 0.1, [2, 10], phase * 0.35, halo);
+      ring(cx, cy, base * 1.16, 1, 0.16, [30, 8], -phase * 0.5, halo);
+      ring(cx, cy, base * 0.88, 1, 0.14, [], 0, halo);
 
       ctx.save();
       ctx.translate(cx, cy);
@@ -177,7 +200,7 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
         const inner = base * 1.16;
         const outer = inner + (i % 6 === 0 ? 9 : 4);
         ctx.beginPath();
-        ctx.strokeStyle = `rgba(${voice.halo}, ${i % 6 === 0 ? 0.16 : 0.06})`;
+        ctx.strokeStyle = `rgba(${halo}, ${i % 6 === 0 ? 0.16 : 0.06})`;
         ctx.lineWidth = 1;
         ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
         ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
@@ -207,17 +230,17 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
           angle,
           inner,
           inner + length,
-          voice.halo,
+          halo,
           0.06 + value * (aFalar ? 0.32 : 0.22),
           7,
-          voice.core,
+          core,
           0.35 + value * 0.65,
         );
       }
 
       // Anel interior: o microfone. Azul, a crescer para dentro, para não se
       // confundir com a voz do Nox.
-      ring(cx, cy, base * 0.8, 1, listening ? 0.32 : 0.12, [], 0, listening ? mic.halo : voice.halo);
+      ring(cx, cy, base * 0.8, 1, listening ? 0.32 : 0.12, [], 0, halo);
       for (let i = 0; i < BANDS; i += 1) {
         const band = i < BANDS / 2 ? i : BANDS - 1 - i;
         const value = listening ? inputCurrent.current[band] : 0;
@@ -230,10 +253,10 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
           angle,
           outer,
           outer - (4 + value * base * 0.34),
-          mic.halo,
+          halo,
           0.1 + value * 0.3,
           6,
-          mic.core,
+          core,
           0.35 + value * 0.65,
         );
       }
