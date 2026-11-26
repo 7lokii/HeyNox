@@ -140,6 +140,10 @@ class TtsConfig(BaseModel):
     provider: Literal["piper", "edge", "kokoro", "elevenlabs", "openai"] = "piper"
     voice: str = "pt_PT-tugão-medium"
     speed: float = Field(default=1.0, gt=0.0, le=3.0)
+    # Guardar o áudio das frases repetidas. No `edge` cada repetição era uma
+    # ida à rede: com a cache a segunda vez é uma leitura de disco.
+    cache: bool = True
+    cache_max_mb: int = Field(default=64, ge=0, le=4096)
 
 
 class MemoryConfig(BaseModel):

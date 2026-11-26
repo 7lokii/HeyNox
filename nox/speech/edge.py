@@ -13,6 +13,7 @@ from typing import Any
 from nox.audio.types import Pcm
 from nox.config import NoxError
 from nox.optional import require
+from nox.speech.tts_cache import CacheDeVoz, cache_por_omissao
 
 EDGE_SAMPLE_RATE = 24000
 
@@ -26,35 +27,65 @@ class EdgeSynthesizer:
 
     sample_rate = EDGE_SAMPLE_RATE
 
-    def __init__(self, voice: str = "pt-PT-DuarteNeural", *, speed: float = 1.0) -> None:
+    def __init__(
+        self,
+        voice: str = "pt-PT-DuarteNeural",
+        *,
+        speed: float = 1.0,
+        cache: bool = True,
+    ) -> None:
         require("edge_tts")
         self._voice = voice
         self._speed = speed
+        self._cache = cache
 
     def synthesize(self, text: str) -> Pcm:
         text = text.strip()
         if not text:
             return Pcm(b"")
-        return _decode_mp3(synthesize_mp3(text, self._voice, speed=self._speed))
+        return _decode_mp3(
+            synthesize_mp3(
+                text, self._voice, speed=self._speed, cache=self._cache
+            )
+        )
 
 
 def synthesize_mp3(
-    text: str, voice: str = "pt-PT-DuarteNeural", *, speed: float = 1.0
+    text: str,
+    voice: str = "pt-PT-DuarteNeural",
+    *,
+    speed: float = 1.0,
+    cache: bool = True,
+    registo: CacheDeVoz | None = None,
 ) -> bytes:
     """Sintetiza para MP3, sem descodificar.
 
     O HUD remoto toca o ficheiro no browser; não precisa de PCM nem do PyAV.
+    Com `cache`, a mesma frase não volta a ir à rede: o áudio fica em disco e a
+    segunda chamada é uma leitura local. A cache é verificada antes de exigir o
+    `edge_tts`, para servir áudio já gerado mesmo numa máquina sem a biblioteca.
     """
     text = text.strip()
     if not text:
         return b""
+    guardado: CacheDeVoz | None = None
+    chave = ""
+    if cache:
+        guardado = registo or cache_por_omissao()
+        chave = CacheDeVoz.chave(text, voice, speed)
+        existente = guardado.obter(chave, ".mp3")
+        if existente is not None:
+            return existente
     require("edge_tts")
     try:
-        return asyncio.run(_download_mp3(text, voice, speed=speed))
+        audio = asyncio.run(_download_mp3(text, voice, speed=speed))
     except EdgeError:
         raise
     except Exception as exc:  # aiohttp e websockets falham de formas variadas
         raise EdgeError(f"a voz neural falhou: {exc}") from exc
+    if guardado is not None and audio:
+        guardado.guardar(chave, audio, ".mp3")
+    return audio
 
 
 async def _download_mp3(text: str, voice: str, *, speed: float = 1.0) -> bytes:

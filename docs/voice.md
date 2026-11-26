@@ -160,9 +160,28 @@ pedidos gerados pelo Piper e enviados como WAV a 24 kHz:
 | `total_ms` | 2 554 ms | 3 648 ms | do PCM recebido à resposta pronta |
 
 O gargalo mudou de sítio: com o STT na cloud, o **TTS é a maior fatia** (cerca de
-metade do turno). As melhorias com melhor retorno, por esta ordem, são cache de
-frases sintetizadas, Piper local em vez de `edge` (o projeto já o usa no CLI) e
-pré-aquecer o Vosk no arranque do serviço para o primeiro turno não pagar 800 ms.
+metade do turno).
+
+### Cache de voz
+
+`tts.cache: true` (por omissão) guarda o áudio em `<dados>/tts`, endereçado pelo
+hash de (texto, voz, velocidade). A segunda vez que a mesma frase é sintetizada
+é uma leitura de disco. Medido no mesmo dia, com a mesma pergunta repetida:
+
+| | Sem cache | Com cache |
+|---|---|---|
+| `tts_ms` | 1 270 ms | **6 ms** |
+| `total_ms` | 2 554 ms | **475 ms** |
+
+Só acerta quando o texto é exatamente o mesmo. Respostas locais (horas, data) e
+frases fixas acertam sempre; uma resposta gerada pelo modelo varia de redação e
+volta a sintetizar — o que é o comportamento correto, não uma falha. A cache tem
+teto (`tts.cache_max_mb`, 64 MB por omissão) e apaga os ficheiros mais antigos
+quando o passa. `tts.cache: false` desliga-a.
+
+Próximo passo, depois da cache: Piper local em vez de `edge` (o projeto já o usa
+no CLI) e pré-aquecer o Vosk no arranque do serviço, para o primeiro turno não
+pagar 800 ms.
 
 Um turno sem texto (ruído, ou o Vosk aceitou e o Whisper não devolveu nada) não
 é registado: não chegou a ser um turno.

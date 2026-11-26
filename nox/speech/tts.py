@@ -109,5 +109,7 @@ def build_synthesizer(
                 "tts.voice tem um nome de voz Piper; para o edge usa "
                 "pt-PT-DuarteNeural ou pt-PT-RaquelNeural"
             )
-        return EdgeSynthesizer(settings.voice, speed=settings.speed)
+        return EdgeSynthesizer(
+            settings.voice, speed=settings.speed, cache=settings.cache
+        )
     raise ModelError(f"tts.provider '{settings.provider}' ainda não está implementado")

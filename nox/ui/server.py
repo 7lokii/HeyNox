@@ -367,7 +367,10 @@ class NoxApp:
                 from nox.speech.edge import synthesize_mp3
 
                 mp3 = synthesize_mp3(
-                    answer, self.config.tts.voice, speed=self.config.tts.speed
+                    answer,
+                    self.config.tts.voice,
+                    speed=self.config.tts.speed,
+                    cache=self.config.tts.cache,
                 )
                 if mp3:
                     encoded = base64.b64encode(mp3).decode("ascii")
