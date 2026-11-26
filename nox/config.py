@@ -258,7 +258,10 @@ class WakeConfig(BaseModel):
     # a palavra foi dita. O modelo pequeno devolve vazio para "Nox" sozinho,
     # e sem isto a ativação falhava com a palavra curta; acima deste limite o
     # áudio é conversa e não chega à nuvem.
-    passa_curto_s: float = Field(default=2.0, ge=0.0, le=10.0)
+    passa_curto_s: float = Field(default=4.0, ge=0.0, le=10.0)
+    # Guarda o audio das recusas em <dados>/debug/ativacao para se poder medir
+    # com a voz real do dono, em vez de adivinhar. Desligado por omissao.
+    debug_ativacao: bool = False
     # Depois de responder, o Nox continua a ouvir sem exigir a palavra outra
     # vez — uma réplica não deve obrigar a dizer "Hey Nox" de novo.
     follow_up_s: float = Field(default=6.0, ge=0.0, le=60.0)

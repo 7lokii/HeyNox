@@ -327,6 +327,29 @@ class NoxApp:
             # O texto vai na mesma; o HUD cai para a voz do sistema.
             return "", "", str(exc)
 
+    def _guardar_recusa(self, pcm, sample_rate: int, motivo: str) -> None:
+        """Guardar o audio de uma recusa, para medir com a voz real.
+
+        Sem isto, um "Nox" que o modelo pequeno nao ouve e uma conversa que
+        passou ficam iguais no registo: so a mensagem de erro. Com os WAVs da
+        para correr o Vosk e o Whisper outra vez e comparar.
+        """
+        if not self.config.wake.debug_ativacao:
+            return
+        try:
+            from nox.audio.wav import wav_bytes
+
+            pasta = self.settings.root / "debug" / "ativacao"
+            pasta.mkdir(parents=True, exist_ok=True)
+            existentes = sorted(pasta.glob("*.wav"))
+            for antigo in existentes[:-39]:
+                antigo.unlink(missing_ok=True)
+            carimbo = time.strftime("%Y%m%d-%H%M%S")
+            (pasta / f"{carimbo}-{motivo}.wav").write_bytes(wav_bytes(pcm, sample_rate))
+        except OSError:
+            # Uma recusa nao pode derrubar o turno por causa de um ficheiro.
+            pass
+
     def _piper(self):
         """O Piper carregado uma vez; o modelo é descarregado se faltar."""
         with self._synth_lock:
@@ -370,6 +393,7 @@ class NoxApp:
             validated = self._wake_check().accepts(pcm, sample_rate)
             wake_ms = (time.monotonic() - marca_wake) * 1000
             if not validated and duracao_s > self.config.wake.passa_curto_s:
+                self._guardar_recusa(pcm, sample_rate, "vosk")
                 self.metrics.registar(
                     Turno(
                         origem="hud",
@@ -426,6 +450,7 @@ class NoxApp:
             # janela. Responder sem ter sido chamado é pior do que pedir a
             # palavra outra vez.
             self._voice_awake_until = 0.0
+            self._guardar_recusa(pcm, sample_rate, "whisper")
             self.metrics.registar(
                 Turno(
                     origem="hud",

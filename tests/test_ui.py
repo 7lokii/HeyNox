@@ -359,6 +359,20 @@ def test_frase_curta_sem_vosk_chega_ao_whisper_e_ativa(server) -> None:
     assert result["answer"] != ""
 
 
+def test_recusa_guardada_quando_o_debug_esta_ligado(server, tmp_path) -> None:
+    """Sem o WAV da recusa nao ha como medir o "Nox" que o Vosk nao ouve."""
+    _, app = server
+    app.config.wake.debug_ativacao = True
+    app._wake_verifier = RejectingWakeVerifier()
+    app._transcriber = NeverTranscribe()
+
+    app.voice_turn(bytes(160000), 16000)
+
+    ficheiros = list((app.settings.root / "debug" / "ativacao").glob("*.wav"))
+    assert len(ficheiros) == 1
+    assert ficheiros[0].stat().st_size > 0
+
+
 def test_frase_curta_sem_a_palavra_nao_ativa(server) -> None:
     _, app = server
     app._wake_verifier = RejectingWakeVerifier()
@@ -386,8 +400,8 @@ def test_vosk_rejects_before_whisper(server) -> None:
     app._wake_verifier = RejectingWakeVerifier()
     app._transcriber = NeverTranscribe()
 
-    # 3 segundos: acima do limite, por isso nao ha Whisper.
-    result = app.voice_turn(bytes(96000), 16000)
+    # 5 segundos: acima do limite de frase curta, por isso nao ha Whisper.
+    result = app.voice_turn(bytes(160000), 16000)
 
     assert result["wake"] is False
     assert result["text"] == ""

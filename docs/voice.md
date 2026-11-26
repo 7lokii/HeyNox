@@ -300,6 +300,12 @@ entradas. A proteção contra falsos positivos é o Whisper, não o grammar.
 
 ### Frases curtas passam pelo Whisper
 
+Em 2026-11-26 o limite era 2,0 s e a voz real do dono continuava a falhar: as
+recusas medidas diziam `vosk nao ouviu a palavra` com gravacoes acima de 2 s
+(Nox mais a pausa). O limite passou a **4,0 s** e as recusas passaram a ser
+guardadas em `/var/lib/heynox/debug/ativacao/*.wav`
+(`wake.debug_ativacao: true`), para se medir com a voz real em vez de adivinhar.
+
 O modelo pequeno devolve vazio para "Nox" sozinho (medido: 1,0 s de áudio sai
 sem texto). Uma frase até `wake.passa_curto_s` (2,0 s) segue para o Whisper
 mesmo quando o Vosk não a ouviu; o Whisper continua a exigir a palavra no
