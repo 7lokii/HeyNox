@@ -8,7 +8,13 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "../api";
-import { subscribeVoiceInput, subscribeVoiceOutput } from "../voice";
+import {
+  getVoicePhase,
+  subscribeVoiceInput,
+  subscribeVoiceOutput,
+  subscribeVoicePhase,
+  type VoicePhase,
+} from "../voice";
 
 const BANDS = 48;
 const POLL_MS = 90;
@@ -33,6 +39,7 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
   const inputCurrent = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const outputTarget = useRef<number[]>(new Array<number>(BANDS).fill(0));
   const outputCurrent = useRef<number[]>(new Array<number>(BANDS).fill(0));
+  const phaseRef = useRef<VoicePhase>(getVoicePhase());
   const onStatusRef = useRef(onStatus);
 
   useEffect(() => {
@@ -141,7 +148,9 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       const speakLevels = localLevels ? outputTarget.current : target.current;
       const measured = speakLevels.some((value) => value > 0.02);
       const aFalar = speakingRef.current || measured;
-      const listening = inputTarget.current.some((value) => value > 0.02);
+      // Ouvir o pedido e o passo "record", nao o ruido da sala: antes o
+      // microfone em repouso pintava o anel de azul e a fala piscava-o.
+      const listening = phaseRef.current === "record";
       // Tres cores, por decisao do dono: branco quando esta calado, azul
       // enquanto ouve o pedido (o microfone tem sinal) e vermelho quando fala.
       const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
@@ -272,6 +281,9 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
         outputTarget.current = levels;
       }
     });
+    const unsubscribePhase = subscribeVoicePhase((fase) => {
+      phaseRef.current = fase;
+    });
     draw();
     void poll();
 
@@ -282,6 +294,7 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       observer.disconnect();
       unsubscribe();
       unsubscribeOutput();
+      unsubscribePhase();
       window.removeEventListener("resize", resize);
     };
   }, []);

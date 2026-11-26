@@ -100,8 +100,10 @@ em vez de voltar a «a ouvir», e não grava um
 turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` (15 s desde 2026-11-26)
 para o pedido seguinte; cada novo pedido exige a palavra outra vez. Com
 `wake.provider: off`, o filtro desliga-se. O anel tem tres cores desde
-2026-11-26: **branco** calado, **azul** enquanto ouve o pedido (ha sinal no
-microfone) e **vermelho** enquanto o Nox fala. O vermelho segue o MP3 que toca no
+2026-11-26: **branco** calado, **azul** enquanto grava o pedido e **vermelho**
+enquanto o Nox fala. A cor segue o **passo** do ciclo de voz (`wait`/`record`
+em `voice.ts`), nao os niveis do microfone: pintado pelos niveis, o ruido da sala
+mantinha o anel azul em repouso e a fala piscava-o de branco. O vermelho segue o MP3 que toca no
 dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `Permissions-Policy` do NoxSec tem
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.

@@ -48,6 +48,37 @@ function publish(levels: number[]): void {
   for (const listener of listeners) listener(levels);
 }
 
+/** Em que passo do ciclo de voz estamos.
+ *
+ * O reactor pintava-se pelos niveis do microfone, e o ruido ambiente mantinha o
+ * anel azul mesmo sem ninguem a falar. A cor segue o passo, nao o som: branco à
+ * espera, azul a gravar o pedido, vermelho a falar.
+ */
+export type VoicePhase = "wait" | "record";
+
+type PhaseListener = (fase: VoicePhase) => void;
+
+const phaseListeners = new Set<PhaseListener>();
+let phase: VoicePhase = "wait";
+
+export function getVoicePhase(): VoicePhase {
+  return phase;
+}
+
+export function subscribeVoicePhase(listener: PhaseListener): () => void {
+  listener(phase);
+  phaseListeners.add(listener);
+  return () => {
+    phaseListeners.delete(listener);
+  };
+}
+
+function publishPhase(fase: VoicePhase): void {
+  if (phase === fase) return;
+  phase = fase;
+  for (const listener of phaseListeners) listener(fase);
+}
+
 function publishOutput(levels: number[]): void {
   for (const listener of outputListeners) listener(levels);
 }
@@ -111,7 +142,7 @@ class VoiceSession {
   private frequencies: Uint8Array<ArrayBuffer> | null = null;
   private chunks: Float32Array[] = [];
   private preRoll: Float32Array[] = [];
-  private mode: "wait" | "record" = "wait";
+  private mode: VoicePhase = "wait";
   private speechMs = 0;
   private silenceMs = 0;
   private recordMs = 0;
@@ -255,6 +286,7 @@ class VoiceSession {
         this.speechMs += blockMs;
         if (this.speechMs >= START_MS) {
           this.mode = "record";
+          publishPhase("record");
           this.chunks = [...this.preRoll];
           this.preRoll = [];
           this.recordMs = this.chunks.reduce(
@@ -297,6 +329,7 @@ class VoiceSession {
     const chunks = this.chunks;
     const duration = this.recordMs;
     this.mode = "wait";
+    publishPhase("wait");
     this.chunks = [];
     this.preRoll = [];
     this.speechMs = 0;
@@ -368,6 +401,7 @@ class VoiceSession {
     this.paused = false;
     this.busy = false;
     this.mode = "wait";
+    publishPhase("wait");
     this.speechMs = 0;
     this.silenceMs = 0;
     this.recordMs = 0;
