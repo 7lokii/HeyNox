@@ -12,7 +12,7 @@ Segue o `spec.md` (§12). Estado atual:
   - [x] TTS local (Piper `pt_PT-tugão-medium`) e opção neural (`edge-tts`).
   - [x] Captura de microfone real (sounddevice) — `nox --voice`.
   - [x] VAD WebRTC + loop de conversação completo.
-  - [x] Wake word "Nox" / "Ei Nox" / "Hey Nox" (Vosk, ver `docs/voice.md`).
+  - [x] Wake word "Nox" (Vosk, ver `docs/voice.md`).
   - [x] Portão de ruído adaptativo e corte espectral antes do STT.
   - [x] Impressão vocal com vários perfis (opcional).
   - [x] Vocabulário restrito: "Nox" sozinho passa a ser reconhecido.

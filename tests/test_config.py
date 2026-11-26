@@ -17,7 +17,7 @@ def test_project_config_is_valid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr("nox.config.user_data_dir", lambda: tmp_path / "user")
     config = load_config()
     assert config.nox.name == "Nox"
-    assert config.nox.wake_word == "hey nox"
+    assert config.nox.wake_word == "nox"
     assert config.nox.language == "pt-PT"
 
 

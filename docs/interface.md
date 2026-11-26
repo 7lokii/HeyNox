@@ -92,7 +92,7 @@ por energia e envia PCM mono a 16 kHz
 para `/api/voice/turn`. O servidor transcreve com o STT configurado, passa pelo
 agente e devolve a resposta em texto e MP3 em base64, que o browser toca. O
 turno só chega ao agente se o Vosk local ouvir uma das `wake.phrases`
-(`Nox`, `Ei Nox` ou `Hey Nox`, opcionalmente depois de «ei», «hey» ou «olá») no
+(`Nox`, opcionalmente depois de «ei», «hey» ou «olá») no
 início do PCM. Se não ouvir, o áudio não chega ao Whisper nem à cloud. Depois
 disso, o Whisper transcreve o pedido e a palavra é retirada do início quando
 aparece; o STT pode não a repetir. Uma menção a meio da frase não ativa o Nox. Sem ela, o microfone continua ativo, mas o HUD fica em «Diz Nox»

@@ -175,8 +175,10 @@ transcrição incremental enquanto se fala.
 
 ## Wake word
 
-Três formas ativam o Nox: **"Nox"**, **"Ei Nox"** e **"Hey Nox"**. O detetor
-procura a palavra distintiva, por isso "hey"/"ei" são opcionais:
+A forma de ativação é **"Nox"**, e só essa (decisão do dono, 2026-11-26). O
+detetor procura a palavra distintiva, por isso dizer "Ei Nox" ou "Hey Nox"
+continua a funcionar — os fillers à frente são ignorados — mas a configuração
+não declara alternativas:
 
 No HUD, o microfone abre sozinho com a página e também exige uma destas formas:
 a palavra tem de abrir a frase (pode vir depois de “ei”, “hey” ou “olá”), é
@@ -190,8 +192,13 @@ para o pedido seguinte; cada novo pedido exige a palavra outra vez.
 
 ```yaml
 wake:
-  phrases: ["nox", "ei nox", "hey nox"]
+  phrases: ["nox"]
+  grammar: ["nox", "inox", "[unk]"]
 ```
+
+O `grammar` mantém "inox" porque é a forma que o reconhecedor devolve quando
+ouve "Nox", e "nox" para o caso de o modelo o aceitar. Menos hipóteses do que
+isto e o "Nox" curto volta a virar outra palavra.
 
 ### Porque é que "Nox" sozinho não era reconhecido
 
@@ -204,7 +211,7 @@ qualquer coisa, o descodificador escolhe entre três hipóteses.
 
 ```yaml
 wake:
-  grammar: ["inox", "ei inox", "[unk]"]
+  grammar: ["nox", "inox", "[unk]"]
 ```
 
 Medido com duas vozes e ruído branco adicionado:

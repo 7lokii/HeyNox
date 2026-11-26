@@ -69,7 +69,9 @@ def normalize(text: str) -> str:
 def wake_tokens(phrases: Sequence[str] | str) -> tuple[str, ...]:
     """Palavras que distinguem a ativação, sem "hey"/"ei"/"olá".
 
-    "Nox", "Ei Nox" e "Hey Nox" dão todas o mesmo token: basta ouvir a palavra.
+    As frases configuradas são reduzidas a uma: a palavra que distingue. Com
+    "nox" na configuração, "Ei Nox" e "Hey Nox" continuam a acordar o Nox
+    porque os fillers são ignorados, mas não são formas próprias.
     """
     options = [phrases] if isinstance(phrases, str) else list(phrases)
     tokens = {
@@ -253,7 +255,7 @@ class VoskWakeWord:
 
     def __init__(
         self,
-        phrases: Sequence[str] | str = "hey nox",
+        phrases: Sequence[str] | str = "nox",
         *,
         model_path: Path | str | None = None,
         sample_rate: int = 16000,

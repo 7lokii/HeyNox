@@ -29,7 +29,7 @@ class NoxIdentity(BaseModel):
     name: str = "Nox"
     language: str = "pt-PT"
     persona: str = "calm, direct, helpful, futuristic"
-    wake_word: str = "hey nox"
+    wake_word: str = "nox"
     wake_word_sensitivity: float = Field(default=0.7, ge=0.0, le=1.0)
     voice_enabled: bool = True
     text_enabled: bool = True
@@ -234,12 +234,13 @@ class WakeConfig(BaseModel):
 
     provider: Literal["vosk", "off"] = "vosk"
     model: str = "vosk-model-small-pt-0.3"
-    # Qualquer uma destas formas ativa o Nox. Basta a palavra distintiva.
-    phrases: list[str] = Field(default_factory=lambda: ["nox", "ei nox", "hey nox"])
+    # Uma só forma ativa o Nox: a palavra. "Ei Nox" ou "Hey Nox" continuam a
+    # funcionar porque os fillers são ignorados, mas não são formas próprias.
+    phrases: list[str] = Field(default_factory=lambda: ["nox"])
     # Vocabulário restrito do reconhecedor. "nox" não existe no dicionário do
     # modelo pt (ele escreve "inox"); limitar as hipóteses faz com que até um
     # "Nox" curto seja ouvido, em vez de virar outra palavra qualquer.
-    grammar: list[str] = Field(default_factory=lambda: ["inox", "ei inox", "[unk]"])
+    grammar: list[str] = Field(default_factory=lambda: ["nox", "inox", "[unk]"])
     # Só o dono do perfil de voz ativa o Nox. Requer `nox --enroll` primeiro.
     voiceprint: bool = True
     voiceprint_threshold: float = Field(default=0.35, ge=0.0, le=1.0)

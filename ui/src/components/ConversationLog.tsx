@@ -18,7 +18,7 @@ export function ConversationLog({ turns }: Props) {
   return (
     <div className="log" ref={logRef}>
       {turns.length === 0 ? (
-        <div className="empty">Diz «Hey Nox» ou escreve em baixo.</div>
+        <div className="empty">Diz «Nox» ou escreve em baixo.</div>
       ) : (
         turns.map((turn, index) => (
           <div className={`turn ${turn.role}`} key={`${turn.at}-${index}`}>

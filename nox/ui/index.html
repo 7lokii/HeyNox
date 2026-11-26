@@ -378,7 +378,7 @@
     <aside class="side">
       <div class="panel-head">Conversa</div>
       <div class="log" id="log">
-        <div class="empty">Diz «Hey Nox» ou escreve em baixo.</div>
+        <div class="empty">Diz «Nox» ou escreve em baixo.</div>
       </div>
       <div class="approvals" id="approvals" hidden>
         <div class="approvals-head"><span>Aprovação necessária</span><span id="approvalcount"></span></div>
@@ -442,7 +442,7 @@ function render(turns) {
   rendered = turns.length;
   logEl.innerHTML = "";
   if (!turns.length) {
-    logEl.innerHTML = '<div class="empty">Diz «Hey Nox» ou escreve em baixo.</div>';
+    logEl.innerHTML = '<div class="empty">Diz «Nox» ou escreve em baixo.</div>';
     return;
   }
   for (const turn of turns) {

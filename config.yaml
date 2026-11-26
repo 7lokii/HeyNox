@@ -2,7 +2,7 @@ nox:
   name: "Nox"
   language: "pt-PT"
   persona: "calm, direct, helpful, futuristic"
-  wake_word: "hey nox"
+  wake_word: "nox"
   wake_word_sensitivity: 0.7
   voice_enabled: true
   text_enabled: true
@@ -13,11 +13,9 @@ wake:
   model: "vosk-model-small-pt-0.3"
   phrases:
     - "nox"
-    - "ei nox"
-    - "hey nox"
   grammar:
+    - "nox"
     - "inox"
-    - "ei inox"
     - "[unk]"
   voiceprint: false
   voiceprint_threshold: 0.35
