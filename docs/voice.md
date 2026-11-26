@@ -199,8 +199,10 @@ O Piper gasta cerca de 200 ms por frase curta e 1 950 ms numa resposta de duas
 frases longas (sintetiza frase a frase). Em troca, é o mesmo tempo com ou sem
 rede, e o áudio não sai da VM.
 
-Próximo passo: pré-aquecer o Vosk no arranque do serviço, para o primeiro turno
-não pagar 800 ms.
+O Vosk e o Piper são carregados no arranque do serviço, em segundo plano
+(`NoxApp.aquecer_voz`): o primeiro turno deixa de pagar os ~800 ms do modelo.
+Medido depois de um `systemctl restart`: `wake_ms` **57 ms** no primeiro turno
+(antes, 811 ms).
 
 Um turno sem texto (ruído, ou o Vosk aceitou e o Whisper não devolveu nada) não
 é registado: não chegou a ser um turno.

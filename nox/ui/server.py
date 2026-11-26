@@ -254,6 +254,31 @@ class NoxApp:
                 raise NoxError(f"não consegui validar a wake word: {exc}") from exc
             return self._wake_verifier
 
+    def aquecer_voz(self) -> None:
+        """Carrega em segundo plano o que custa no primeiro turno.
+
+        O Vosk leva cerca de 800 ms a carregar o modelo e o Piper leva cerca de
+        300 ms a carregar o ONNX. Feito no arranque, o custo nao cai no primeiro
+        «Nox» do dia. Falha em silencio: sem o modelo, o primeiro turno carrega-o
+        como antes, so que mais devagar.
+        """
+        if self.config.wake.provider == "off" and self.config.tts.provider != "piper":
+            return
+
+        def carregar() -> None:
+            if self.config.wake.provider != "off":
+                try:
+                    self._wake_check()
+                except Exception:  # noqa: BLE001 - aquecer nunca trava o servico
+                    pass
+            if self.config.tts.provider == "piper":
+                try:
+                    self._piper()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        threading.Thread(target=carregar, daemon=True, name="nox-aquecer").start()
+
     def _sintetizar_resposta(self, texto: str) -> tuple[str, str, str]:
         """Áudio da resposta em base64, o mime e o erro, se houver.
 
@@ -746,6 +771,7 @@ def serve(
     out: Callable[[str], None] = print,
 ) -> int:
     app = NoxApp(config)
+    app.aquecer_voz()
     server, bound = build_server(app, port, strict_port=strict_port)
     url = f"http://127.0.0.1:{bound}/"
     out(f"Nox UI em {url}")

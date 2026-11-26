@@ -456,3 +456,43 @@ def test_voice_turn_accepts_any_speech_when_wake_is_off(server) -> None:
 
     assert result["wake"] is True
     assert result["answer"] == "(eco) olá"
+
+
+class _WakeContado:
+    """Verificador que só conta quantas vezes o aquecimento o construiu."""
+
+    def __init__(self, evento) -> None:
+        self.evento = evento
+        self.chamadas = 0
+
+    def accepts(self, audio, sample_rate: int) -> bool:  # noqa: ANN001
+        return True
+
+
+def test_aquecer_voz_constroi_o_verificador_em_segundo_plano(server) -> None:
+    import threading
+
+    _, app = server
+    evento = threading.Event()
+    app._wake_verifier = None
+
+    def falso() -> _WakeContado:
+        evento.set()
+        return _WakeContado(evento)
+
+    app._wake_check = falso  # type: ignore[method-assign]
+    app.aquecer_voz()
+
+    assert evento.wait(2.0), "o aquecimento não correu"
+
+
+def test_aquecer_voz_sem_voz_nao_faz_nada(server, monkeypatch) -> None:
+    _, app = server
+    app.config.wake.provider = "off"
+    app.config.tts.provider = "edge"
+    chamado = []
+    monkeypatch.setattr(app, "_wake_check", lambda: chamado.append(True))
+
+    app.aquecer_voz()
+
+    assert chamado == []
