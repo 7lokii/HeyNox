@@ -27,7 +27,10 @@ def test_stt_provider_openai_requires_a_key(monkeypatch: pytest.MonkeyPatch) -> 
 
 @pytest.mark.skipif(not PIPER_MODEL.is_file(), reason="voz Piper não está instalada")
 def test_piper_produces_audible_audio() -> None:
-    synthesizer = build_synthesizer(Config())
+    # A voz por omissao e a Duarte da rede; este teste e do Piper local, por
+    # isso pede explicitamente a voz ONNX.
+    config = Config.model_validate({"tts": {"provider": "piper", "voice": "pt_PT-tugão-medium"}})
+    synthesizer = build_synthesizer(config)
     audio = synthesizer.synthesize("Bom dia. Eu sou o Nox.")
 
     assert synthesizer.sample_rate == 22050

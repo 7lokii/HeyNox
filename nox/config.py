@@ -137,8 +137,11 @@ class LlmConfig(BaseModel):
 
 
 class TtsConfig(BaseModel):
-    provider: Literal["piper", "edge", "kokoro", "elevenlabs", "openai"] = "piper"
-    voice: str = "pt_PT-tugão-medium"
+    provider: Literal["piper", "edge", "kokoro", "elevenlabs", "openai"] = "edge"
+    # Voz masculina de Portugal. O Piper so tem uma voz pt-PT ("tugao"), por
+    # isso a escolha do dono (2026-11-26) foi a DuarteNeural; a cache em disco
+    # tira a rede das frases repetidas.
+    voice: str = "pt-PT-DuarteNeural"
     speed: float = Field(default=1.0, gt=0.0, le=3.0)
     # Guardar o áudio das frases repetidas. No `edge` cada repetição era uma
     # ida à rede: com a cache a segunda vez é uma leitura de disco.
@@ -248,8 +251,9 @@ class WakeConfig(BaseModel):
     # Só o dono do perfil de voz ativa o Nox. Requer `nox --enroll` primeiro.
     voiceprint: bool = True
     voiceprint_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
-    # Segundos à espera do pedido depois de ouvir a wake word.
-    timeout_s: float = Field(default=8.0, gt=0)
+    # Segundos à espera do pedido depois de ouvir a wake word. Alargado a 15
+    # a pedido do dono (2026-11-26): 8 s cortavam frases pensadas a meio.
+    timeout_s: float = Field(default=15.0, gt=0)
     # Frases curtas que o Vosk não ouviu seguem para o Whisper, que decide se
     # a palavra foi dita. O modelo pequeno devolve vazio para "Nox" sozinho,
     # e sem isto a ativação falhava com a palavra curta; acima deste limite o

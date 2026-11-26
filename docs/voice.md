@@ -9,7 +9,7 @@ Pipeline: `áudio -> VAD -> STT -> LLM -> TTS -> áudio`.
 | VAD | `vad` | webrtcvad | **funcional** |
 | STT | `stt` | faster-whisper (local) | **funcional** |
 | STT cloud | — | Groq `whisper-large-v3-turbo` | **por omissão** |
-| TTS | `tts` | piper | **funcional** |
+| TTS | `tts` | edge (Duarte, pt-PT) | **funcional** |
 | TTS online | `edge` | edge-tts | **funcional** |
 
 Instalar tudo: `pip install -e ".[voice]"`.
@@ -129,6 +129,18 @@ tts:
 O `edge` manda o texto do Nox para a Microsoft — não é local-first. É a opção
 para quem quer a melhor voz e aceita a rede; o Piper é a opção offline. O
 `pt-PT-DuarteNeural` é masculino, o `pt-PT-RaquelNeural` feminino.
+
+**A voz em producao e a Duarte desde 2026-11-26**, por escolha do dono (ouviu
+amostras das tres alternativas masculinas). O Piper so tem uma voz de Portugal,
+a mesma que estava, por isso a troca de voz implicou a rede:
+
+| Voz | Onde | Latencia do TTS (frase nova) |
+|---|---|---|
+| `piper` / `pt_PT-tugão-medium` | local | 209 ms |
+| `edge` / `pt-PT-DuarteNeural` | rede | 1 427 a 2 152 ms (medido em 3 frases) |
+
+A cache de 64 MB cobre as repeticoes: a segunda sintese da mesma frase deu
+**0 ms** (leitura de disco). O preco da voz melhor e ~1,5 s por resposta nova.
 
 ## Porque Piper e não Kokoro
 

@@ -97,10 +97,11 @@ início do PCM. Se não ouvir, o áudio não chega ao Whisper nem à cloud. Depo
 disso, o Whisper transcreve o pedido e a palavra é retirada do início quando
 aparece; o STT pode não a repetir. Uma menção a meio da frase não ativa o Nox. Sem ela, o microfone continua ativo, mas o HUD fica em «Diz Nox»
 em vez de voltar a «a ouvir», e não grava um
-turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` para o pedido
-seguinte; cada novo pedido exige a palavra outra vez. Com
-`wake.provider: off`, o filtro desliga-se. O anel fica azul com o espectro do
-microfone e vermelho enquanto o Nox fala. O vermelho segue o MP3 que toca no
+turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` (15 s desde 2026-11-26)
+para o pedido seguinte; cada novo pedido exige a palavra outra vez. Com
+`wake.provider: off`, o filtro desliga-se. O anel tem tres cores desde
+2026-11-26: **branco** calado, **azul** enquanto ouve o pedido (ha sinal no
+microfone) e **vermelho** enquanto o Nox fala. O vermelho segue o MP3 que toca no
 dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `Permissions-Policy` do NoxSec tem
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.

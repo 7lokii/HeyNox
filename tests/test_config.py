@@ -43,7 +43,8 @@ def test_minimal_config_uses_defaults(tmp_path: Path) -> None:
     config = load_config(path)
     assert config.nox.wake_word == "nox"
     assert config.nox.name == "Nox"
-    assert config.tts.provider == "piper"
+    assert config.tts.provider == "edge"
+    assert config.tts.voice == "pt-PT-DuarteNeural"
 
 
 @pytest.mark.parametrize(

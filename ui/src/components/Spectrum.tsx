@@ -142,12 +142,11 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
       const measured = speakLevels.some((value) => value > 0.02);
       const aFalar = speakingRef.current || measured;
       const listening = inputTarget.current.some((value) => value > 0.02);
+      // Tres cores, por decisao do dono: branco quando esta calado, azul
+      // enquanto ouve o pedido (o microfone tem sinal) e vermelho quando fala.
       const mic = { halo: "56, 189, 248", core: "186, 230, 253" };
-      const voice = aFalar
-        ? { halo: "251, 75, 92", core: "255, 205, 211" }
-        : listening
-          ? mic
-          : { halo: "34, 211, 238", core: "165, 243, 252" };
+      const quiet = { halo: "244, 247, 251", core: "255, 255, 255" };
+      const voice = aFalar ? { halo: "251, 75, 92", core: "255, 205, 211" } : listening ? mic : quiet;
 
       const glow = ctx.createRadialGradient(cx, cy, base * 0.2, cx, cy, radius);
       glow.addColorStop(0, `rgba(${voice.halo}, ${aFalar ? 0.22 : 0.12})`);
@@ -209,7 +208,7 @@ export function Spectrum({ onStatus, speaking = false, clientVoice = false }: Pr
 
       // Anel interior: o microfone. Azul, a crescer para dentro, para não se
       // confundir com a voz do Nox.
-      ring(cx, cy, base * 0.8, 1, listening ? 0.32 : 0.12, [], 0, mic.halo);
+      ring(cx, cy, base * 0.8, 1, listening ? 0.32 : 0.12, [], 0, listening ? mic.halo : voice.halo);
       for (let i = 0; i < BANDS; i += 1) {
         const band = i < BANDS / 2 ? i : BANDS - 1 - i;
         const value = listening ? inputCurrent.current[band] : 0;

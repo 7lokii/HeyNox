@@ -21,7 +21,7 @@ wake:
   passa_curto_s: 2.0
   voiceprint: false
   voiceprint_threshold: 0.35
-  timeout_s: 8
+  timeout_s: 15
   follow_up_s: 6
 audio:
   input_device: Mi TW
