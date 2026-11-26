@@ -35,6 +35,7 @@ from nox.integrations.whatsapp import (
 from nox.models import ensure_vosk_model
 from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
+from nox.metrics import RegistoDeMetricas, Turno, registo_por_omissao
 from nox.ui import settings as settings_ui
 from nox.ui import static as hud
 from nox.ui.state import NoxState
@@ -106,6 +107,8 @@ class NoxApp:
         self._transcriber_lock = threading.Lock()
         self._wake_verifier = wake_verifier
         self._wake_verifier_injected = wake_verifier is not None
+        # Medição por turno: onde é que o tempo vai. Ver nox/metrics.py.
+        self.metrics = registo_por_omissao()
         self._wake_verifier_lock = threading.Lock()
 
     def _wire_whatsapp_context(self) -> None:
@@ -261,6 +264,11 @@ class NoxApp:
         from nox.speech.stt import build_transcriber
 
         pcm = Pcm(audio)
+        inicio = time.monotonic()
+        wake_ms: float | None = None
+        stt_ms: float | None = None
+        llm_ms: float | None = None
+        tts_ms: float | None = None
         wake_gate = self.config.wake.provider != "off"
         phrases = self.config.wake.phrases or [self.config.nox.wake_word]
         now = time.monotonic()
@@ -269,6 +277,7 @@ class NoxApp:
         if wake_gate and not armed:
             # O Vosk valida a posição no áudio antes de o Whisper ser chamado.
             # Conversa sem ativação não sai para a cloud.
+            marca_wake = time.monotonic()
             if not self._wake_check().accepts(pcm, sample_rate):
                 return {
                     "text": "",
@@ -279,11 +288,14 @@ class NoxApp:
                     "hint": f"diz «{self.config.nox.name}» para falar.",
                 }
             validated = True
+            wake_ms = (time.monotonic() - marca_wake) * 1000
 
         with self._transcriber_lock:
             if self._transcriber is None:
                 self._transcriber = build_transcriber(self.config)
+        marca_stt = time.monotonic()
         text = self._transcriber.transcribe(pcm, sample_rate)
+        stt_ms = (time.monotonic() - marca_stt) * 1000
         if not text:
             if wake_gate and validated:
                 # O Vosk ouviu a ativação, mas o Whisper não devolveu texto
@@ -335,16 +347,21 @@ class NoxApp:
             self._voice_awake_until = 0.0
 
         self.state.add_turn("user", text)
+        marca_llm = time.monotonic()
+        erro_llm = ""
         try:
             answer = self.agent.reply(command)
         except NoxError as exc:
             answer = f"Erro: {exc}"
+            erro_llm = str(exc)
+        llm_ms = (time.monotonic() - marca_llm) * 1000
         self.state.add_turn("assistant", answer)
         # Cada novo pedido exige a wake word. A única janela é a aberta por
         # dizer só "Nox" e fazer uma pausa; uma resposta não arma outra.
 
         encoded = ""
         voice_error = ""
+        marca_tts = time.monotonic()
         if answer and not answer.startswith("Erro:") and self.config.tts.provider == "edge":
             try:
                 from nox.speech.edge import synthesize_mp3
@@ -357,6 +374,23 @@ class NoxApp:
             except (NoxError, ImportError, OSError) as exc:
                 # O texto vai na mesma; o HUD cai para a voz do sistema.
                 voice_error = str(exc)
+        if encoded:
+            tts_ms = (time.monotonic() - marca_tts) * 1000
+
+        self.metrics.registar(
+            Turno(
+                origem="hud",
+                wake_ms=wake_ms,
+                stt_ms=stt_ms,
+                llm_ms=llm_ms,
+                tts_ms=tts_ms,
+                total_ms=(time.monotonic() - inicio) * 1000,
+                pedido_chars=len(text or ""),
+                resposta_chars=len(answer or ""),
+                ok=not erro_llm,
+                erro=erro_llm,
+            )
+        )
         return {
             "text": text,
             "answer": answer,
@@ -429,6 +463,15 @@ class Handler(BaseHTTPRequestHandler):
             snapshot["setup_required"] = self.app.setup_required()
             snapshot["full_access"] = self.app.approvals.full_access
             self._send_json(snapshot)
+        elif self.path == "/api/metrics":
+            # Quantos turnos resumir; por omissão 200, o suficiente para uma
+            # sessão e barato de ler.
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            try:
+                ultimos = int(query.get("turnos", ["200"])[0])
+            except ValueError:
+                ultimos = 200
+            self._send_json(self.app.metrics.resumo(max(1, min(ultimos, 5000))))
         elif self.path == "/api/settings":
             self._send_json(self.app.settings_payload())
         elif self.path == "/api/devices":

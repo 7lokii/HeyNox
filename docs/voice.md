@@ -140,6 +140,33 @@ O STT também não usa PyTorch: o faster-whisper assenta em CTranslate2. Com
 Piper + faster-whisper, o `torch` só é preciso para o Silero VAD — e o VAD por
 omissão é o do WebRTC, que também não precisa.
 
+## Medição por turno
+
+Desde 2026-11-26 cada turno completo escreve uma linha em
+`<dados>/metrics/turnos.jsonl` com os milissegundos de cada etapa. O registo não
+guarda o texto do pedido nem da resposta: só o número de caracteres. O ficheiro
+roda ao chegar a 5 MB e há um resumo em `GET /api/metrics?turnos=200` (turnos,
+falhas, média/p50/p95/máx por etapa).
+
+Medido no homelab a 2026-11-26, caminho do HUD (`/api/voice/turn`), com cinco
+pedidos gerados pelo Piper e enviados como WAV a 24 kHz:
+
+| Etapa | p50 | p95 | O que é |
+|---|---|---|---|
+| `wake_ms` | 62 ms | 811 ms | Vosk. O p95 é o primeiro turno, com o modelo a carregar |
+| `stt_ms` | 437 ms | 672 ms | Groq `whisper-large-v3-turbo` |
+| `llm_ms` | 615 ms | 824 ms | modelo de conversa |
+| `tts_ms` | 1 270 ms | 2 382 ms | `edge-tts` a gerar o MP3 |
+| `total_ms` | 2 554 ms | 3 648 ms | do PCM recebido à resposta pronta |
+
+O gargalo mudou de sítio: com o STT na cloud, o **TTS é a maior fatia** (cerca de
+metade do turno). As melhorias com melhor retorno, por esta ordem, são cache de
+frases sintetizadas, Piper local em vez de `edge` (o projeto já o usa no CLI) e
+pré-aquecer o Vosk no arranque do serviço para o primeiro turno não pagar 800 ms.
+
+Um turno sem texto (ruído, ou o Vosk aceitou e o Whisper não devolveu nada) não
+é registado: não chegou a ser um turno.
+
 ## Latência do loop completo
 
 CPU sem GPU, `small` int8, voz `edge`, pergunta de 3 s:

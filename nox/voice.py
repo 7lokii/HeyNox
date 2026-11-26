@@ -26,6 +26,7 @@ from nox.audio.wake import VoskWakeWord, WakeWordDetector
 from nox.brain.agent import Agent, build_agent
 from nox.config import Config, NoxError
 from nox.models import ModelError
+from nox.metrics import RegistoDeMetricas, Turno, registo_por_omissao
 from nox.speech.stt import Transcriber, build_transcriber
 from nox.speech.tts import Synthesizer, build_synthesizer, split_sentences
 
@@ -67,6 +68,7 @@ class VoiceLoop:
     on_status: Callable[[str], None] | None = None
     on_frame: Callable[[list[float]], None] | None = None
     on_input: Callable[[list[float]], None] | None = None
+    metrics: RegistoDeMetricas | None = None
     stop_event: Event | None = None
     _meter: MicMeter | None = field(default=None, repr=False, init=False)
     _armed: bool = field(default=False, repr=False)
@@ -146,12 +148,14 @@ class VoiceLoop:
             return False
 
         rate = self.segmenter.sample_rate
+        inicio = time.monotonic()
         # O filler toca enquanto o STT trabalha: cobre o silêncio sem lhe somar
         # tempo. Em série, o "Hmm." atrasava a transcrição em vez de a esconder.
         with ThreadPoolExecutor(max_workers=1) as pool:
             pending = pool.submit(self.transcriber.transcribe, utterance, rate)
             self._play_filler()
             text = pending.result().strip()
+        stt_ms = (time.monotonic() - inicio) * 1000
         if not text:
             return False
 
@@ -166,16 +170,43 @@ class VoiceLoop:
         self.out(f"tu> {text}")
         self._turn("user", text)
         self._status("a pensar")
+        marca_llm = time.monotonic()
         try:
             answer = self.agent.reply(text)
         except NoxError as exc:
             self.out(f"Erro: {exc}")
+            if self.metrics is not None:
+                self.metrics.registar(
+                    Turno(
+                        origem="cli",
+                        stt_ms=stt_ms,
+                        total_ms=(time.monotonic() - inicio) * 1000,
+                        pedido_chars=len(text),
+                        ok=False,
+                        erro=str(exc),
+                    )
+                )
             return False
+        llm_ms = (time.monotonic() - marca_llm) * 1000
         self.out(f"{self.name}> {answer}")
         self._turn("assistant", answer)
 
         self._status("a falar")
+        marca_tts = time.monotonic()
         interrupted = self.speak(answer)
+        if self.metrics is not None:
+            self.metrics.registar(
+                Turno(
+                    origem="cli",
+                    stt_ms=stt_ms,
+                    llm_ms=llm_ms,
+                    tts_ms=(time.monotonic() - marca_tts) * 1000,
+                    total_ms=(time.monotonic() - inicio) * 1000,
+                    pedido_chars=len(text),
+                    resposta_chars=len(answer),
+                    ok=True,
+                )
+            )
         if interrupted:
             # O utilizador está a falar: não deitar fora o que ele já disse nem
             # voltar a exigir a palavra de ativação.
@@ -378,6 +409,7 @@ def run_voice(
             source=source,
             segmenter=build_segmenter(config),
             transcriber=build_transcriber(config),
+            metrics=registo_por_omissao(),
             synthesizer=build_synthesizer(config, progress=lambda m: out(f"aviso: {m}")),
             speaker=SoundDeviceSpeaker(on_frame=on_frame),
             agent=agent or build_agent(config, voice=True),

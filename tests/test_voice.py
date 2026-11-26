@@ -95,6 +95,7 @@ def build_loop(
     wake_timeout_s: float = 8.0,
     follow_up_s: float = 6.0,
     speaker: RecordingSpeaker | None = None,
+    metrics=None,
 ) -> tuple[VoiceLoop, list[str], RecordingSpeaker, RecordingSynthesizer]:
     lines: list[str] = []
     speaker = speaker or RecordingSpeaker()
@@ -112,6 +113,7 @@ def build_loop(
         wake=wake,
         wake_timeout_s=wake_timeout_s,
         follow_up_s=follow_up_s,
+        metrics=metrics,
     )
     return loop, lines, speaker, synthesizer
 
@@ -352,3 +354,31 @@ def test_run_voice_entrega_os_dois_espectros(monkeypatch) -> None:
     assert turns == 0
     assert captured["on_input"] is on_input
     assert captured["speaker_on_frame"] is on_frame
+
+
+def test_metrics_record_one_turn_for_the_cli(tmp_path) -> None:
+    from nox.metrics import RegistoDeMetricas
+
+    registo = RegistoDeMetricas(tmp_path / "turnos.jsonl")
+    loop, _, _, _ = build_loop(speech_then_silence(), metrics=registo)
+
+    assert loop.run(max_turns=1) == 1
+    resumo = registo.resumo()
+    assert resumo["turnos"] == 1
+    assert resumo["falhas"] == 0
+    etapa = resumo["etapas"]
+    # O duplo do STT e do LLM respondem depressa, mas as etapas tem de existir.
+    assert etapa["stt_ms"]["amostras"] == 1
+    assert etapa["llm_ms"]["amostras"] == 1
+    assert etapa["tts_ms"]["amostras"] == 1
+
+
+def test_metrics_ignore_turns_without_text(tmp_path) -> None:
+    from nox.metrics import RegistoDeMetricas
+
+    registo = RegistoDeMetricas(tmp_path / "turnos.jsonl")
+    # Audio alto mas sem transcricao: o turno nao chega a existir.
+    loop, _, _, _ = build_loop(speech_then_silence(), phrases=(), metrics=registo)
+
+    loop.run(max_turns=1)
+    assert registo.resumo()["turnos"] == 0
