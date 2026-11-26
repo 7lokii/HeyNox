@@ -98,7 +98,10 @@ disso, o Whisper transcreve o pedido e a palavra é retirada do início quando
 aparece; o STT pode não a repetir. Uma menção a meio da frase não ativa o Nox. Sem ela, o microfone continua ativo, mas o HUD fica em «Diz Nox»
 em vez de voltar a «a ouvir», e não grava um
 turno. Dizer só “Nox” abre uma janela de `wake.timeout_s` (15 s desde 2026-11-26)
-para o pedido seguinte; cada novo pedido exige a palavra outra vez. Com
+para o pedido seguinte. O HUD retoma o microfone **sem espera** depois de
+reconhecer a ativação: os 1,1 s de temporizador que aqui estavam engoliam o
+início do pedido, e a pausa de silêncio que fecha a gravação subiu de 850 ms
+para 1 200 ms. Sem ela, pensar a meio da frase cortava-a; cada novo pedido exige a palavra outra vez. Com
 `wake.provider: off`, o filtro desliga-se. O anel tem tres cores desde
 2026-11-26: **branco** calado, **azul** enquanto grava o pedido e **vermelho**
 enquanto o Nox fala. A cor segue o **passo** do ciclo de voz (`wait`/`record`

@@ -13,7 +13,7 @@ const BANDS = 48;
 const TARGET_RATE = 16000;
 const START_RMS = 0.018;
 const START_MS = 160;
-const SILENCE_MS = 850;
+const SILENCE_MS = 1200;
 const MIN_MS = 350;
 const MAX_MS = 20000;
 const PRE_ROLL = 4;
@@ -368,14 +368,15 @@ class VoiceSession {
         // passa no Vosk e o Whisper pode devolver vazio. Nesse caso o servidor
         // manda o pedido seguinte; não é "não ouvi".
         this.callbacks.onStatus(data.hint || "não ouvi");
-        await delay(data.hint ? 1100 : 700);
+        // Sem espera: o dono ja pode estar a falar o pedido. Os 1,1 s de
+        // temporizador que aqui estavam engoliam o inicio da frase.
+        this.busy = false;
         this.resume();
         return;
       }
       if (!data.answer) {
         this.callbacks.onStatus(data.hint || "não ouvi");
-        await delay(data.hint ? 1100 : 700);
-        if (!this.closed) this.callbacks.onStatus("a ouvir");
+        this.busy = false;
         this.resume();
         return;
       }
