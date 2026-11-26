@@ -35,6 +35,7 @@ from nox.integrations.whatsapp import (
 from nox.models import ensure_vosk_model
 from nox.paths import user_data_dir
 from nox.safety.approvals import ApprovalBroker
+from nox.audio.wake import leading_wake_word
 from nox.metrics import RegistoDeMetricas, Turno, registo_por_omissao
 from nox.ui import settings as settings_ui
 from nox.ui import static as hud
@@ -405,10 +406,36 @@ class NoxApp:
                 "hint": "",
             }
 
+        if wake_gate and validated and not leading_wake_word(text, phrases):
+            # O Vosk com vocabulário restrito empurra conversa normal para a
+            # palavra (falso positivo). O Whisper é mais rigoroso: se ele não
+            # abre com «Nox», isto não era um pedido, e responder sem ter sido
+            # chamado é pior do que pedir a palavra outra vez.
+            self._voice_awake_until = 0.0
+            self.metrics.registar(
+                Turno(
+                    origem="hud",
+                    wake_ms=wake_ms,
+                    stt_ms=stt_ms,
+                    total_ms=(time.monotonic() - inicio) * 1000,
+                    pedido_chars=len(text),
+                    ok=False,
+                    erro="ativacao sem a palavra",
+                )
+            )
+            return {
+                "text": text,
+                "answer": "",
+                "audio": "",
+                "audio_mime": "",
+                "voice_error": "",
+                "wake": False,
+                "hint": f"diz «{self.config.nox.name}» para falar.",
+            }
+
         if wake_gate and validated:
-            # O Vosk é a autoridade da posição. O Whisper pode não repetir
-            # "Nox" (ou colocá-la noutro sítio); a transcrição é o pedido, e a
-            # palavra só se retira quando abre a frase.
+            # Chega aqui quem abriu a frase com a palavra: o Vosk aceitou e o
+            # Whisper confirmou. A palavra sai do pedido.
             command = strip_wake_word(text, phrases)
             if command == text.strip():
                 command = text.strip()

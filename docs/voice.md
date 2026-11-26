@@ -247,13 +247,19 @@ detetor procura a palavra distintiva, por isso dizer "Ei Nox" ou "Hey Nox"
 continua a funcionar — os fillers à frente são ignorados — mas a configuração
 não declara alternativas:
 
-No HUD, o microfone abre sozinho com a página e também exige uma destas formas:
-a palavra tem de abrir a frase (pode vir depois de “ei”, “hey” ou “olá”), é
-retirada antes de chegar ao agente, e uma menção a meio da conversa não ativa o
-Nox. Antes do Whisper, o PCM passa pelo **Vosk local** (`VoskWakeVerifier`): se
-o Vosk não ouvir a palavra no início, o Whisper nem é chamado e o áudio não sai
-para a cloud. Quando o Vosk aceita, o Whisper transcreve o pedido e pode não
-repetir “Nox”; a posição já foi validada. Dizer só “Nox” abre `wake.timeout_s`
+No HUD, o microfone abre sozinho com a página e também exige a palavra: tem de
+abrir a frase (pode vir depois de “ei”, “hey” ou “olá”), é retirada antes de
+chegar ao agente, e uma menção a meio da conversa não ativa o Nox. Antes do
+Whisper, o PCM passa pelo **Vosk local** (`VoskWakeVerifier`): se o Vosk não
+ouvir a palavra no início, o Whisper nem é chamado e o áudio não sai para a
+cloud.
+
+O Vosk sozinho não bastava. Com vocabulário restrito, conversa normal era
+empurrada para “nox” e o Nox respondia sem ter sido chamado (2026-11-26). A
+ativação passou a exigir **as duas confirmações**: o Vosk aceita o áudio e a
+transcrição do Whisper abre com a palavra. Se o Whisper não a tem, o turno é
+recusado com «diz «Nox» para falar» e conta como falha em `/api/metrics`. A
+janela aberta por dizer só “Nox” continua a valer para o pedido seguinte. Dizer só “Nox” abre `wake.timeout_s`
 para o pedido seguinte; cada novo pedido exige a palavra outra vez.
 `wake.provider: off` desliga este filtro e deixa a conversa contínua.
 

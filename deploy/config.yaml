@@ -13,8 +13,32 @@ wake:
   phrases:
   - nox
   grammar:
-  - nox
-  - inox
+  - 'nox'
+  - 'inox'
+  - 'ola'
+  - 'oi'
+  - 'bom'
+  - 'dia'
+  - 'boa'
+  - 'noite'
+  - 'tarde'
+  - 'que'
+  - 'horas'
+  - 'sao'
+  - 'como'
+  - 'estas'
+  - 'obrigado'
+  - 'sim'
+  - 'nao'
+  - 'por'
+  - 'favor'
+  - 'abre'
+  - 'fecha'
+  - 'diz'
+  - 'me'
+  - 'qual'
+  - 'e'
+  - 'de'
   - '[unk]'
   voiceprint: false
   voiceprint_threshold: 0.35

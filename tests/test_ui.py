@@ -368,15 +368,21 @@ def test_vosk_rejects_before_whisper(server) -> None:
     assert app.state.snapshot()["turns"] == []
 
 
-def test_voice_turn_accepts_when_vosk_validated_but_whisper_drops_the_word(server) -> None:
+def test_voice_turn_recusa_quando_o_whisper_nao_abre_com_a_palavra(server) -> None:
+    """O Vosk com vocabulário restrito aceita conversa normal; o Whisper desempata.
+
+    Aceitar o Vosk como autoridade fazia o Nox responder sem ter sido chamado.
+    Agora a ativação só conta quando a transcrição do Whisper abre com a
+    palavra. A janela aberta por dizer só «Nox» continua a valer.
+    """
     _, app = server
 
-    # Em produção o Vosk aceitou o áudio que começava em "Nox" e o Whisper
-    # devolveu só o pedido. A posição é decidida pelo Vosk.
     result = _voice_turn(app, "olá")
 
-    assert result["wake"] is True
-    assert result["answer"] == "(eco) olá"
+    assert result["wake"] is False
+    assert result["answer"] == ""
+    assert result["hint"] == "diz «Nox» para falar."
+    assert app.state.snapshot()["turns"] == []
 
 
 def test_voice_turn_strips_the_wake_word_before_the_agent(server) -> None:
@@ -496,3 +502,4 @@ def test_aquecer_voz_sem_voz_nao_faz_nada(server, monkeypatch) -> None:
     app.aquecer_voz()
 
     assert chamado == []
+
