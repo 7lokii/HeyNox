@@ -361,11 +361,24 @@ class NoxApp:
         now = time.monotonic()
         armed = wake_gate and now < self._voice_awake_until
         validated = False
+        # Segundos de áudio a contar dos bytes (16 bits, mono).
+        duracao_s = len(audio) / 2 / sample_rate if sample_rate else 0.0
         if wake_gate and not armed:
             # O Vosk valida a posição no áudio antes de o Whisper ser chamado.
-            # Conversa sem ativação não sai para a cloud.
+            # Conversa longa sem ativação não sai para a cloud.
             marca_wake = time.monotonic()
-            if not self._wake_check().accepts(pcm, sample_rate):
+            validated = self._wake_check().accepts(pcm, sample_rate)
+            wake_ms = (time.monotonic() - marca_wake) * 1000
+            if not validated and duracao_s > self.config.wake.passa_curto_s:
+                self.metrics.registar(
+                    Turno(
+                        origem="hud",
+                        wake_ms=wake_ms,
+                        total_ms=(time.monotonic() - inicio) * 1000,
+                        ok=False,
+                        erro="vosk nao ouviu a palavra",
+                    )
+                )
                 return {
                     "text": "",
                     "answer": "",
@@ -374,8 +387,9 @@ class NoxApp:
                     "wake": False,
                     "hint": f"diz «{self.config.nox.name}» para falar.",
                 }
-            validated = True
-            wake_ms = (time.monotonic() - marca_wake) * 1000
+            # Sem validação do Vosk sobra uma frase curta: "Nox" sozinho, que
+            # o modelo pequeno devolve vazio. Segue para o Whisper, que aceita
+            # ou recusa pelo texto — a palavra continua a ser obrigatória.
 
         with self._transcriber_lock:
             if self._transcriber is None:
@@ -406,11 +420,11 @@ class NoxApp:
                 "hint": "",
             }
 
-        if wake_gate and validated and not leading_wake_word(text, phrases):
-            # O Vosk com vocabulário restrito empurra conversa normal para a
-            # palavra (falso positivo). O Whisper é mais rigoroso: se ele não
-            # abre com «Nox», isto não era um pedido, e responder sem ter sido
-            # chamado é pior do que pedir a palavra outra vez.
+        if wake_gate and not armed and not leading_wake_word(text, phrases):
+            # Quem não foi chamado não é servido: nem o Vosk sozinho, nem uma
+            # frase curta que o Whisper transcreveu sem a palavra, abrem a
+            # janela. Responder sem ter sido chamado é pior do que pedir a
+            # palavra outra vez.
             self._voice_awake_until = 0.0
             self.metrics.registar(
                 Turno(
@@ -433,9 +447,9 @@ class NoxApp:
                 "hint": f"diz «{self.config.nox.name}» para falar.",
             }
 
-        if wake_gate and validated:
-            # Chega aqui quem abriu a frase com a palavra: o Vosk aceitou e o
-            # Whisper confirmou. A palavra sai do pedido.
+        if wake_gate and not armed:
+            # Chega aqui quem abriu a frase com a palavra. A palavra sai do
+            # pedido.
             command = strip_wake_word(text, phrases)
             if command == text.strip():
                 command = text.strip()

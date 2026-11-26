@@ -343,6 +343,32 @@ def _voice_turn(app: NoxApp, text: str) -> dict:
     return app.voice_turn(b"\x00\x00" * 800, 16000)
 
 
+def test_frase_curta_sem_vosk_chega_ao_whisper_e_ativa(server) -> None:
+    """Dizer só «Nox» é curto e o Vosk devolve vazio; o Whisper ainda confirma.
+
+    Medido com o modelo pt: "Nox" isolado sai vazio do Vosk e a ativação só
+    funcionava por sorte. Uma frase curta segue para o Whisper, que exige a
+    palavra na mesma, por isso a proteção contra falsos positivos mantém-se.
+    """
+    _, app = server
+    app._wake_verifier = RejectingWakeVerifier()
+
+    result = _voice_turn(app, "Nox, olá")
+
+    assert result["wake"] is True
+    assert result["answer"] != ""
+
+
+def test_frase_curta_sem_a_palavra_nao_ativa(server) -> None:
+    _, app = server
+    app._wake_verifier = RejectingWakeVerifier()
+
+    result = _voice_turn(app, "está tudo bem")
+
+    assert result["wake"] is False
+    assert result["hint"] == "diz «Nox» para falar."
+
+
 def test_voice_turn_ignores_a_request_without_the_wake_word(server) -> None:
     _, app = server
     app._wake_verifier = RejectingWakeVerifier()
@@ -360,7 +386,8 @@ def test_vosk_rejects_before_whisper(server) -> None:
     app._wake_verifier = RejectingWakeVerifier()
     app._transcriber = NeverTranscribe()
 
-    result = app.voice_turn(b"\x00\x00" * 800, 16000)
+    # 3 segundos: acima do limite, por isso nao ha Whisper.
+    result = app.voice_turn(bytes(96000), 16000)
 
     assert result["wake"] is False
     assert result["text"] == ""

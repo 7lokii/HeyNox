@@ -250,6 +250,11 @@ class WakeConfig(BaseModel):
     voiceprint_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
     # Segundos à espera do pedido depois de ouvir a wake word.
     timeout_s: float = Field(default=8.0, gt=0)
+    # Frases curtas que o Vosk não ouviu seguem para o Whisper, que decide se
+    # a palavra foi dita. O modelo pequeno devolve vazio para "Nox" sozinho,
+    # e sem isto a ativação falhava com a palavra curta; acima deste limite o
+    # áudio é conversa e não chega à nuvem.
+    passa_curto_s: float = Field(default=2.0, ge=0.0, le=10.0)
     # Depois de responder, o Nox continua a ouvir sem exigir a palavra outra
     # vez — uma réplica não deve obrigar a dizer "Hey Nox" de novo.
     follow_up_s: float = Field(default=6.0, ge=0.0, le=60.0)

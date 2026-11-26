@@ -270,8 +270,41 @@ wake:
 ```
 
 O `grammar` mantém "inox" porque é a forma que o reconhecedor devolve quando
-ouve "Nox", e "nox" para o caso de o modelo o aceitar. Menos hipóteses do que
-isto e o "Nox" curto volta a virar outra palavra.
+ouve "Nox", e "nox" para o caso de o modelo o aceitar.
+
+**O grammar tem de ser curto.** Em 2026-11-26 o grammar foi alargado para 27
+palavras comuns para travar falsos positivos. Números medidos com o Piper a
+sintetizar as frases e o serviço real a responder:
+
+| Grammar | Ativação ("Nox", "Nox!", "Nox, olá"...) | Falsos positivos |
+|---|---|---|
+| 27 palavras | **0/5** | 0/6 |
+| 12 palavras | 0/5 | 0/6 |
+| 3 palavras (`nox`, `inox`, `[unk]`) | 3/5 | 0/6 |
+
+Cada hipótese a mais divide o descodificador: com 27 palavras o Vosk deixou de
+aceitar o "Nox" e o dono tinha de repetir até funcionar. O grammar voltou às 3
+entradas. A proteção contra falsos positivos é o Whisper, não o grammar.
+
+### Frases curtas passam pelo Whisper
+
+O modelo pequeno devolve vazio para "Nox" sozinho (medido: 1,0 s de áudio sai
+sem texto). Uma frase até `wake.passa_curto_s` (2,0 s) segue para o Whisper
+mesmo quando o Vosk não a ouviu; o Whisper continua a exigir a palavra no
+início, por isso a proteção mantém-se. Acima desse limite o áudio é conversa e
+não chega à nuvem.
+
+Resultado medido ponta a ponta (Piper -> `/api/voice/turn`, 2026-11-26):
+
+| Frase | Antes (grammar 27) | Depois |
+|---|---|---|
+| "Nox" | recusado | ativa |
+| "Nox!" | recusado | ativa |
+| "Nox, olá" | recusado | ativa |
+| "Nox, que horas são" | recusado | ativa |
+| "Nox, diz-me as horas" | recusado | ativa |
+| "Olá Nox" | recusado | recusado (Whisper: "O Amox") |
+| 6 frases de conversa | 1 falso positivo | 0/6 |
 
 ### Porque é que "Nox" sozinho não era reconhecido
 
