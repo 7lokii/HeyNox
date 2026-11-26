@@ -463,7 +463,7 @@ class Handler(BaseHTTPRequestHandler):
             snapshot["setup_required"] = self.app.setup_required()
             snapshot["full_access"] = self.app.approvals.full_access
             self._send_json(snapshot)
-        elif self.path == "/api/metrics":
+        elif self.path.split("?", 1)[0] == "/api/metrics":
             # Quantos turnos resumir; por omissão 200, o suficiente para uma
             # sessão e barato de ler.
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
