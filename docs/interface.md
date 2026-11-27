@@ -111,6 +111,13 @@ dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.
 
+**So depois da palavra.** O HUD grava sempre que ha som (e preciso ouvir para
+reconhecer o «Nox»), mas o anel e o texto so passam a `a ouvir` quando o
+servidor confirma a ativacao. Com a janela aberta, o cliente mostra `ouve o
+pedido` e so entao pinta o anel de azul. Um `armedAte` local de 15 s acompanha o
+`wake.timeout_s`. Antes disto, qualquer ruido da sala — o clique de um reload,
+uma televisao — punha o HUD a "ouvir" sem ninguem ter chamado o Nox.
+
 **Estado em repouso.** O primeiro texto e `diz «Nox»` desde o primeiro frame (o
 estado inicial era `a ligar`, que se lia como "a ouvir" durante o primeiro
 segundo). Com o microfone ligado e sem ninguem a falar, o HUD diz
