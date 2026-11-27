@@ -19,6 +19,13 @@ const MAX_MS = 20000;
 const PRE_ROLL = 4;
 const ZERO_LEVELS = new Array<number>(BANDS).fill(0);
 
+/** Estado mostrado enquanto o microfone esta ligado mas ninguem falou.
+ *
+ * Dizer "a ouvir" mal o microfone abre fazia parecer que o Nox ja estava a
+ * atender o pedido. A espera da palavra e o estado honesto.
+ */
+const ESPERA = "diz «Nox»";
+
 type LevelsListener = (levels: number[]) => void;
 
 const listeners = new Set<LevelsListener>();
@@ -189,7 +196,7 @@ class VoiceSession {
           document.removeEventListener("pointerdown", this.unlock);
           this.unlock = null;
         }
-        this.callbacks.onStatus("a ouvir");
+        this.callbacks.onStatus(ESPERA);
       });
       this.source = context.createMediaStreamSource(this.stream);
       this.analyser = context.createAnalyser();
@@ -205,7 +212,7 @@ class VoiceSession {
       this.source.connect(this.processor);
       this.processor.connect(context.destination);
       if (context.state === "running") {
-        this.callbacks.onStatus("a ouvir");
+        this.callbacks.onStatus(ESPERA);
       } else {
         this.showUnlock();
       }
@@ -253,7 +260,7 @@ class VoiceSession {
         ?.resume()
         .then(() => {
           if (!this.closed && this.context?.state === "running") {
-            this.callbacks.onStatus("a ouvir");
+            this.callbacks.onStatus(ESPERA);
           }
         })
         .catch(() => undefined);
@@ -287,6 +294,8 @@ class VoiceSession {
         if (this.speechMs >= START_MS) {
           this.mode = "record";
           publishPhase("record");
+          // So agora ha um pedido a ser ouvido.
+          this.callbacks.onStatus("a ouvir");
           this.chunks = [...this.preRoll];
           this.preRoll = [];
           this.recordMs = this.chunks.reduce(
@@ -383,13 +392,13 @@ class VoiceSession {
       this.callbacks.onTurn();
       if (data.answer) await this.speak(data.answer, data.audio, data.audio_mime);
       if (!this.closed) {
-        this.callbacks.onStatus("a ouvir");
+        this.callbacks.onStatus(ESPERA);
         this.resume();
       }
     } catch (error) {
       if (this.closed) return;
       this.callbacks.onError(voiceMessage(error), false);
-      this.callbacks.onStatus("a ouvir");
+      this.callbacks.onStatus(ESPERA);
       await delay(900);
       this.resume();
     } finally {

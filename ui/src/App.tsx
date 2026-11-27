@@ -78,7 +78,9 @@ export function App() {
     active: voiceOn,
     onStatus: (status) => {
       setVoiceStatus(status);
-      if (status === "a ouvir") {
+      // Um estado normal (a ouvir ou a espera da palavra) limpa o aviso de
+      // microfone bloqueado; so um erro o volta a mostrar.
+      if (status === "a ouvir" || status.startsWith("diz «")) {
         setVoiceDenied(false);
         setVoiceError("");
       }

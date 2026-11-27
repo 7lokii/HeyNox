@@ -111,6 +111,11 @@ dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.
 
+**Estado em repouso.** Com o microfone ligado e sem ninguem a falar, o HUD diz
+`diz «Nox»`, nao `a ouvir`: dizer "a ouvir" assim que o audio arranca fazia
+parecer que o Nox ja estava a atender. `a ouvir` aparece quando a gravacao do
+pedido comeca, e `diz «Nox»` volta depois de responder ou de falhar.
+
 Se o microfone falhar, o HUD mostra um aviso persistente acima do rodapé com
 «Microfone bloqueado» ou «Voz indisponível» e «Tentar de novo». O aviso só
 desaparece quando o microfone abre com sucesso; a permissão tem de ser reposta
