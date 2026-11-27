@@ -111,7 +111,9 @@ dispositivo; o serviço não tem placa de som e não pode medir essa saída. O `
 de permitir `microphone=(self)`, e o iframe do painel leva
 `allow="microphone"`.
 
-**Estado em repouso.** Com o microfone ligado e sem ninguem a falar, o HUD diz
+**Estado em repouso.** O primeiro texto e `diz «Nox»` desde o primeiro frame (o
+estado inicial era `a ligar`, que se lia como "a ouvir" durante o primeiro
+segundo). Com o microfone ligado e sem ninguem a falar, o HUD diz
 `diz «Nox»`, nao `a ouvir`: dizer "a ouvir" assim que o audio arranca fazia
 parecer que o Nox ja estava a atender. `a ouvir` aparece quando a gravacao do
 pedido comeca, e `diz «Nox»` volta depois de responder ou de falhar.

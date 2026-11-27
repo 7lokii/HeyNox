@@ -24,7 +24,8 @@ const ZERO_LEVELS = new Array<number>(BANDS).fill(0);
  * Dizer "a ouvir" mal o microfone abre fazia parecer que o Nox ja estava a
  * atender o pedido. A espera da palavra e o estado honesto.
  */
-const ESPERA = "diz «Nox»";
+export const ESTADO_ESPERA = "diz «Nox»";
+const ESPERA = ESTADO_ESPERA;
 
 type LevelsListener = (levels: number[]) => void;
 

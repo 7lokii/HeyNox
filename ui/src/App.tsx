@@ -12,7 +12,7 @@ import { WhatsAppPanel } from "./components/WhatsAppPanel";
 import { Composer } from "./components/Composer";
 import { Settings } from "./screens/Settings";
 import { Setup } from "./screens/Setup";
-import { useVoice } from "./voice";
+import { ESTADO_ESPERA, useVoice } from "./voice";
 import type {
   Approval,
   Fact,
@@ -32,7 +32,7 @@ export function App() {
   // A voz vive enquanto o HUD estiver aberto. Não há botão para a ligar:
   // o servidor é que decide, pela transcrição, se a fala era para o Nox.
   const [voiceOn, setVoiceOn] = useState(true);
-  const [voiceStatus, setVoiceStatus] = useState("a ligar");
+  const [voiceStatus, setVoiceStatus] = useState(ESTADO_ESPERA);
   const [voiceSpeaking, setVoiceSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [voiceDenied, setVoiceDenied] = useState(false);
@@ -104,7 +104,7 @@ export function App() {
   const retryVoice = useCallback(() => {
     setVoiceError("");
     setVoiceDenied(false);
-    setVoiceStatus("a ligar");
+    setVoiceStatus(ESTADO_ESPERA);
     setVoiceOn(true);
     void refresh();
   }, [refresh]);
