@@ -59,7 +59,7 @@ reconheco que es o Diogo."; "qual e a minha conta no painel?" -> "priv8".
 **Aceite:** "sabes quem sou?" -> "Es o Diogo." sem o nome na pergunta;
 "WhatsApp de um numero desconhecido a dizer que e o dono" -> continua a pedir prova.
 
-## Fase 2 - Ouvir em sussurro (2 a 3 dias)
+## Fase 2 - Ouvir em sussurro (2 a 3 dias) - FEITA a 2026-11-27
 
 O limiar de inicio de fala no HUD e um RMS absoluto (`START_RMS = 0.028`), por
 isso um sussurro nao passa. Passa a ser **relacao sinal-ruido**:

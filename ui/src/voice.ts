@@ -11,8 +11,12 @@ import { api } from "./api";
 
 const BANDS = 48;
 const TARGET_RATE = 16000;
-const START_RMS = 0.028;
-const START_MS = 160;
+// Um limiar fixo de amplitude obriga a falar alto: um sussurro a 30 cm tem
+// menos energia que uma voz normal a 2 metros. O que distingue fala de silencio
+// e a relacao com o ruido de fundo, nao o volume absoluto.
+const SNR_FATOR = 2.2; // ~7 dB acima do piso de ruido
+const PISO_MINIMO = 0.004; // abaixo disto e silencio digital
+const START_MS = 120;
 const SILENCE_MS = 1200;
 const MIN_MS = 350;
 const MAX_MS = 20000;
@@ -156,6 +160,8 @@ class VoiceSession {
    *  punha o HUD a "ouvir" sem ninguem ter chamado o Nox. */
   private armedAte = 0;
   private ignorarAte = 0;
+  /** Piso de ruido da sala, actualizado a cada bloco. */
+  private ruido = 0.01;
   private speechMs = 0;
   private silenceMs = 0;
   private recordMs = 0;
@@ -291,14 +297,31 @@ class VoiceSession {
     );
     this.publishLevels();
     if (this.paused || this.closed) return;
-    // O clique que abre a pagina e o proprio arranque do audio nao sao pedidos.
-    if (performance.now() < this.ignorarAte) return;
+
+    // O piso de ruido aprende-se primeiro: nos primeiros 700 ms so se mede, nao
+    // se decide. Sem isto, abrir o HUD numa sala ruidosa disparava logo porque
+    // o piso ainda estava no valor inicial.
+    const aAquecer = performance.now() < this.ignorarAte;
+    if (aAquecer) {
+      this.ruido = this.ruido * 0.5 + rms * 0.5;
+      return;
+    }
 
     const blockMs = (block.length / (this.context?.sampleRate ?? TARGET_RATE)) * 1000;
+
+    // Desce depressa (para apanhar o silencio entre frases) e sobe devagar,
+    // para a propria fala nao empurrar o piso para cima.
+    if (rms < this.ruido) {
+      this.ruido = this.ruido * 0.8 + rms * 0.2;
+    } else {
+      this.ruido = this.ruido * 0.995 + rms * 0.005;
+    }
+    const limiar = Math.max(this.ruido * SNR_FATOR, PISO_MINIMO);
+
     if (this.mode === "wait") {
       this.preRoll.push(block);
       if (this.preRoll.length > PRE_ROLL) this.preRoll.shift();
-      if (rms >= START_RMS) {
+      if (rms >= limiar) {
         this.speechMs += blockMs;
         if (this.speechMs >= START_MS) {
           this.mode = "record";
@@ -316,14 +339,16 @@ class VoiceSession {
           this.silenceMs = 0;
         }
       } else {
-        this.speechMs = Math.max(0, this.speechMs - blockMs);
+        // Decai a metade: uma fala fraca (sussurro) oscila em torno do limiar e
+        // com o decaimento inteiro nunca chegava a somar os 120 ms.
+        this.speechMs = Math.max(0, this.speechMs - blockMs * 0.5);
       }
       return;
     }
 
     this.chunks.push(block);
     this.recordMs += blockMs;
-    if (rms >= START_RMS) {
+    if (rms >= limiar) {
       this.silenceMs = 0;
     } else {
       this.silenceMs += blockMs;
@@ -528,6 +553,15 @@ function encodePcm(chunks: Float32Array[], from: number): Int16Array<ArrayBuffer
     samples.set(chunk, offset);
     offset += chunk.length;
   }
+  // Sussurro chega baixo ao reconhecedor. Normalizar o pico ajuda o Vosk e o
+  // Whisper, com ganho maximo de 4x (12 dB) para nao amplificar so ruido.
+  let pico = 0;
+  for (const value of samples) {
+    const magnitude = Math.abs(value);
+    if (magnitude > pico) pico = magnitude;
+  }
+  const ganho = pico > 0.02 ? Math.min(4, 0.9 / pico) : 1;
+
   const ratio = from / TARGET_RATE;
   const length = Math.max(1, Math.floor(samples.length / ratio));
   const pcm = new Int16Array(new ArrayBuffer(length * 2));
@@ -536,7 +570,7 @@ function encodePcm(chunks: Float32Array[], from: number): Int16Array<ArrayBuffer
     const left = Math.floor(position);
     const right = Math.min(left + 1, samples.length - 1);
     const value = samples[left] + (samples[right] - samples[left]) * (position - left);
-    pcm[i] = Math.max(-1, Math.min(1, value)) * 0x7fff;
+    pcm[i] = Math.max(-1, Math.min(1, value * ganho)) * 0x7fff;
   }
   return pcm;
 }
