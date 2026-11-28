@@ -168,6 +168,7 @@ class VoiceSession {
   private ignorarAte = 0;
   /** Piso de ruido da sala, actualizado a cada bloco. */
   private ruido = 0.01;
+  private armarTimer: number | undefined;
   private speechMs = 0;
   private silenceMs = 0;
   private recordMs = 0;
@@ -383,7 +384,9 @@ class VoiceSession {
     const chunks = this.chunks;
     const duration = this.recordMs;
     this.mode = "wait";
-    publishPhase("wait");
+    // Se a janela da ativacao esta aberta, o anel continua azul: voltar a
+    // branco entre enviar e a confirmacao piscava e parecia que nao ativou.
+    if (performance.now() >= this.armedAte) publishPhase("wait");
     this.chunks = [];
     this.preRoll = [];
     this.speechMs = 0;
@@ -410,7 +413,7 @@ class VoiceSession {
       // O Vosk pode recusar antes de haver transcrição. Nesse caso `text`
       // vem vazio, mas a resposta certa é «diz Nox», não «não ouvi».
       if (data.wake === false) {
-        this.armedAte = 0;
+        this.desarmar();
         // Numa sala com conversa, voltar a «a ouvir» depois de uma recusa
         // parecia uma ativação. Sem a palavra, o estado fica no pedido.
         this.callbacks.onStatus(data.hint || "diz «Nox» para falar");
@@ -419,9 +422,9 @@ class VoiceSession {
         return;
       }
       if (data.wake === true && !data.text) {
-        // Ativacao confirmada sem pedido: a janela fica aberta do lado do
-        // servidor e o cliente passa a mostrar "ouve o pedido".
-        this.armedAte = performance.now() + 15000;
+        // Ativacao confirmada sem pedido: anel azul e "ouve o pedido" ate ao
+        // pedido seguinte ou ate a janela fechar.
+        this.armar();
       }
       if (!data.text) {
         // A ativação pode ser válida mesmo sem transcrição: um "Nox" curto
@@ -435,13 +438,13 @@ class VoiceSession {
         return;
       }
       if (!data.answer) {
-        if (data.wake === true) this.armedAte = performance.now() + 15000;
+        if (data.wake === true) this.armar();
         this.callbacks.onStatus(data.hint || "não ouvi");
         this.busy = false;
         this.resume();
         return;
       }
-      this.armedAte = 0;
+      this.desarmar();
       this.callbacks.onTurn();
       if (data.answer) await this.speak(data.answer, data.audio, data.audio_mime);
       if (!this.closed) {
@@ -457,6 +460,28 @@ class VoiceSession {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Ativacao confirmada: anel azul e o estado diz que espera o pedido. */
+  private armar(): void {
+    this.armedAte = performance.now() + 15000;
+    publishPhase("record");
+    this.callbacks.onStatus("ouve o pedido");
+    window.clearTimeout(this.armarTimer);
+    this.armarTimer = window.setTimeout(() => {
+      if (this.closed) return;
+      if (performance.now() >= this.armedAte) {
+        this.armedAte = 0;
+        publishPhase("wait");
+        this.callbacks.onStatus(ESPERA);
+      }
+    }, 15100);
+  }
+
+  private desarmar(): void {
+    this.armedAte = 0;
+    window.clearTimeout(this.armarTimer);
+    publishPhase("wait");
   }
 
   private resume(): void {
