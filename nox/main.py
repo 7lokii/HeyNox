@@ -18,6 +18,7 @@ from nox.audio.types import duration_ms
 from nox.audio.wav import read_wav, write_wav
 from nox.brain.agent import build_agent
 from nox.brain.llm import LlmError
+from nox.brain.prompt import session_block
 from nox.config import (
     Config,
     ConfigError,
@@ -176,6 +177,15 @@ def _fix_console_encoding() -> None:
             continue
         with suppress(AttributeError, ValueError):
             cast("TextIOWrapper", stream).reconfigure(encoding="utf-8")
+
+
+def _identidade(config: Config) -> str:
+    """O terminal corre no computador do dono: e uma sessao autenticada."""
+    return session_block(
+        owner=config.nox.owner,
+        account=config.nox.owner_account,
+        channel="terminal do dono neste computador",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -463,7 +473,7 @@ def _devices(config: Config, out: Callable[[str], None]) -> int:
 
 def _reply_once(config: Config, text: str, out: Callable[[str], None]) -> int:
     try:
-        out(build_agent(config).reply(text))
+        out(build_agent(config, identity=_identidade(config)).reply(text))
     except LlmError as exc:
         out(f"Erro: {exc}")
         return 2
@@ -475,7 +485,7 @@ def _text_session(config: Config, out: Callable[[str], None]) -> int:
         out("Erro: o modo texto precisa de uma consola")
         return 2
 
-    agent = build_agent(config)
+    agent = build_agent(config, identity=_identidade(config))
     out(f"{config.nox.name} em modo texto. Escreve 'sair' para terminar.")
     while True:
         try:

@@ -35,7 +35,7 @@ Medir antes de mexer, com os instrumentos que ja existem:
 
 **Aceite:** numeros escritos em `docs/voice.md`, com data.
 
-## Fase 1 - Identidade e sessoes (1 dia)
+## Fase 1 - Identidade e sessoes (1 dia) - FEITA a 2026-11-27
 
 Hoje o prompt ja diz que o dono e o Diogo Camilo, mas o modelo responde "nao
 tenho forma de confirmar quem es": esta a aplicar a regra anti-spoofing
@@ -49,6 +49,12 @@ tenho forma de confirmar quem es": esta a aplicar a regra anti-spoofing
   cartao de identidade em `docs/`: nome, conta, projetos, gostos, tom.
 - Teste: 6 perguntas de identidade, a espera de respostas que assumam o dono
   sem o interrogarem.
+
+Feito: `session_block` em `nox/brain/prompt.py`, `Agent.identity`,
+`nox.owner`/`nox.owner_account` no config, bloco injetado no painel e no CLI, e o
+WhatsApp sem herdar a sessao. Medido em producao: "sabes quem sou?" -> "Sim,
+reconheco que es o Diogo."; "qual e a minha conta no painel?" -> "priv8".
+8 testes novos em `tests/test_identidade.py` (458 no total).
 
 **Aceite:** "sabes quem sou?" -> "Es o Diogo." sem o nome na pergunta;
 "WhatsApp de um numero desconhecido a dizer que e o dono" -> continua a pedir prova.

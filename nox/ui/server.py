@@ -24,6 +24,7 @@ from nox import __version__
 from nox.audio.wake import VoskWakeVerifier, WakeVerifier, strip_wake_word
 from nox.automation.routines import RoutineScheduler, RoutineStore
 from nox.brain.agent import Agent, build_agent
+from nox.brain.prompt import session_block
 from nox.config import Config, NoxError
 from nox.desktop.guard import EMERGENCY
 from nox.integrations.whatsapp import (
@@ -90,7 +91,16 @@ class NoxApp:
             full_access=config.tools.full_access,
         )
         self.routines = RoutineStore()
-        self.agent = agent or build_agent(config, approvals=self.approvals)
+        self.agent = agent or build_agent(
+            config,
+            approvals=self.approvals,
+            # O HUD so abre depois do login do painel: quem fala aqui e o dono.
+            identity=session_block(
+                owner=config.nox.owner,
+                account=config.nox.owner_account,
+                channel="painel do NoxSec",
+            ),
+        )
         # O canal WhatsApp não vê ferramentas nem a memória privada. O dono e
         # os restantes membros têm agentes separados, para a conversa de um não
         # servir de contexto ao outro.

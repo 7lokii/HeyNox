@@ -1,6 +1,8 @@
 nox:
   name: Nox
   language: pt-PT
+  owner: Diogo Camilo
+  owner_account: priv8
   persona: calm, direct, helpful, futuristic
   wake_word: nox
   wake_word_sensitivity: 0.7

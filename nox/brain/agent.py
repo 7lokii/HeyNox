@@ -109,6 +109,8 @@ class Agent:
     history_turns: int = 12
     tools: ToolRegistry | None = None
     max_steps: int = 4
+    # Bloco de sessão autenticada (`prompt.session_block`).
+    identity: str = ""
     # Texto extra para o system prompt (índice de skills, por exemplo).
     extra_system: str = ""
     # Contexto dinâmico por mensagem (histórico do grupo, por exemplo).
@@ -120,7 +122,9 @@ class Agent:
     _base_system: str = field(default="", repr=False, init=False)
 
     def __post_init__(self) -> None:
-        self._base_system = system_prompt(voice=self.voice) + self.extra_system
+        self._base_system = (
+            system_prompt(voice=self.voice) + self.identity + self.extra_system
+        )
         self.conversation = Conversation(self._base_system)
         if self.memory is not None:
             for role, text in self.memory.recent_turns(self.session, self.history_turns):
@@ -309,6 +313,7 @@ def build_agent(
     with_memory: bool = True,
     allow_emergency: bool = True,
     extra_system: str = "",
+    identity: str = "",
 ) -> Agent:
     """Agente a partir da config. Sem chave, degrada para respostas locais.
 
@@ -363,6 +368,7 @@ def build_agent(
                 memory=None,
                 tools=sub_tools,
                 max_steps=config.tools.max_steps,
+                identity=identity,
                 extra_system=skill_index(skills),
             )
 
@@ -376,5 +382,6 @@ def build_agent(
         tools=tools,
         max_steps=config.tools.max_steps,
         allow_emergency=allow_emergency,
+        identity=identity,
         extra_system=(skill_index(skills) if with_tools else "") + extra_system,
     )

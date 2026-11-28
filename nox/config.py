@@ -28,6 +28,10 @@ class ConfigError(NoxError):
 class NoxIdentity(BaseModel):
     name: str = "Nox"
     language: str = "pt-PT"
+    # Quem manda nesta instalacao. O painel e o terminal correm autenticados:
+    # o modelo tem de saber que fala com o dono, sem lhe pedir provas.
+    owner: str = "Diogo Camilo"
+    owner_account: str = "priv8"
     persona: str = "calm, direct, helpful, futuristic"
     wake_word: str = "nox"
     wake_word_sensitivity: float = Field(default=0.7, ge=0.0, le=1.0)
