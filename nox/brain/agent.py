@@ -8,6 +8,7 @@ diferença entre parecer instantâneo e parecer lento.
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -24,6 +25,13 @@ from nox.config import Config
 from nox.desktop.guard import EMERGENCY
 from nox.integrations.github import GitHub
 from nox.memory.extract import extract_facts
+from nox.memory.resumo import (
+    MANTER_RECENTES,
+    MINIMO_PARA_RESUMIR,
+    com_data,
+    em_lote,
+    resumir,
+)
 from nox.memory.store import Fact, MemoryStore, resolve_memory_path
 from nox.paths import install_dir
 from nox.safety.approvals import ApprovalBroker
@@ -124,6 +132,7 @@ class Agent:
     _base_system: str = field(default="", repr=False, init=False)
     # Pedido actual, para a selecao de ferramentas.
     _pedido: str = field(default="", repr=False, init=False)
+    _resumindo: bool = field(default=False, repr=False, init=False)
 
     def __post_init__(self) -> None:
         # O resumo dos projetos do dono entra por omissao; sem ficheiro, nada.
@@ -156,6 +165,8 @@ class Agent:
         if local is not None:
             self.conversation.add_assistant(local)
             self._remember("assistant", local)
+            # Tambem aqui: uma saudacao local tambem faz crescer a conversa.
+            self._talvez_resumir()
             return local
 
         dynamic = self.context(text) if self.context is not None else ""
@@ -168,7 +179,40 @@ class Agent:
 
         self.conversation.add_assistant(answer)
         self._remember("assistant", answer)
+        self._talvez_resumir()
         return answer
+
+    def _talvez_resumir(self) -> None:
+        """Resume conversa antiga em factos, sem atrasar a resposta."""
+        if self.memory is None or self._resumindo:
+            return
+        if self.memory.count_turns() < MINIMO_PARA_RESUMIR + MANTER_RECENTES:
+            return
+        self._resumindo = True
+        threading.Thread(target=self._resumir_conversa, daemon=True).start()
+
+    def _resumir_conversa(self) -> int:
+        """Grava os factos duraveis dos turnos que sairam da janela."""
+        try:
+            if self.memory is None:
+                return 0
+            antigos = self.memory.turnos_antigos(MANTER_RECENTES)
+            if len(antigos) < MINIMO_PARA_RESUMIR:
+                return 0
+            # O lote vem depois da contagem: cortar antes fazia o minimo nunca
+            # ser atingido quando LOTE < MINIMO_PARA_RESUMIR.
+            lote = em_lote(antigos)
+            factos = resumir(lote, self.llm)
+            gravados = 0
+            for facto in factos:
+                if self.memory.add_fact("resumo", com_data(facto)):
+                    gravados += 1
+            if factos:
+                # So se apagam os turnos quando o resumo deu alguma coisa.
+                self.memory.apagar_turnos([identificador for identificador, _, _ in lote])
+            return gravados
+        finally:
+            self._resumindo = False
 
     def _reply_plain(self) -> str:
         system, messages = self.conversation.request()

@@ -125,8 +125,12 @@ batiam no limite).
   ou um classificador local), com as restantes acessiveis por `tool_search`.
 - **Roteamento por dificuldade.** Pergunta simples -> modelo pequeno e rapido;
   pedido com ferramentas -> modelo maior. Medir antes e depois.
-- **Memoria.** Pesquisa por palavra (FTS5) ja existe; falta resumir conversas
-  antigas em factos, com data e origem, e expirar o que deixa de ser verdade.
+- **Memoria.** FEITA (4c) a 2026-11-28: `nox/memory/resumo.py` resume os turnos
+  que saem da janela em factos com data; o agente dispara o resumo em segundo
+  plano a cada 30 turnos antigos e apaga-os so quando o resumo deu algo.
+  Limite: o `gpt-oss-20b` as vezes responde em ingles (descartado por filtro) e
+  responde NADA quando a conversa nao tem factos duraveis. Factos explicitos
+  ("lembra-te que ...") entram na hora, como antes.
 
 **Aceite:** 0 respostas 429 em 20 turnos seguidos; latencia do LLM p50 abaixo de
 600 ms; 8/10 respostas corretas numa lista fixa de 10 perguntas sobre o dono e

@@ -135,6 +135,26 @@ class MemoryStore:
         ).fetchall()
         return [(row["role"], row["text"]) for row in reversed(rows)]
 
+    def turnos_antigos(self, manter: int = 20) -> list[tuple[int, str, str]]:
+        """Todos os turnos menos os `manter` mais recentes, do mais antigo."""
+        linhas = self._db.execute(
+            "SELECT id, role, text FROM turns ORDER BY id"
+        ).fetchall()
+        if len(linhas) <= manter:
+            return []
+        return [
+            (int(row["id"]), str(row["role"]), str(row["text"]))
+            for row in linhas[: len(linhas) - manter]
+        ]
+
+    def apagar_turnos(self, ids: list[int]) -> int:
+        if not ids:
+            return 0
+        marcadores = ",".join("?" for _ in ids)
+        cursor = self._db.execute(f"DELETE FROM turns WHERE id IN ({marcadores})", ids)
+        self._db.commit()
+        return cursor.rowcount
+
     def count_turns(self) -> int:
         return int(self._db.execute("SELECT count(*) FROM turns").fetchone()[0])
 
