@@ -335,11 +335,11 @@ class VoiceSession {
         this.speechMs += blockMs;
         if (this.speechMs >= START_MS) {
           this.mode = "record";
-          if (performance.now() < this.armedAte) {
-            // Ha uma ativacao confirmada: e agora sim um pedido a ser ouvido.
-            publishPhase("record");
-            this.callbacks.onStatus("a ouvir");
-          }
+          // Azul no instante em que ha fala. Esperar pela confirmacao do
+          // servidor (Vosk + Whisper, ~1,5 s) fazia o anel parecer mudo depois
+          // de dizer "Nox". Se o servidor recusar, volta a branco.
+          publishPhase("record");
+          this.callbacks.onStatus("a ouvir");
           this.chunks = [...this.preRoll];
           this.preRoll = [];
           this.recordMs = this.chunks.reduce(
@@ -417,7 +417,9 @@ class VoiceSession {
         // Numa sala com conversa, voltar a «a ouvir» depois de uma recusa
         // parecia uma ativação. Sem a palavra, o estado fica no pedido.
         this.callbacks.onStatus(data.hint || "diz «Nox» para falar");
-        await delay(1100);
+        // 400 ms chegam para o estado se ler; 1,1 s cortava o inicio do
+        // pedido seguinte.
+        await delay(400);
         this.resume();
         return;
       }

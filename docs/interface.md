@@ -113,10 +113,11 @@ de permitir `microphone=(self)`, e o iframe do painel leva
 
 **So depois da palavra.** O HUD grava sempre que ha som (e preciso ouvir para
 reconhecer o «Nox»), mas o anel e o texto so passam a `a ouvir` quando o
-servidor confirma a ativacao. Com a janela aberta, o cliente mostra `ouve o
-pedido` e pinta o anel de azul imediatamente, com um temporizador que o devolve
-a branco quando os 15 s passam. Antes disso o anel so ficava azul quando a
-gravacao comecava, por isso ativar nao se notava. Um `armedAte` local de 15 s acompanha o
+servidor confirma a ativacao. O anel fica azul **no instante em que ha fala** (o VAD demora ~120 ms), sem
+esperar pela confirmacao do servidor (Vosk + Whisper, ~1,5 s). Se o servidor
+recusar, volta a branco e o estado diz `diz «Nox»`. Com a ativacao confirmada, o
+estado passa a `ouve o pedido` e a janela de 15 s mantem o azul ate ao pedido
+seguinte. Um `armedAte` local de 15 s acompanha o
 `wake.timeout_s`. Antes disto, qualquer ruido da sala — o clique de um reload,
 uma televisao — punha o HUD a "ouvir" sem ninguem ter chamado o Nox.
 
