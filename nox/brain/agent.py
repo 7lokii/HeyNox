@@ -18,6 +18,7 @@ from nox.automation.routines import RoutineStore
 from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
+from nox.contexto import bloco_para_prompt
 from nox.config import Config
 from nox.desktop.guard import EMERGENCY
 from nox.integrations.github import GitHub
@@ -122,8 +123,12 @@ class Agent:
     _base_system: str = field(default="", repr=False, init=False)
 
     def __post_init__(self) -> None:
+        # O resumo dos projetos do dono entra por omissao; sem ficheiro, nada.
         self._base_system = (
-            system_prompt(voice=self.voice) + self.identity + self.extra_system
+            system_prompt(voice=self.voice)
+            + self.identity
+            + bloco_para_prompt()
+            + self.extra_system
         )
         self.conversation = Conversation(self._base_system)
         if self.memory is not None:

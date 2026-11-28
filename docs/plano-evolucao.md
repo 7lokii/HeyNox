@@ -77,10 +77,19 @@ isso um sussurro nao passa. Passa a ser **relacao sinal-ruido**:
 
 **Aceite:** 4/5 ativacoes em sussurro e 0/10 falsos positivos.
 
-## Fase 3 - Contexto da workspace (3 a 4 dias)
+## Fase 3 - Contexto da workspace (3 a 4 dias) - 3.1 FEITA a 2026-11-28
 
 O Nox corre na VM e nao ve `E:\Workspace`; o homelab tem chave SSH para o
 desktop (`/opt/noxsec/ssh/desktop_ed25519`).
+
+Feito (3.1): `nox/contexto.py` le por SSH o manifest, e as notas do vault
+(`Workspace-Vault/02 Projetos`), e escreve `/var/lib/heynox/contexto-workspace.md`
+(~3 200 caracteres, ~900 tokens). O agente junta-o ao system prompt. Um
+`heynox-contexto.timer` regenera-o as 04:00. Lista branca de caminhos: so
+`AI-Resources` e `Workspace-Vault`; `Dev/secrets` e afins sao recusados.
+Medido em producao: "que projetos tenho?" lista os cinco; "onde vive o
+AshenStudio?" responde com o caminho; "o que esta em aberto no NoxSec?" devolve
+os itens reais do vault. 6 testes novos.
 
 1. **Indice curado (barato, sem risco).** Um gerador constroi
    `contexto-workspace.md` a partir de `projects.manifest.yaml`, dos `AGENTS.md`

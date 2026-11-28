@@ -1,0 +1,13 @@
+[Unit]
+Description=Gerar o resumo dos projetos do dono para o HeyNox
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=heynox
+Group=heynox
+WorkingDirectory=/opt/heynox
+# O mesmo diretorio de dados que o servico: sem isto o resumo era escrito em
+# ~/.local/share e o agente procurava em /var/lib/heynox.
+Environment=HEYNOX_DATA_DIR=/var/lib/heynox
+ExecStart=/opt/heynox/.venv/bin/python -m nox.contexto

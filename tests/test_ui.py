@@ -366,7 +366,7 @@ def test_recusa_guardada_quando_o_debug_esta_ligado(server, tmp_path) -> None:
     app._wake_verifier = RejectingWakeVerifier()
     app._transcriber = NeverTranscribe()
 
-    app.voice_turn(bytes(160000), 16000)
+    app.voice_turn(bytes(480000), 16000)
 
     ficheiros = list((app.settings.root / "debug" / "ativacao").glob("*.wav"))
     assert len(ficheiros) == 1
@@ -400,8 +400,8 @@ def test_vosk_rejects_before_whisper(server) -> None:
     app._wake_verifier = RejectingWakeVerifier()
     app._transcriber = NeverTranscribe()
 
-    # 5 segundos: acima do limite de frase curta, por isso nao ha Whisper.
-    result = app.voice_turn(bytes(160000), 16000)
+    # 15 segundos: acima do limite de frase curta (12 s), sem Whisper.
+    result = app.voice_turn(bytes(480000), 16000)
 
     assert result["wake"] is False
     assert result["text"] == ""
