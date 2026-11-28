@@ -18,6 +18,7 @@ from nox.automation.routines import RoutineStore
 from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
+from nox.tools.selecao import escolher
 from nox.contexto import bloco_para_prompt
 from nox.config import Config
 from nox.desktop.guard import EMERGENCY
@@ -121,6 +122,8 @@ class Agent:
     conversation: Conversation = field(init=False)
     _stop: Event = field(default_factory=Event, repr=False, init=False)
     _base_system: str = field(default="", repr=False, init=False)
+    # Pedido actual, para a selecao de ferramentas.
+    _pedido: str = field(default="", repr=False, init=False)
 
     def __post_init__(self) -> None:
         # O resumo dos projetos do dono entra por omissao; sem ficheiro, nada.
@@ -144,6 +147,7 @@ class Agent:
         if not text:
             return ""
 
+        self._pedido = text
         self.conversation.add_user(text)
         self._remember("user", text)
         self._learn(text)
@@ -181,7 +185,10 @@ class Agent:
         modelo responde em texto ou quando esgota `max_steps`.
         """
         assert self.tools is not None
-        definitions = self.tools.definitions()
+        # So as ferramentas que a frase pede: 17 definicoes custavam ~3 600
+        # tokens por turno e davam 429 no plano gratuito.
+        escolhidas = escolher(self._pedido, self.tools.names)
+        definitions = self.tools.definitions(apenas=escolhidas)
 
         for _ in range(self.max_steps):
             system, messages = self.conversation.request()

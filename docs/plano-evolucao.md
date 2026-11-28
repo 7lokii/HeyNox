@@ -108,12 +108,18 @@ os itens reais do vault. 6 testes novos.
 **Aceite:** "como esta o NoxSec?" responde com dados do vault e do manifest;
 "le o Dev/secrets" e recusado com uma frase clara; nenhum segredo em logs.
 
-## Fase 4 - Inteligencia (1 semana, por partes)
+## Fase 4 - Inteligencia (1 semana, por partes) - 4a FEITA a 2026-11-28
 
 - **Modelo.** `openai/gpt-oss-20b` na Groq rebenta o limite de 8000 tokens/min
   (29 turnos com 429). Testar um modelo maior com o mesmo custo por token
   (pesquisar candidatos atuais) e comparar 20 pedidos iguais: acerto,
   latencia e tokens. Decidir com numeros, nao com impressao.
+Feito (4a): `nox/tools/selecao.py` manda so as ferramentas que a frase pede, com
+um nucleo (`notes`, `web_search`) e um fallback de ficheiros/comandos. Medido:
+17 definicoes = ~2 174 tokens; conversa = ~475; comando = ~314; pesquisa = ~213.
+8 pedidos seguidos ao `/api/say`: **0 com 429** (antes, dois turnos seguidos ja
+batiam no limite).
+
 - **Ferramentas no pedido.** Com 17 ferramentas cada turno custa ~3600 tokens.
   Enviar so as 5 relevantes para a intencao (selecao barata por palavras-chave
   ou um classificador local), com as restantes acessiveis por `tool_search`.

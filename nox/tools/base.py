@@ -40,15 +40,18 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return sorted(self._tools)
 
-    def definitions(self) -> list[dict[str, Any]]:
+    def definitions(self, apenas: list[str] | None = None) -> list[dict[str, Any]]:
         """No formato que os dois dialetos entendem (Anthropic e OpenAI)."""
+        escolhidas = self._tools if apenas is None else {
+            nome: self._tools[nome] for nome in apenas if nome in self._tools
+        }
         return [
             {
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.schema,
             }
-            for tool in self._tools.values()
+            for tool in escolhidas.values()
         ]
 
     def run(self, name: str, arguments: dict[str, Any]) -> ToolResult:
