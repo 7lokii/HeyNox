@@ -22,7 +22,7 @@ wake:
   - '[unk]'
   # Frases curtas que o Vosk nao ouviu seguem para o Whisper, que confirma a
   # palavra. Medido: com 27 palavras o Vosk deixou de aceitar "Nox" (0/5).
-  passa_curto_s: 2.0
+  passa_curto_s: 12.0
   voiceprint: false
   voiceprint_threshold: 0.35
   timeout_s: 15

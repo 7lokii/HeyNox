@@ -258,11 +258,11 @@ class WakeConfig(BaseModel):
     # Segundos à espera do pedido depois de ouvir a wake word. Alargado a 15
     # a pedido do dono (2026-11-26): 8 s cortavam frases pensadas a meio.
     timeout_s: float = Field(default=15.0, gt=0)
-    # Frases curtas que o Vosk não ouviu seguem para o Whisper, que decide se
-    # a palavra foi dita. O modelo pequeno devolve vazio para "Nox" sozinho,
-    # e sem isto a ativação falhava com a palavra curta; acima deste limite o
-    # áudio é conversa e não chega à nuvem.
-    passa_curto_s: float = Field(default=4.0, ge=0.0, le=10.0)
+    # Frases que o Vosk não ouviu seguem para o Whisper, que decide se a palavra
+    # foi dita. Com a voz real do dono o Vosk devolve vazio mesmo em fala
+    # normal (medido em 2026-11-28), por isso o limite cobre uma frase inteira;
+    # o Whisper continua a ser quem exige a palavra.
+    passa_curto_s: float = Field(default=12.0, ge=0.0, le=30.0)
     # Guarda o audio das recusas em <dados>/debug/ativacao para se poder medir
     # com a voz real do dono, em vez de adivinhar. Desligado por omissao.
     debug_ativacao: bool = False

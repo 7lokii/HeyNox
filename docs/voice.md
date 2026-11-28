@@ -300,6 +300,11 @@ entradas. A proteção contra falsos positivos é o Whisper, não o grammar.
 
 ### Frases curtas passam pelo Whisper
 
+O limite passou a **12,0 s** em 2026-11-28, depois de medir a voz real: com o
+microfone do dono o Vosk devolve vazio mesmo em fala normal, e as gravacoes
+chegavam aos 20 s (fala continua), por isso nunca chegavam ao Whisper. O HUD
+corta a gravacao aos 12 s (`MAX_MS`) e fecha-a ao fim de 900 ms de silencio.
+
 Em 2026-11-26 o limite era 2,0 s e a voz real do dono continuava a falhar: as
 recusas medidas diziam `vosk nao ouviu a palavra` com gravacoes acima de 2 s
 (Nox mais a pausa). O limite passou a **4,0 s** e as recusas passaram a ser

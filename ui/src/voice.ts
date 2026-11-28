@@ -17,9 +17,15 @@ const TARGET_RATE = 16000;
 const SNR_FATOR = 2.2; // ~7 dB acima do piso de ruido
 const PISO_MINIMO = 0.004; // abaixo disto e silencio digital
 const START_MS = 120;
-const SILENCE_MS = 1200;
+const SILENCE_MS = 900;
 const MIN_MS = 350;
-const MAX_MS = 20000;
+// Uma gravacao de 20 s nunca e aceite pelo servidor (frase curta = 4 s) e
+// ouvir 20 s para recusar e pior do que cortar.
+const MAX_MS = 12000;
+// O fim da fala usa um limiar mais baixo que o inicio: chega acima do ruido
+// para nao cortar a cauda da frase, mas fica proximo do piso para o ruido
+// continuo nao manter a gravacao aberta ate ao limite.
+const SILENCIO_FATOR = 1.3;
 const PRE_ROLL = 4;
 const ZERO_LEVELS = new Array<number>(BANDS).fill(0);
 
@@ -309,14 +315,17 @@ class VoiceSession {
 
     const blockMs = (block.length / (this.context?.sampleRate ?? TARGET_RATE)) * 1000;
 
-    // Desce depressa (para apanhar o silencio entre frases) e sobe devagar,
-    // para a propria fala nao empurrar o piso para cima.
+    // Desce depressa (para apanhar o silencio entre frases). So sobe em
+    // `wait`: durante a gravacao a fala empurrava o piso para cima e, como o
+    // limiar de silencio segue o piso, a gravacao nunca fechava (chegava aos
+    // 12 s e era recusada por comprimento).
     if (rms < this.ruido) {
       this.ruido = this.ruido * 0.8 + rms * 0.2;
-    } else {
+    } else if (this.mode === "wait") {
       this.ruido = this.ruido * 0.995 + rms * 0.005;
     }
     const limiar = Math.max(this.ruido * SNR_FATOR, PISO_MINIMO);
+    const limiarSilencio = Math.max(this.ruido * SILENCIO_FATOR, 0.002);
 
     if (this.mode === "wait") {
       this.preRoll.push(block);
@@ -348,7 +357,7 @@ class VoiceSession {
 
     this.chunks.push(block);
     this.recordMs += blockMs;
-    if (rms >= limiar) {
+    if (rms >= limiarSilencio) {
       this.silenceMs = 0;
     } else {
       this.silenceMs += blockMs;
