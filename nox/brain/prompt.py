@@ -72,6 +72,9 @@ Ferramentas:
   repetes o pedido.
 - Para mudar um trecho pequeno usa edit_file; write_file substitui o ficheiro
   inteiro.
+- A workspace do dono (E:\Workspace) esta noutro computador: para a listar e
+  ler usa workspace_list e workspace_read, nunca read_file/list_dir. Essas duas
+  so veem a pasta do servico. So leitura; nao escrevas na workspace.
 """
 
 VOICE_HINT = "Responde para ser ouvido: no máximo duas frases."

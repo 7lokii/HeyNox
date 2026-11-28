@@ -7,6 +7,7 @@ diferença entre parecer instantâneo e parecer lento.
 
 from __future__ import annotations
 
+import json
 import re
 import threading
 import unicodedata
@@ -20,6 +21,7 @@ from nox.brain.llm import LlmClient, LlmError, UnconfiguredLlm, build_llm
 from nox.brain.messages import Conversation
 from nox.brain.prompt import system_prompt
 from nox.tools.selecao import escolher
+from nox.tools.workspace import build_workspace_tools
 from nox.contexto import bloco_para_prompt
 from nox.config import Config
 from nox.desktop.guard import EMERGENCY
@@ -234,6 +236,7 @@ class Agent:
         escolhidas = escolher(self._pedido, self.tools.names)
         definitions = self.tools.definitions(apenas=escolhidas)
 
+        vistos: dict[str, str] = {}
         for _ in range(self.max_steps):
             system, messages = self.conversation.request()
             reply = self.llm.complete_with_tools(messages, system=system, tools=definitions)
@@ -246,7 +249,18 @@ class Agent:
             self.conversation.add_raw("assistant", reply.raw)
             results = []
             for call in reply.tool_calls:
-                outcome = self.tools.run(call.name, call.arguments)
+                chave = f"{call.name}:{json.dumps(call.arguments, sort_keys=True, default=str)}"
+                if chave in vistos:
+                    # O modelo pequeno repete a mesma chamada quando o resultado
+                    # e grande. Repetir gasta um passo e nao traz nada.
+                    outcome = ToolResult(
+                        True,
+                        "Ja executaste esta chamada nesta resposta. Nao a repitas: "
+                        "responde ao utilizador com o que ja tens.",
+                    )
+                else:
+                    outcome = self.tools.run(call.name, call.arguments)
+                    vistos[chave] = outcome.content[:2000]
                 results.append(
                     {
                         "type": "tool_result",
@@ -407,6 +421,7 @@ def build_agent(
             *build_web_tools(),
             *build_browser_tools(sandbox, approvals=approvals),
             *build_notes_tools(sandbox),
+            *build_workspace_tools(),
             *build_github_tools(GitHub(config, sandbox)),
             *build_desktop_tools(config.desktop, sandbox, approvals=approvals),
             *build_routine_tools(RoutineStore()),

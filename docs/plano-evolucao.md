@@ -162,3 +162,28 @@ os projetos.
 - Meter a workspace toda no prompt (custo e fuga de segredos).
 - Trocar de modelo por intuicao.
 - "Melhorar a personalidade" sem eval, que se desfaz na proxima alteracao.
+
+## Fase 3.2, feita a 2026-11-28
+
+`nox/tools/workspace.py` da ao Nox duas ferramentas de leitura da workspace do
+desktop, por SSH com a chave que ja existia:
+
+- `workspace_list(path)` lista pastas e ficheiros com tamanho.
+- `workspace_read(path, max_lines=150)` le texto, cortado a 12 000 caracteres.
+
+Lista branca em codigo, nao em prompt: so `E:/Workspace/Projects`,
+`E:/Workspace/AI-Resources`, `E:/Workspace/Workspace-Vault` e o `AGENTS.md` da
+raiz. Recusa `Dev/secrets`, `bitwarden.env`, `.env`, `.git`, `node_modules`,
+venvs, chaves privadas (`id_*`, `*_ed25519` sem `.pub`), `.pem`, `.key`, `.kdbx`.
+A recusa acontece antes de sair da maquina. Um ficheiro vazio devolve erro em vez
+de "conteudo vazio".
+
+Dois limites aprendidos a medir: a listagem corta as 60 entradas e a leitura as
+150 linhas, porque no plano gratuito (8000 tokens/minuto) uma lista completa
+gastava o minuto num pedido e o seguinte vinha 429. E o modelo pequeno repetia a
+mesma chamada quando o resultado era grande; o agente agora deteta a repeticao e
+devolve "ja executaste esta chamada".
+
+Provado em producao: lista real de `Projects/NoxSec`; leitura da nota
+`02 Projetos/NoxSec/NoxSec.md`; recusa de `Dev/secrets/bitwarden.env` com
+"nao posso aceder a ficheiros de segredos".
